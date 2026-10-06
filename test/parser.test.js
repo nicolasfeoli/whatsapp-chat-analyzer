@@ -1,10 +1,7 @@
 // Run with: node --test
-// Loads the parser and analysis straight out of index.html, so the page stays a single file.
 // Every chat line here is invented. Never add a real export to this folder.
-const test=require('node:test');const assert=require('node:assert');const fs=require('fs');const path=require('path');
-const html=fs.readFileSync(path.join(__dirname,'..','index.html'),'utf8');
-const src=html.slice(html.indexOf('const esc='),html.indexOf('/* ---------- rendering'));
-const {parseChat,analyze,median,EMOJI}=new Function(src+';return {parseChat,analyze,median,EMOJI};')();
+const test=require('node:test');const assert=require('node:assert');
+const {parseChat,analyze,crunch,median,EMOJI}=require('../core.js');
 const LRM='\u200e',NNBSP='\u202f';
 const run=(lines,order,locale)=>{const r=parseChat(lines.join('\r\n'),order,locale);return {...r,A:r.msgs.length?analyze(r.msgs):null};};
 const who=(A,n)=>A.people.find(p=>p.name===n);
@@ -126,4 +123,23 @@ test('large chats do not overflow the stack',()=>{
 
 test('emoji counting: keycaps, flags, ZWJ families, skin tones',()=>{
   assert.deepEqual('1️⃣ 🇨🇷 👨‍👩‍👧 👍🏽 🏴󠁧󠁢󠁥󠁮󠁧󠁿 ok 12'.match(EMOJI).length,5);
+});
+
+test('parse report counts what was read and skipped',()=>{
+  const {report}=run([
+    `12/31/23, 9:58 PM - Messages and calls are end-to-end encrypted.`,
+    `12/31/23, 10:00 PM - Ana: hi`,
+    `more`,
+    ``,
+    `2/30/23, 10:01 PM - Bob: bad date`,
+    `12/31/23, 10:02 PM - Bob: ok`,
+  ]);
+  assert.deepEqual(report,{lines:5,entries:4,notices:1,badDates:1,folded:0,platform:'Android'});
+  assert.equal(run([`[31/12/2023, 22:00:00] Ana: hi`]).report.platform,'iPhone');
+});
+
+test('crunch returns what the page draws, or empty',()=>{
+  assert.deepEqual(crunch('not a chat',null,'en-US'),{empty:true});
+  const d=crunch('12/31/23, 10:00 PM - Ana: hi',null,'en-US');
+  assert.equal(d.A.total,1);assert.equal(d.order,'mdy');assert.equal(d.A.minuteRes,true);assert.equal(d.report.entries,1);
 });
