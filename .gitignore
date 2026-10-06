@@ -1,0 +1,9 @@
+# Real chat exports must never be committed. Keep test chats outside the repo
+# or under fixtures/ with invented content only.
+*.zip
+_chat.txt
+WhatsApp Chat*.txt
+Chat de WhatsApp*.txt
+exports/
+private/
+.DS_Store
