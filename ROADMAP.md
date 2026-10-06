@@ -4,30 +4,36 @@ Review of `index.html` as of 2026-10-05. The parser and analysis code were run i
 
 ## Verdict
 
-The page works, renders correctly, and the core design is sound: no backend, no storage, all untrusted text is HTML-escaped before it reaches the DOM. No XSS path was found. It is not ready to be public yet, mainly because of one crash on large chats, a few iPhone parsing gaps, and third-party requests that weaken the "never uploaded" promise.
+The page works, renders correctly, and the core design is sound: no backend, no storage, all untrusted text is HTML-escaped before it reaches the DOM. No XSS path was found. The bugs from the first review are fixed (below). What still stands between this and a public launch is in "Before going public".
 
-## Bugs found
+## Fixed on 2026-10-05
 
-Ordered by how much they matter.
+Each fix has a test in `test/parser.test.js` (run `node --test`), and the page was checked against one real iPhone en-US export.
 
-1. **Crash on large chats.** `Math.max(...recs.map(...))` in `parseChat` spreads one argument per message. At about 125,000 messages Chrome and Node throw "Maximum call stack size exceeded"; Safari's limit is lower (about 65,000). Confirmed: 70,000 messages parse, 130,000 throw. Long-running couple and group chats reach this. Fix: replace with a loop.
-2. **iPhone deleted messages are never counted.** iOS prefixes them with an invisible left-to-right mark, and the parser discards any line with that mark before checking whether it is a deleted message. The Deleted column is always 0 for iPhone exports. The same rule silently drops iOS locations, polls and contact cards.
-3. **Reply times on Android show "1 s".** Android exports have minute resolution, so replies within the same minute have a gap of 0, which is displayed as "1 s". Should read "under 1 min", and the two platforms should not be presented with the same precision.
-4. **Wrong `.txt` picked from a zip.** The code takes the first `.txt` in the archive. An export "with media" can contain other `.txt` attachments. Prefer `_chat.txt` or `WhatsApp Chat with *.txt`, then fall back to the largest.
-5. **People whose name contains certain words vanish.** Any sender name containing "left", "added", "joined", "changed", "removed", "created", "deleted" (or the Spanish equivalents) is treated as a system message. A contact saved as "Left Shark" disappears.
-6. **Quoted chat text creates phantom participants.** A message that contains a pasted line in export format starts a new message from a new "person". Mitigation: reject a timestamp that jumps backwards relative to both neighbours.
-7. **Ambiguous dates default to day/month.** When every day and month is 12 or lower and both readings are in order, the code picks day/month. A US user gets a wrong timeline until they find the Switch link. Tie-break with `navigator.language`.
-8. **Impossible dates roll over silently.** 31/02 becomes 2 March instead of being rejected.
-9. **Only English and Spanish markers are recognised.** In German or Portuguese exports, "media omitted" and "message deleted" lines count as normal text and pollute the word list ("medien", "ausgeschlossen"). Non-Latin digits (Arabic, Persian, Hindi) give "No messages found".
-10. **Smaller counting errors.** Keycap emojis (1️⃣) and subdivision flags are not counted. Android `null` and `POLL:` lines count as text. The insight uses a 5-reply minimum while the chart uses 3. A participant literally named "Others" collides with the grouped series.
-11. **Markup.** `<title>`, `<link>` and `<style>` sit inside `<body>`; no `lang` attribute; the wrapper declares `color-scheme: light` while the page supports dark. Browsers tolerate it, validators do not.
+1. **Crash on large chats.** The spread into `Math.max` is now a loop. Tested with 400,000 messages.
+2. **iPhone deleted messages, locations and polls.** Lines carrying the left-to-right mark are now classified by type instead of all being dropped. System notices are still dropped.
+3. **Reply times on Android.** Minute-resolution exports are detected; a same-minute reply reads "under 1 min" and the chart says times are rounded.
+4. **Wrong `.txt` picked from a zip.** Prefers `_chat.txt`, then a file with "WhatsApp" in its name, then a top-level `.txt`.
+5. **People named like system verbs.** "Left Shark" is kept; "Bob changed the group name to ..." is still dropped.
+6. **Pasted chat lines.** A sender who only appears in short runs that jump back in time is folded into the message the lines were pasted in. Pasted lines from real participants still count as their messages; see the comment on `foldQuoted` for why.
+7. **Ambiguous dates.** With both readings in order, the shorter overall span wins, then the browser region. The manual switch remains.
+8. **Impossible dates** such as 31/02 are rejected.
+9. **Other languages.** Android placeholders are recognised in any language. Deleted, attachment, poll and location markers were added for Portuguese, German, French and Italian. Arabic, Persian and Devanagari digits and Arabic am/pm are read. These strings come from memory of the export formats and have not been checked against real exports in those languages.
+10. **Counting.** Keycap emojis and subdivision flags are counted; Android `null` lines count as media; the reply insight and chart share one threshold; a participant named "Others" no longer collides with the grouped series.
+11. **Markup.** Proper `<head>`, `lang`, meta description.
+12. **Third-party requests.** JSZip and the fonts are vendored under `vendor/`. The page now makes no request to any other server.
+
+## Known limits
+
+- Pasted chat lines from a real participant are counted as extra messages from them.
+- iPhone system or media lines in a language without a marker table are dropped rather than counted.
+- A message that only says something like `<lol>` is counted as media.
+- Only Latin and Latin Extended font subsets are vendored.
 
 ## Risks of running it publicly
 
 ### Privacy and trust
 
-- **Third-party script without integrity check.** JSZip loads from cdnjs with no `integrity` attribute. Whoever can change that file can read every chat loaded on the page. Vendor it into the repo or add SRI.
-- **Google Fonts request.** Every visitor's IP goes to Google before they do anything. It undercuts the privacy pitch and has drawn GDPR complaints in the EU. Self-host the fonts or use system fonts.
 - **The promise is not enforced.** "Never uploaded" is true today but only by convention. A Content-Security-Policy with `connect-src 'none'` makes the browser enforce it, and lets visitors verify it.
 - **Future additions can break it by accident.** Analytics, error reporters such as Sentry, session replay, and "AI summary" features all tend to capture page content. Each would ship private messages to a third party.
 - **Other people's data.** A chat contains messages from people who did not agree to analysis. With no server you are not processing it, and that must stay true.
@@ -50,19 +56,17 @@ Ordered by how much they matter.
 
 ### Before going public
 
-- Fix bugs 1 to 4.
-- Vendor JSZip and fonts; add a CSP meta tag (`default-src 'self'; connect-src 'none'`; hashes for inline script and style, or split them into files).
+- Add a CSP meta tag (`default-src 'self'; connect-src 'none'`; hashes for inline script and style, or split them into files).
 - Add a visible parse report: lines read, messages parsed, lines skipped, detected platform and date order.
-- Add a "not affiliated" line and a short privacy note in the footer with a link to the source.
-- Add a licence, `lang`, meta description, favicon, and Open Graph tags; move head elements into `<head>`.
+- Add a short privacy note in the footer with a link to the source.
+- Add a licence, favicon, and Open Graph tags.
 - Cap input size with a clear message, and parse in a Web Worker with a progress indicator.
 
 ### Correctness and robustness
 
-- Split parser, analysis and rendering into modules with a test suite and invented fixtures per platform and locale.
-- Table-driven locale packs for system, media and deleted markers (start with PT, DE, FR, IT).
-- Normalise non-Latin digits before matching.
-- Handle iOS left-to-right-mark lines by type instead of dropping them all.
+- Split parser, analysis and rendering into modules.
+- Verify the PT, DE, FR and IT markers against real exports, and move them into table-driven locale packs.
+- Fold pasted chat lines from real participants without breaking time-zone changes.
 - Let the user merge participants (renamed contacts, number versus saved name) and exclude one.
 - Report edited-message counts; they are already detected and then thrown away.
 - Use `Intl.Segmenter` for emoji and for word splitting in languages without spaces.

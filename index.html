@@ -1,7 +1,16 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#faf9f5;color:#141413}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>WhatsApp Chat Analyzer</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<meta name="description" content="See who writes most, when a chat is alive and how fast each person replies. Your WhatsApp export is read inside the browser and never uploaded.">
+<link rel="stylesheet" href="vendor/fonts/fonts.css">
 <style>
+:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;padding:0}
+img{max-width:100%}
 /* Layout: one reading column. Loader on top, then a summary strip, then findings as plain sections separated by rules; only chat excerpts get bubble styling. */
 :root{
   --bg:#f2f5f4; --surface:#fcfdfc; --surface-2:#e8edeb; --ink:#111917; --ink-2:#47534f; --muted:#74807c; --line:#d9e0dd;
@@ -127,7 +136,8 @@ td:first-child{display:flex;align-items:center;gap:8px}
 #tip .r b{font-family:var(--mono);font-weight:500}
 footer{font-size:13px;color:var(--muted);border-top:1px solid var(--line);padding-top:14px}
 </style>
-
+</head>
+<body>
 <div class="wrap">
   <header style="display:flex;flex-direction:column;gap:8px">
     <h1>WhatsApp Chat Analyzer</h1>
@@ -159,11 +169,11 @@ footer{font-size:13px;color:var(--muted);border-top:1px solid var(--line);paddin
 
   <div id="out" style="display:flex;flex-direction:column;gap:36px"></div>
 
-  <footer>Works with Android and iPhone exports in English and Spanish, 12 or 24 hour clocks. Reply times count only replies sent within 12 hours. A new conversation starts after 8 hours of silence.</footer>
+  <footer>Works with Android and iPhone exports, 12 or 24 hour clocks. English and Spanish are fully supported; Portuguese, German, French and Italian on a best-effort basis. Reply times count only replies sent within 12 hours. A new conversation starts after 8 hours of silence. Not affiliated with WhatsApp or Meta.</footer>
 </div>
 <div id="tip" hidden></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="vendor/jszip.min.js"></script>
 <script>
 (function(){
 "use strict";
@@ -181,56 +191,102 @@ function fmtDur(ms){const s=ms/1000;if(s<60)return Math.max(1,Math.round(s))+' s
 const median=a=>{if(!a.length)return null;const b=a.slice().sort((x,y)=>x-y);const m=b.length>>1;return b.length%2?b[m]:(b[m-1]+b[m])/2;};
 
 /* ---------- parsing ---------- */
-const LINE=/^\[?(\d{1,4})[\/.\-](\d{1,2})[\/.\-](\d{1,4}),?\s+(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?\s*(?:([ap])\.?\s?m\.?)?\s*(?:\]|\s-)\s*(.*)$/i;
-const MEDIA=[/^<[^>]*(omitted|omitido|omitida)[^>]*>$/i,/^(image|video|audio|sticker|gif|document|contact card|imagen|v[ií]deo|documento|tarjeta de contacto|nota de voz|voice message)\s+(omitted|omitido|omitida)$/i,/<(attached|adjunto):\s*[^>]+>/i,/\((file attached|archivo adjunto)\)\s*$/i];
-const DELETED=/^(this message was deleted|you deleted this message|se elimin[oó] este mensaje|eliminaste este mensaje)\.?$/i;
+/* Invisible characters are written as escapes on purpose: \u200e is the left-to-right mark iPhone exports put in front of anything that is not typed text. */
+const LINE=/^\[?(\d{1,4})[\/.\-](\d{1,2})[\/.\-](\d{1,4})[,\u060c]?\s+(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?\s*(?:([ap])\.?\s?m\.?|([\u0635\u0645]))?\s*(?:\]|\s-)\s*(.*)$/i;
+const INVIS=/[\u200e\u200f\u202a-\u202e\ufeff]/g,INVIS_KEEP_LRM=/[\u200f\u202a-\u202e\ufeff]/g,SPACES=/[\u00a0\u202f]/g;
+const DIGITS=/[\u0660-\u0669\u06f0-\u06f9\u0966-\u096f]/g;
+const asciiDigits=s=>s.replace(DIGITS,c=>{const n=c.charCodeAt(0);return String(n-(n<0x6f0?0x660:n<0x966?0x6f0:0x966));});
+const MEDIA=[
+  /^<[^<>\n]{1,60}>$/, /* Android placeholder in any language: <Media omitted>, <Multimedia omitido> */
+  /<(?:attached|adjunto|anexado|anhang|pi[eè]ce jointe|allegato)\s?:\s*[^>]+>/i,
+  /\((?:file attached|archivo adjunto|arquivo anexado|datei angeh[aä]ngt|fichier joint|file allegato)\)\s*$/i,
+  /^(?:poll|encuesta|enquete|umfrage|sondage|sondaggio):$/i,
+  /^(?:location|ubicaci[oó]n|localiza[cç][aã]o|standort|localisation|posizione)\s?: https?:\/\/\S+$/i
+];
+/* iPhone placeholders (image omitted, GIF omitido). Only trusted when the line carries the left-to-right mark, so typed text ending in "omitted" still counts as text. */
+const IOS_MEDIA=/^[\p{L} ]{2,40}\s(?:omitted|omitid[oa]|weggelassen|omise?s?|omess[aoi]|ocult[oa]|ocultad[oa])$/iu;
+const DELETED=/^(?:this message was deleted|you deleted this message|se elimin[oó] este mensaje|eliminaste este mensaje|este mensaje fue eliminado|mensagem apagada|esta mensagem foi apagada|voc[eê] apagou esta mensagem|diese nachricht wurde gel[oö]scht|du hast diese nachricht gel[oö]scht|ce message a [eé]t[eé] supprim[eé]|vous avez supprim[eé] ce message|questo messaggio [eè] stato eliminato|hai eliminato questo messaggio)\.?$/i;
 const SYSTEXT=/(end-to-end encrypted|cifrad[oa]s? de extremo a extremo|security code|c[oó]digo de seguridad|missed (voice|video) call|llamada (de voz |de video )?perdida)/i;
-const SYSNAME=/\b(changed|added|removed|left|joined|created|deleted|cambi[oó]|a[ñn]adi[oó]|elimin[oó]|sali[oó]|cre[oó]|se uni[oó]|ahora es admin|now an admin)\b/i;
+/* "Bob changed the group name to "X: y"" parses as a sender. The verb must follow a name and be followed by more text, so a contact called "Left Shark" is kept. */
+const SYSNAME=/\S\s+(?:changed|added|removed|left|joined|created|deleted|cambi[oó]|a[ñn]adi[oó]|elimin[oó]|sali[oó]|cre[oó]|se uni[oó])\s+\S|ahora es admin|now an admin/i;
 const EDITED=/\s*<(this message was edited|se edit[oó] este mensaje\.?)>\s*$/i;
 
-function parseChat(raw,forceOrder){
-  const recs=[];let cur=null;
+function parseChat(raw,forceOrder,locale){
+  const recs=[];let cur=null,hasSeconds=false;
   for(const line of raw.split(/\r?\n/)){
-    const clean=line.replace(/[‎‏‪-‮﻿]/g,'').replace(/[  ]/g,' ');
-    const m=LINE.exec(clean);
+    const clean=line.replace(INVIS,'').replace(SPACES,' ');
+    const m=LINE.exec(asciiDigits(clean));
     if(m){
       cur=null;
-      const rest=m[8];const i=rest.indexOf(': ');
+      const rest=clean.slice(clean.length-m[9].length);const i=rest.indexOf(': ');
       if(i<1)continue;
-      const who=rest.slice(0,i).trim();let text=rest.slice(i+2);
+      const who=rest.slice(0,i).trim(),text=rest.slice(i+2),body=text.trim();
       if(who.length>50||SYSNAME.test(who))continue;
-      const isMedia=MEDIA.some(r=>r.test(text.trim()));
-      if(!isMedia&&(SYSTEXT.test(text)||/: ‎/.test(line)))continue;
-      cur={a:+m[1],b:+m[2],c:+m[3],h:+m[4],mi:+m[5],s:+(m[6]||0),ap:(m[7]||'').toLowerCase(),who,text,kind:isMedia?'media':DELETED.test(text.trim())?'deleted':'text'};
+      const marked=line.replace(INVIS_KEEP_LRM,'').replace(SPACES,' ').includes(who+': \u200e');
+      let kind='text';
+      if(MEDIA.some(r=>r.test(body))||(marked&&IOS_MEDIA.test(body))||(body==='null'&&clean[0]!=='['))kind='media';
+      else if(DELETED.test(body))kind='deleted';
+      else if(marked||SYSTEXT.test(text))continue;
+      if(m[6]!==undefined)hasSeconds=true;
+      const ap=m[7]?m[7].toLowerCase():m[8]?(m[8]==='\u0635'?'a':'p'):'';
+      cur={a:+m[1],b:+m[2],c:+m[3],h:+m[4],mi:+m[5],s:+(m[6]||0),ap,who,text,kind};
       recs.push(cur);
     }else if(cur&&cur.kind==='text'){cur.text+='\n'+clean;}
   }
-  if(!recs.length)return {msgs:[],order:null,ambiguous:false};
+  if(!recs.length)return {msgs:[],order:null,ambiguous:false,minuteRes:false};
   let order=forceOrder,ambiguous=false;
   const ymd=recs[0].a>31;
   if(!ymd&&!order){
-    const maxA=Math.max(...recs.map(r=>r.a)),maxB=Math.max(...recs.map(r=>r.b));
+    let maxA=0,maxB=0;for(const r of recs){if(r.a>maxA)maxA=r.a;if(r.b>maxB)maxB=r.b;}
     if(maxA>12)order='dmy';else if(maxB>12)order='mdy';
-    else{ambiguous=true;const back=o=>{let n=0,prev=-1;for(const r of recs){const k=o==='dmy'?r.b*100+r.a:r.a*100+r.b;const v=r.c*10000+k;if(v<prev)n++;prev=v;}return n;};order=back('mdy')<back('dmy')?'mdy':'dmy';}
+    else{
+      ambiguous=true;
+      const back=o=>{let n=0,prev=-1;for(const r of recs){const k=o==='dmy'?r.b*100+r.a:r.a*100+r.b;const v=r.c*10000+k;if(v<prev)n++;prev=v;}return n;};
+      /* The wrong reading puts consecutive days a month apart, so with both in order the shorter overall span wins; if that ties too, use how this browser region writes dates. */
+      const span=o=>{const n=r=>r.c*372+(o==='dmy'?r.b*31+r.a:r.a*31+r.b);return n(recs[recs.length-1])-n(recs[0]);};
+      const bm=back('mdy'),bd=back('dmy'),sm=span('mdy'),sd=span('dmy');
+      order=bm<bd?'mdy':bd<bm?'dmy':sm<sd?'mdy':sd<sm?'dmy':/-US$/i.test(locale||'')?'mdy':'dmy';
+    }
   }else if(!ymd&&forceOrder){ambiguous=true;}
-  const msgs=[];
+  const all=[];
   for(const r of recs){
     let y,mo,d;
     if(ymd){y=r.a;mo=r.b;d=r.c;}else{y=r.c<100?2000+r.c:r.c;if(order==='dmy'){d=r.a;mo=r.b;}else{mo=r.a;d=r.b;}}
     let h=r.h;if(r.ap==='p')h=h%12+12;else if(r.ap==='a')h=h%12;
     const t=new Date(y,mo-1,d,h,r.mi,r.s);
-    if(isNaN(t)||mo>12||d>31)continue;
-    let text=r.text;const edited=EDITED.test(text);if(edited)text=text.replace(EDITED,'');
-    msgs.push({t,who:r.who,text,kind:r.kind});
+    /* Date() rolls 31/02 over to March; reject anything that did not survive as written. */
+    if(isNaN(t)||h>23||r.mi>59||t.getMonth()!==mo-1||t.getDate()!==d)continue;
+    let text=r.text;if(EDITED.test(text))text=text.replace(EDITED,'');
+    all.push({t,who:r.who,text,kind:r.kind});
   }
-  return {msgs,order:ymd?'ymd':order,ambiguous};
+  return {msgs:foldQuoted(all),order:ymd?'ymd':order,ambiguous,minuteRes:!hasSeconds};
+}
+
+/* Lines pasted from another chat look like new messages. A short run that jumps back in time and then resumes is a candidate; a sender who only ever appears inside such runs is not a participant, so those lines are folded back into the message they were pasted in. Real senders are left alone, because a phone changing time zone produces the same pattern. */
+function foldQuoted(all){
+  const TOL=10*60e3,LOOK=20,quoted=new Array(all.length).fill(false);
+  for(let i=1;i<all.length;i++){
+    const base=all[i-1].t;
+    if(all[i].t>=base-TOL)continue;
+    let j=i;while(j<all.length&&j-i<LOOK&&all[j].t<base)j++;
+    if(j-i<LOOK){for(let k=i;k<j;k++)quoted[k]=true;i=j;}
+  }
+  const seen=new Map();
+  all.forEach((m,i)=>{const s=seen.get(m.who)||[0,0];s[0]++;if(quoted[i])s[1]++;seen.set(m.who,s);});
+  const out=[];
+  all.forEach((m,i)=>{
+    const s=seen.get(m.who);
+    if(quoted[i]&&s[0]===s[1]&&out.length){const p=out[out.length-1];if(p.kind==='text')p.text+='\n'+m.who+': '+m.text;}
+    else out.push(m);
+  });
+  return out;
 }
 
 /* ---------- analysis ---------- */
 const STOP=new Set(("the and for that this with you have but not are was all can had her his him one our out day get has how its may new now old see two way who did yes too use from they them then than what when your just like will been were would there their about which could should some more into only over also very much here well back even want because these those does doing done got going really thing things know yeah okay dont don didnt im ive ill youre thats cant its isnt wasnt lets still let "+
 "que qué los las una uno unos unas del por con para como cómo pero más mas este esta esto ese esa eso esos esas estos estas hay muy sin sobre ser son fue era soy eres está esta están estoy estás estaba han has hemos tiene tengo tienes tenía van voy vas vamos nos les sus mis tus yo tu tú mi él ella ellos ellas usted ustedes vos al lo le la el en un se es no si sí ya me te de a y o e u ni ha he porque cuando donde dónde quien quién cual cuál todo toda todos todas algo nada bien bueno buena entonces también tambien tan así asi ahí ahi acá aca allá aquí aqui ahora luego después despues antes hoy ayer mañana pues igual solo sólo otra otro cada hace hacer hizo dice dijo ver vez eso ok vale sea creo puede puedo puedes quiero quieres").split(/\s+/));
 const LAUGH=/^(a*(ha){2,}h*|(ja){2,}j*a*|j+a+j+[aj]*|(je){2,}j*|(he){2,}h*|lo+l+|lmf?ao+|xd+|(ji){2,})$/i;
-const EMOJI=/\p{Regional_Indicator}{2}|\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu;
+const EMOJI=/[0-9#*]\ufe0f?\u20e3|\u{1F3F4}[\u{E0020}-\u{E007E}]+\u{E007F}|\p{Regional_Indicator}{2}|\p{Extended_Pictographic}(?:\ufe0f|\u200d\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu;
 const URL=/https?:\/\/\S+|www\.\S+/gi;
 const dayKey=d=>d.getFullYear()*10000+(d.getMonth()+1)*100+d.getDate();
 const startOfDay=d=>new Date(d.getFullYear(),d.getMonth(),d.getDate());
@@ -300,21 +356,21 @@ function buckets(A){
   if(span>45)mode='week';if(span>420)mode='month';if(span>365*8)mode='year';
   const floor=d=>{if(mode==='day')return startOfDay(d);if(mode==='week'){const s=startOfDay(d);s.setDate(s.getDate()-(s.getDay()+6)%7);return s;}if(mode==='month')return new Date(d.getFullYear(),d.getMonth(),1);return new Date(d.getFullYear(),0,1);};
   const next=d=>{const n=new Date(d);if(mode==='day')n.setDate(n.getDate()+1);else if(mode==='week')n.setDate(n.getDate()+7);else if(mode==='month')n.setMonth(n.getMonth()+1);else n.setFullYear(n.getFullYear()+1);return n;};
-  const series=A.people.slice(0,6).map(p=>p.name);const hasOther=A.people.length>6;if(hasOther)series.push('Others');
-  const idx=new Map(series.map((s,i)=>[s,i]));
+  const series=A.people.slice(0,6).map(p=>p.name);const idx=new Map(series.map((s,i)=>[s,i]));
+  const other=A.people.length>6?series.push('Others')-1:-1;
   const list=[];const pos=new Map();
   for(let d=floor(A.first),end=floor(A.last);d<=end;d=next(d)){pos.set(+d,list.length);list.push({d,v:new Array(series.length).fill(0),tot:0});}
   for(const m of A.msgs){const b=list[pos.get(+floor(m.t))];if(!b)continue;const i=idx.has(m.who)?idx.get(m.who):series.length-1;b.v[i]++;b.tot++;}
   const label=d=>mode==='year'?String(d.getFullYear()):mode==='month'?MON[d.getMonth()]+' '+String(d.getFullYear()).slice(2):dShort(d);
   const full=d=>mode==='year'?String(d.getFullYear()):mode==='month'?MON[d.getMonth()]+' '+d.getFullYear():mode==='week'?'Week of '+dLong(d):dLong(d);
-  return {mode,series,list,label,full};
+  return {mode,series,other,list,label,full};
 }
 function niceMax(v){const e=Math.pow(10,Math.floor(Math.log10(v||1)));const f=v/e;const step=(f<=2?0.5:f<=5?1:2)*e;return {step,max:Math.ceil(v/step)*step};}
 
 let TL=null;
 function drawTimeline(){
   if(!TL)return;const el=$('timeline');if(!el)return;
-  const {series,list,label,full}=TL;
+  const {series,other,list,label,full}=TL;
   const W=Math.max(300,el.clientWidth),H=250,L=44,R=26,T=10,B=24;
   const n=list.length,bw=(W-L-R)/n,gap=bw>6?2:bw>3?1:0,w=Math.max(1,bw-gap);
   const {step,max}=niceMax(Math.max(...list.map(b=>b.tot),1));
@@ -325,7 +381,7 @@ function drawTimeline(){
   list.forEach((b,i)=>{
     const x=L+i*bw+gap/2;let acc=0;const top=b.v.reduce((t,v,j)=>v>0?j:t,-1);
     b.v.forEach((v,j)=>{if(!v)return;const y1=y(acc+v),y0=y(acc);let h=y0-y1;const sg=(acc>0&&h>3&&gap)?1.5:0;h-=sg;acc+=v;
-      const col=series[j]==='Others'?'var(--other)':colorOf(series[j]);
+      const col=j===other?'var(--other)':colorOf(series[j]);
       if(j===top){const r=Math.min(3,h,w/2);s+=`<path fill="${col}" d="M${x},${y1+h}V${y1+r}Q${x},${y1} ${x+r},${y1}H${x+w-r}Q${x+w},${y1} ${x+w},${y1+r}V${y1+h}Z"/>`;}
       else s+=`<rect fill="${col}" x="${x}" y="${y1}" width="${w}" height="${Math.max(0.5,h)}"/>`;});
     if(i%every===0)s+=`<text class="axis-t" x="${x+w/2}" y="${H-7}" text-anchor="middle">${label(b.d)}</text>`;
@@ -334,7 +390,7 @@ function drawTimeline(){
   el.innerHTML=s+'</svg>';
   el.querySelectorAll('.hover-band').forEach(r=>{
     r.addEventListener('pointermove',e=>{const b=list[+r.dataset.i];r.classList.add('on');
-      showTip(`<div class="t">${full(b.d)}</div>`+series.map((sn,j)=>b.v[j]?`<div class="r"><span><i class="sw" style="background:${sn==='Others'?'var(--other)':colorOf(sn)}"></i>${esc(sn)}</span><b>${fmt(b.v[j])}</b></div>`:'').join('')+(series.length>1?`<div class="r"><span>Total</span><b>${fmt(b.tot)}</b></div>`:''),e);});
+      showTip(`<div class="t">${full(b.d)}</div>`+series.map((sn,j)=>b.v[j]?`<div class="r"><span><i class="sw" style="background:${j===other?'var(--other)':colorOf(sn)}"></i>${esc(sn)}</span><b>${fmt(b.v[j])}</b></div>`:'').join('')+(series.length>1?`<div class="r"><span>Total</span><b>${fmt(b.tot)}</b></div>`:''),e);});
     r.addEventListener('pointerleave',()=>{r.classList.remove('on');hideTip();});
   });
 }
@@ -342,9 +398,11 @@ function drawTimeline(){
 function render(A,title){
   colorMap=new Map(A.people.slice(0,6).map((p,i)=>[p.name,`var(--s${i+1})`]));
   const ppl=A.people,top=ppl.slice(0,8),multi=ppl.length>1;
+  /* Android exports only record the minute, so a same-minute reply has a gap of 0. */
+  const fmtReply=ms=>A.minuteRes&&ms<60e3?'under 1 min':fmtDur(ms);
   const totalWords=ppl.reduce((s,p)=>s+p.words,0),totalMedia=ppl.reduce((s,p)=>s+p.media,0);
   let h='';
-  h+=`<div class="chat-head"><h2>${esc(title)}</h2><div class="chat-meta mono">${dLong(A.first)} to ${dLong(A.last)} · ${fmt(A.spanDays)} days</div><div class="legend">${ppl.slice(0,6).map(p=>`<span>${sw(p.name)}${esc(p.name)}</span>`).join('')}${ppl.length>6?`<span><i class="sw" style="background:var(--other)"></i>${ppl.length-6} others</span>`:''}</div></div>`;
+  h+=`<div class="chat-head"><h2>${esc(title)}</h2><div class="chat-meta mono">${dLong(A.first)} to ${dLong(A.last)} · ${fmt(A.spanDays)} day${A.spanDays===1?'':'s'}</div><div class="legend">${ppl.slice(0,6).map(p=>`<span>${sw(p.name)}${esc(p.name)}</span>`).join('')}${ppl.length>6?`<span><i class="sw" style="background:var(--other)"></i>${ppl.length-6} others</span>`:''}</div></div>`;
   h+=`<div class="stats">
     <div class="stat"><b>${fmt(A.total)}</b><span>messages</span></div>
     <div class="stat"><b>${fmt(totalWords)}</b><span>words</span></div>
@@ -366,7 +424,7 @@ function render(A,title){
   ins.push(`The quietest day of the week is <b>${DAYS[qd]}</b>.`);
   if(multi){
     const rep=top.filter(p=>p.gaps.length>=5).map(p=>({p,m:median(p.gaps)})).sort((a,b)=>a.m-b.m);
-    if(rep.length>=2)ins.push(`${nm(rep[0].p.name)} replies fastest, typically in <b>${fmtDur(rep[0].m)}</b>. ${nm(rep[rep.length-1].p.name)} takes ${fmtDur(rep[rep.length-1].m)}.`);
+    if(rep.length>=2)ins.push(`${nm(rep[0].p.name)} replies fastest, typically in <b>${fmtReply(rep[0].m)}</b>. ${nm(rep[rep.length-1].p.name)} takes ${fmtReply(rep[rep.length-1].m)}.`);
     const st=ppl.slice().sort((a,b)=>b.starts-a.starts)[0];
     ins.push(`${nm(st.name)} starts <b>${pct(st.starts/A.convos)}</b> of the conversations (${fmt(st.starts)} of ${fmt(A.convos)}).`);
   }
@@ -403,9 +461,9 @@ function render(A,title){
 
   /* replies */
   if(multi){
-    const rep=top.filter(p=>p.gaps.length>=3).map(p=>({label:p.name,value:median(p.gaps),color:colorOf(p.name),display:fmtDur(median(p.gaps))}));
+    const rep=top.filter(p=>p.gaps.length>=5).map(p=>({label:p.name,value:median(p.gaps),color:colorOf(p.name),display:fmtReply(median(p.gaps))}));
     h+=`<section><div class="sec-head"><h2>Replies and openings</h2></div><div class="two">
-      <div><h3>Typical time to reply</h3>${rep.length?hbars(rep):'<p class="hint">Not enough back and forth to measure.</p>'}</div>
+      <div><h3>Typical time to reply</h3>${rep.length?hbars(rep)+(A.minuteRes?'<p class="hint">This export records times to the minute, so replies are rounded.</p>':''):'<p class="hint">Not enough back and forth to measure.</p>'}</div>
       <div><h3>Conversations started</h3>${hbars(top.map(p=>({label:p.name,value:p.starts,color:colorOf(p.name),display:fmt(p.starts)})))}</div></div></section>`;
   }
 
@@ -444,13 +502,13 @@ addEventListener('scroll',hideTip,{passive:true});
 let state={raw:'',title:'',order:null};
 function status(msg){const s=$('status');s.hidden=!msg;s.textContent=msg||'';}
 function run(raw,title,forceOrder,isSample){
-  const r=parseChat(raw,forceOrder);
+  const r=parseChat(raw,forceOrder,navigator.language);
   if(!r.msgs.length){status('No messages found in that file. Check that it is a WhatsApp chat export (.txt or .zip).');return;}
   state={raw,title,order:r.order};status('');
   $('sampleNote').hidden=!isSample;
   $('dateRow').hidden=!r.ambiguous||isSample;
   if(r.ambiguous)$('dateMsg').textContent='Dates in this file could be read two ways. Reading them as '+(r.order==='dmy'?'day/month/year':'month/day/year')+'. If the timeline looks wrong:';
-  render(analyze(r.msgs),title);
+  const A=analyze(r.msgs);A.minuteRes=r.minuteRes;render(A,title);
 }
 function cleanTitle(name,raw){
   let t=name.replace(/\.(txt|zip)$/i,'').replace(/^(WhatsApp Chat (with|-)\s*|Chat de WhatsApp con\s*)/i,'').trim();
@@ -462,7 +520,11 @@ async function loadFile(f){
     status('Reading '+f.name+' …');let text;
     if(/\.zip$/i.test(f.name)||f.type==='application/zip'){
       if(!window.JSZip)throw new Error('The zip reader did not load. Unzip the file and load the .txt inside it.');
-      const z=await JSZip.loadAsync(f);const entry=Object.values(z.files).find(e=>!e.dir&&/\.txt$/i.test(e.name));
+      const z=await JSZip.loadAsync(f);
+      /* An export with media can hold other .txt attachments; take the chat itself. */
+      const txts=Object.values(z.files).filter(e=>!e.dir&&/\.txt$/i.test(e.name)&&!/^__MACOSX\//.test(e.name));
+      const base=e=>e.name.split('/').pop();
+      const entry=txts.find(e=>/^_chat\.txt$/i.test(base(e)))||txts.find(e=>/whatsapp/i.test(base(e)))||txts.find(e=>!e.name.includes('/'))||txts[0];
       if(!entry)throw new Error('That zip has no .txt chat file inside.');
       text=await entry.async('string');
     }else text=await f.text();
@@ -498,7 +560,7 @@ function sampleChat(){
       let who=r()<0.63?A:B;const n=(big?25:2)+Math.floor(r()*r()*24);
       for(let i=0;i<n;i++){
         let txt;const x=r();
-        if(x<0.05)txt='‎'+pick(['image omitted','image omitted','audio omitted','sticker omitted','video omitted']);
+        if(x<0.05)txt='\u200e'+pick(['image omitted','image omitted','audio omitted','sticker omitted','video omitted']);
         else if(x<0.5)txt=pick(shared)+(who===A&&r()<0.25?' '+pick(['😊','❤️','😂','🙈','✨']):'')+(r()<0.12?'?':'');
         else txt=pick(who===A?mA:mB);
         if(r()<0.015)txt='I had a long day so let me tell you everything: first the train was delayed for forty minutes, then the meeting ran over, then I realised I left my lunch at home, and after all that the client finally signed the contract we have been chasing since March, so tonight we celebrate and I am choosing the restaurant';
@@ -514,5 +576,5 @@ function sampleChat(){
 run(sampleChat(),'Marta and Diego (example)',null,true);
 })();
 </script>
-
-</body></html>
+</body>
+</html>

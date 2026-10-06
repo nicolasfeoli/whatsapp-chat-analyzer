@@ -20,11 +20,22 @@ Then load an export: in WhatsApp open a chat, choose Export chat, pick Without m
 
 - Android and iPhone exports, English and Spanish, 12 or 24 hour clocks
 - Day/month and month/day dates, with a manual switch when the file is ambiguous
-- `.zip` exports (via JSZip, loaded from cdnjs)
+- Portuguese, German, French and Italian on a best-effort basis
+- `.zip` exports (JSZip, vendored)
+
+The page loads nothing from other servers; the zip library and fonts live in `vendor/`.
+
+## Tests
+
+```sh
+node --test
+```
+
+The tests read the parser straight out of `index.html` and use invented chats only.
 
 ## Status
 
-The page was generated with AI and then reviewed. Known bugs, risks of hosting it publicly, and planned work are in [ROADMAP.md](ROADMAP.md).
+The page was generated with AI and then reviewed. Fixed bugs, known limits, risks of hosting it publicly, and planned work are in [ROADMAP.md](ROADMAP.md).
 
 ## Contributing test data
 
