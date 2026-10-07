@@ -221,6 +221,24 @@ describe('renderChatReport', () => {
       expect(headings.slice(2, 4)).toEqual(['Who says what', 'What gets sent']);
     });
 
+    it('adds when each person writes after the heatmap once somebody wrote a hundred messages', () => {
+      /* Two hundred messages a minute apart from 20:00 on, a hundred from each of Ana and Bob. */
+      const lines = Array.from({ length: 200 }, (_unused, index): string => {
+        const hour = 20 + Math.floor(index / 60);
+        const time = `${String(hour)}:${String(index % 60).padStart(2, '0')}:00`;
+        const sender = index % 2 === 0 ? 'Ana' : 'Bob';
+        return iphoneLine({ date: '13/01/2024', time, sender, text: 'see you later' });
+      });
+      const page = parseMarkup(renderChatReport(analyseExport(exportText(lines)), 'Two').html);
+
+      const headings = textsOfElements(page, 'h2');
+      const heatmapPosition = headings.indexOf('When the chat is alive');
+
+      expect(headings[heatmapPosition + 1]).toBe('When each person writes');
+      /* 13 January 2024 is a Saturday; the first sixty messages fall in the hour from 20:00. */
+      expect(textsOfElements(page, 'tbody td')).toContain('Mostly on Saturdays, around 20:00');
+    });
+
     it('does not count the words of a media placeholder among the most used words', () => {
       const withStickers = analyseExport(
         exportText([

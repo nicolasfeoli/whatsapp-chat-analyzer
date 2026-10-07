@@ -673,7 +673,8 @@ td:first-child {
   gap: 6px;
   font-weight: 600;
 }
-td.presence-gone-quiet {
+td.presence-gone-quiet,
+td.peak-times-unknown {
   color: var(--muted);
   font-style: italic;
 }
