@@ -13,6 +13,7 @@ import type { TimelineData } from './charts/timeline-buckets';
 import { joinHtml } from './html';
 import type { SafeHtml } from './html';
 import { assignPersonColours } from './person-colours';
+import { renderAwardsSection } from './sections/awards';
 import { DEFAULT_PEOPLE_SHOWN } from './sections/featured-people';
 import type { PeopleShown } from './sections/featured-people';
 import { renderConversationEndingsSection } from './sections/conversation-endings';
@@ -69,6 +70,7 @@ export function renderChatReport(
   const sections: readonly SafeHtml[] = [
     renderSummarySection(analysis, title, personColours),
     renderInsightsSection(analysis, peopleShown),
+    renderAwardsSection(analysis, personColours, peopleShown),
     renderPeopleSection(analysis, personColours, peopleShown),
     renderMediaTypesSection(analysis, personColours, peopleShown),
     renderTimelineSection(timeline.granularity),

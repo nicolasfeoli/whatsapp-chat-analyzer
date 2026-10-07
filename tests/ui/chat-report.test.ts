@@ -136,6 +136,7 @@ describe('renderChatReport', () => {
       expect(textsOfElements(page, 'h2')).toEqual([
         'Ana and Bob',
         'What stands out',
+        'Awards',
         'Who says what',
         'Activity over time',
         'When the chat is alive',
@@ -154,6 +155,7 @@ describe('renderChatReport', () => {
       expect(outline).toEqual([
         'chat-heading',
         'headline-statistics',
+        'SECTION',
         'SECTION',
         'SECTION',
         'SECTION',
