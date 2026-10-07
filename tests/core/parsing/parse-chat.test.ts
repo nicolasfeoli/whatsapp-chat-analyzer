@@ -202,6 +202,46 @@ describe('parseChat', () => {
       });
     });
 
+    it('still marks a message whose note is followed by an empty line', () => {
+      const rawText = exportText([
+        androidLine({ text: 'first line' }),
+        'second line <This message was edited>',
+        '',
+        androidLine({ sender: 'Bob', text: 'ok' }),
+      ]);
+
+      expect(parseChat(rawText).messages[0]).toMatchObject({
+        text: 'first line\nsecond line',
+        isEdited: true,
+      });
+    });
+
+    it('goes by the last line with text when the note stands in the middle of a message', () => {
+      const rawText = exportText([
+        androidLine({ text: 'first line <This message was edited>' }),
+        '',
+        'a line typed after it',
+      ]);
+
+      expect(parseChat(rawText).messages[0]?.isEdited).toBe(false);
+    });
+
+    it('reads a message of twenty thousand lines without slowing down with every line', () => {
+      const pastedLines = new Array<string>(20_000).fill(
+        'one more line of a very long pasted text',
+      );
+      const rawText = exportText([androidLine({ text: 'read this' }), ...pastedLines]);
+
+      const startedAt = performance.now();
+      const parsedChat = parseChat(rawText);
+      const elapsedMilliseconds = performance.now() - startedAt;
+
+      expect(parsedChat.messages).toHaveLength(1);
+      expect(parsedChat.messages[0]?.isEdited).toBe(false);
+      /* Looking at the whole text again for every line took over ten seconds here; one look per line takes a few milliseconds. */
+      expect(elapsedMilliseconds).toBeLessThan(3_000);
+    });
+
     it('marks a photo whose caption was edited, although its text is only the placeholder', () => {
       const rawText = iphoneLine({
         text: `happy birthday ${LEFT_TO_RIGHT_MARK}image omitted ${LEFT_TO_RIGHT_MARK}<This message was edited>`,
@@ -681,6 +721,108 @@ describe('parseChat, the history of a group', () => {
 
   it('has no events in a chat of two', () => {
     expect(parseChat(androidLine()).groupEvents).toEqual([]);
+  });
+
+  describe('notices pasted from another chat', () => {
+    it('does not take a pasted notice from years ago for an event of this chat', () => {
+      const rawText = exportText([
+        androidLine({
+          date: '01/03/24',
+          time: '10:00',
+          sender: 'Ana',
+          text: 'look at the old group:',
+        }),
+        androidNoticeLine({ date: '05/01/20', time: '09:00', notice: 'Bob left' }),
+        androidLine({
+          date: '01/03/24',
+          time: '10:05',
+          sender: 'Bob',
+          text: 'those were the days',
+        }),
+      ]);
+
+      const parsedChat = parseChat(rawText);
+
+      expect(parsedChat.groupEvents).toEqual([]);
+      expect(parsedChat.report.systemNoticeCount).toBe(1);
+      expect(textsOf(parsedChat.messages)).toEqual([
+        'look at the old group:',
+        'those were the days',
+      ]);
+    });
+
+    it('nor a pasted notice that follows pasted messages of that other chat', () => {
+      const rawText = exportText([
+        androidLine({
+          date: '01/03/24',
+          time: '10:00',
+          sender: 'Ana',
+          text: 'look at the old group:',
+        }),
+        androidLine({ date: '05/01/20', time: '08:59', sender: 'Dani', text: 'bye everyone' }),
+        androidNoticeLine({ date: '05/01/20', time: '09:00', notice: 'Dani left' }),
+        androidLine({
+          date: '01/03/24',
+          time: '10:05',
+          sender: 'Bob',
+          text: 'those were the days',
+        }),
+      ]);
+
+      expect(parseChat(rawText).groupEvents).toEqual([]);
+    });
+
+    it('keeps the events that follow a pasted notice', () => {
+      const rawText = exportText([
+        androidLine({
+          date: '01/03/24',
+          time: '10:00',
+          sender: 'Ana',
+          text: 'look at the old group:',
+        }),
+        androidNoticeLine({ date: '05/01/20', time: '09:00', notice: 'Bob left' }),
+        androidNoticeLine({ date: '01/03/24', time: '10:05', notice: 'Ana added Carla' }),
+        androidLine({ date: '01/03/24', time: '10:06', sender: 'Carla', text: 'hello' }),
+      ]);
+
+      expect(parseChat(rawText).groupEvents).toEqual([
+        groupEvent('2024-03-01 10:05', {
+          kind: 'added',
+          actor: namedMember('Ana'),
+          members: [namedMember('Carla')],
+        }),
+      ]);
+    });
+
+    it('keeps a notice dated some hours before the message above it, as after a flight west', () => {
+      const rawText = exportText([
+        androidLine({ date: '01/03/24', time: '22:00', sender: 'Ana', text: 'boarding now' }),
+        androidNoticeLine({ date: '01/03/24', time: '15:30', notice: 'Bob left' }),
+        androidLine({ date: '01/03/24', time: '15:31', sender: 'Ana', text: 'landed' }),
+      ]);
+
+      expect(parseChat(rawText).groupEvents).toEqual([
+        groupEvent('2024-03-01 15:30', { kind: 'left', member: namedMember('Bob') }),
+      ]);
+    });
+
+    it('measures against the newest message above the notice, not against one with an impossible date', () => {
+      const rawText = exportText([
+        androidLine({ date: '01/03/24', time: '10:00', sender: 'Ana', text: 'hello' }),
+        androidLine({
+          date: '31/02/24',
+          time: '10:01',
+          sender: 'Bob',
+          text: 'a date nobody can read',
+        }),
+        androidNoticeLine({ date: '01/03/24', time: '10:02', notice: 'Bob left' }),
+        androidLine({ date: '31/12/24', time: '10:00', sender: 'Ana', text: 'bye' }),
+      ]);
+
+      expect(parseChat(rawText).groupEvents).toEqual([
+        groupEvent('2024-03-01 10:02', { kind: 'left', member: namedMember('Bob') }),
+      ]);
+    });
   });
 
   it('has no events when the file holds notices but no message', () => {

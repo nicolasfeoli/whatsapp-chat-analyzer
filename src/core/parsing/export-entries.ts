@@ -59,6 +59,12 @@ export interface ExportEntry extends TimestampParts {
 export interface ExportGroupNotice extends TimestampParts {
   /** What the notice says happened. */
   readonly change: GroupChange;
+  /**
+   * How many entries of {@link ExportEntriesReading.entries} stand above the
+   * notice in the file. A notice dated long before the entries above it was
+   * pasted from another chat, which only its place in the file can show.
+   */
+  readonly precedingEntryCount: number;
 }
 
 /** Everything the first pass learns about a file. */
@@ -205,12 +211,16 @@ function findNoticeWording(originalLine: string, lineMatch: MessageLineMatch): s
 /**
  * Reads a line that was not kept as a message as a notice about the group.
  *
+ * @param originalLine - The line as it stands in the file.
+ * @param lineMatch - What the line pattern found in it.
+ * @param precedingEntryCount - How many entries were kept before this line.
  * @returns The notice with its timestamp, or `null` when the line says nothing
  *   about who is in the group or what it is called, in which case it is dropped.
  */
 function createGroupNoticeFromLine(
   originalLine: string,
   lineMatch: MessageLineMatch,
+  precedingEntryCount: number,
 ): ExportGroupNotice | null {
   const noticeWording = findNoticeWording(originalLine, lineMatch);
   if (noticeWording === null) {
@@ -220,7 +230,7 @@ function createGroupNoticeFromLine(
   if (change === null) {
     return null;
   }
-  return { ...timestampPartsOf(lineMatch), change };
+  return { ...timestampPartsOf(lineMatch), change, precedingEntryCount };
 }
 
 /**
@@ -302,7 +312,10 @@ function createReadingProgress(): ReadingProgress {
  * the placeholder and what was collected becomes its caption.
  *
  * The note of an edited message stands at the very end of a message, so the
- * line that is now the last one decides whether the entry counts as edited.
+ * line that is now the last one decides whether the entry counts as edited. A
+ * blank line decides nothing: white space may follow the note. Only the new
+ * line is looked at, never the text collected so far, which would make a
+ * message of many lines slower to read with every line.
  */
 function appendContinuationLine(
   progress: ReadingProgress,
@@ -327,7 +340,9 @@ function appendContinuationLine(
     return;
   }
   continuedEntry.text += `\n${cleanedLine}`;
-  continuedEntry.isEdited = hasEditedMessageSuffix(continuedEntry.text);
+  if (cleanedLine.trim() !== '') {
+    continuedEntry.isEdited = hasEditedMessageSuffix(cleanedLine);
+  }
 }
 
 /**
@@ -348,7 +363,7 @@ function recordEntryLine(
   const entry = createEntryFromLine(originalLine, cleanedLine, lineMatch);
   if (entry === null) {
     progress.systemNoticeCount += 1;
-    const groupNotice = createGroupNoticeFromLine(originalLine, lineMatch);
+    const groupNotice = createGroupNoticeFromLine(originalLine, lineMatch, progress.entries.length);
     if (groupNotice !== null) {
       progress.groupNotices.push(groupNotice);
     }

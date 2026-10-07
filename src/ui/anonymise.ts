@@ -14,6 +14,8 @@
  * The events of the group history name people too, also people who never
  * wrote a message. Each of those gets a label of their own ("Member 1"), and
  * the names the group had are left out, since a group name gives a chat away.
+ * The words of their names leave the word lists like those of a participant:
+ * a group talks about the people it added whether or not they ever answer.
  */
 
 import type {
@@ -86,14 +88,51 @@ interface NameReplacement {
   readonly labelsByName: ReadonlyMap<string, string>;
   /** The label of each participant, by their name as it is compared with a mention. */
   readonly labelsByMentionedName: ReadonlyMap<string, string>;
-  /** The lower-cased words the names are made of. */
+  /** The lower-cased words the names are made of, those of the people the group history names included. */
   readonly nameWords: ReadonlySet<string>;
 }
 
 /**
- * Prepares the replacement of every name in a chat.
+ * Adds the words a name is made of to the words that are taken out of the
+ * word lists. Short words ("de", "la") are left alone, and so is a phone
+ * number, which has no letters.
  */
-function buildNameReplacement(people: readonly PersonStatistics[]): NameReplacement {
+function addWordsOfName(nameWords: Set<string>, name: string): void {
+  for (const nameWord of name.toLowerCase().match(NAME_WORD_PATTERN) ?? []) {
+    if (nameWord.length >= SHORTEST_NAME_WORD_LENGTH) {
+      nameWords.add(nameWord);
+    }
+  }
+}
+
+/**
+ * Lists the people a group event is about: whoever did it and whoever it was
+ * done to. An actor the notice does not state is left out.
+ */
+function listMembersOfGroupChange(change: GroupChange): readonly GroupMember[] {
+  switch (change.kind) {
+    case 'created':
+      return [change.creator];
+    case 'joined':
+    case 'left':
+      return [change.member];
+    case 'added':
+    case 'removed':
+      return change.actor === null ? change.members : [change.actor, ...change.members];
+    case 'renamed':
+    case 'icon-changed':
+      return [change.actor];
+  }
+}
+
+/**
+ * Prepares the replacement of every name in a chat: the names of the people
+ * who wrote, and the words of the names the group history adds to them.
+ */
+function buildNameReplacement(
+  people: readonly PersonStatistics[],
+  groupEvents: readonly GroupEvent[],
+): NameReplacement {
   const labelsByName = new Map<string, string>();
   const labelsByMentionedName = new Map<string, string>();
   const nameWords = new Set<string>();
@@ -102,9 +141,12 @@ function buildNameReplacement(people: readonly PersonStatistics[]): NameReplacem
     const label = anonymousLabelOf(index);
     labelsByName.set(person.name, label);
     labelsByMentionedName.set(normaliseMentionedName(person.name), label);
-    for (const nameWord of person.name.toLowerCase().match(NAME_WORD_PATTERN) ?? []) {
-      if (nameWord.length >= SHORTEST_NAME_WORD_LENGTH) {
-        nameWords.add(nameWord);
+    addWordsOfName(nameWords, person.name);
+  }
+  for (const groupEvent of groupEvents) {
+    for (const member of listMembersOfGroupChange(groupEvent.change)) {
+      if (member.kind === 'named') {
+        addWordsOfName(nameWords, member.name);
       }
     }
   }
@@ -344,12 +386,13 @@ function anonymiseGroupEvents(
  * @param analysis - The analysed chat. It is not modified.
  * @returns The copy: same numbers, neutral labels instead of names (also for
  *   the senders of the milestones), hidden message texts, word lists without
- *   the words of the names, site lists without the sites named after a
- *   participant, and a group history with labels for everybody it names and
- *   without the names of the group.
+ *   the words of the names (those of the people the group history names
+ *   included), site lists without the sites named after one of them, and a
+ *   group history with labels for everybody it names and without the names
+ *   of the group.
  */
 export function anonymiseAnalysis(analysis: ChatAnalysis): ChatAnalysis {
-  const replacement = buildNameReplacement(analysis.people);
+  const replacement = buildNameReplacement(analysis.people, analysis.groupEvents);
   const longestMessage =
     analysis.longestMessage === null
       ? null

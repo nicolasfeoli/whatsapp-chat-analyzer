@@ -94,6 +94,25 @@ describe('known limits of the parser', () => {
       expect(parseChat(rawText).groupEvents).toEqual([]);
     });
 
+    it('reads a notice pasted from another chat as an event of this one when it is under a day old', () => {
+      /* Only a notice dated more than a day before the entries above it is recognised as pasted. */
+      const rawText = exportText([
+        androidLine({
+          date: '01/03/24',
+          time: '10:00',
+          sender: 'Ana',
+          text: 'from the other group:',
+        }),
+        androidNoticeLine({ date: '29/02/24', time: '18:00', notice: 'Dani left' }),
+        androidLine({ date: '01/03/24', time: '10:05', sender: 'Bob', text: 'oh no' }),
+      ]);
+
+      expect(parseChat(rawText).groupEvents[0]?.change).toEqual({
+        kind: 'left',
+        member: { kind: 'named', name: 'Dani' },
+      });
+    });
+
     it('drops an iPhone notice attributed to a sender when the export lost its mark', () => {
       /* Without the left-to-right mark the words count as typed by Bob. */
       const parsedChat = parseChat(iphoneLine({ sender: 'Bob', text: 'Bob left' }));

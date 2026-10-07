@@ -286,7 +286,8 @@ describe('renderWhoIsStillHereSection', () => {
     expect(textsOfElements(section, 'p.hint')).toEqual([
       '“Gone quiet” means no message for more than 90 days and for at least the last tenth of ' +
         'the chat, counted back from its last message on 31 Dec 2024. It does not mean somebody ' +
-        'left the group, which the page does not read from an export.',
+        'left the group: the status goes by messages alone, and who joined or left is listed ' +
+        'under “Group history” when the export says so.',
     ]);
   });
 

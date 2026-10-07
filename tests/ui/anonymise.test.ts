@@ -722,6 +722,70 @@ describe('anonymiseAnalysis, the history of the group', () => {
     expect(chatWithHistory.groupEvents[0]?.change).toMatchObject({ groupName: 'Vega family' });
   });
 
+  describe('the words of the names it gives away', () => {
+    /** Ana and Bob talk about Marta Soto, who was added and never wrote a word. */
+    const chatAboutSomebodySilent = chatAnalysis({
+      people: [
+        personStatistics({
+          name: 'Ana',
+          messageCount: 30,
+          wordCounts: new Map([
+            ['marta', 6],
+            ['dinner', 4],
+          ]),
+          linkSiteCounts: new Map([
+            ['marta-soto.example', 2],
+            ['recipes.example', 1],
+          ]),
+          signaturePhrases: [
+            { phrase: 'ask marta', count: 4 },
+            { phrase: 'see you', count: 3 },
+          ],
+        }),
+        personStatistics({ name: 'Bob', messageCount: 20, wordCounts: new Map([['soto', 3]]) }),
+      ],
+      wordCounts: new Map([
+        ['marta', 6],
+        ['soto', 3],
+        ['dinner', 4],
+      ]),
+      linkSiteCounts: new Map([
+        ['marta-soto.example', 2],
+        ['recipes.example', 1],
+      ]),
+      groupEvents: [
+        groupEvent('2023-03-14 08:01', {
+          kind: 'added',
+          actor: namedMember('Ana'),
+          members: [namedMember('Marta Soto'), namedMember('+34 600 000 000')],
+        }),
+      ],
+    });
+    const hiddenChat = anonymiseAnalysis(chatAboutSomebodySilent);
+    const [hiddenAna, hiddenBob] = hiddenChat.people;
+
+    it('takes them out of the word lists, although their owner never wrote', () => {
+      expect([...hiddenChat.wordCounts.keys()]).toEqual(['dinner']);
+      expect([...(hiddenAna?.wordCounts.keys() ?? [])]).toEqual(['dinner']);
+      expect([...(hiddenBob?.wordCounts.keys() ?? [])]).toEqual([]);
+    });
+
+    it('takes the catchphrases and the sites that hold them out as well', () => {
+      expect(hiddenAna?.signaturePhrases).toEqual([{ phrase: 'see you', count: 3 }]);
+      expect([...hiddenChat.linkSiteCounts.keys()]).toEqual(['recipes.example']);
+      expect([...(hiddenAna?.linkSiteCounts.keys() ?? [])]).toEqual(['recipes.example']);
+    });
+
+    it('keeps those words while the same chat has no such event, as in a period before it', () => {
+      const hiddenChatWithoutHistory = anonymiseAnalysis({
+        ...chatAboutSomebodySilent,
+        groupEvents: [],
+      });
+
+      expect([...hiddenChatWithoutHistory.wordCounts.keys()]).toEqual(['marta', 'soto', 'dinner']);
+    });
+  });
+
   it('leaves no name and no group name in the section', () => {
     const hiddenChat = anonymiseAnalysis(chatWithHistory);
 
