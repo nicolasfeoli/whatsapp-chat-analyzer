@@ -39,7 +39,7 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - GitHub Actions runs `npm run check` on Node 22 and 24 for every pull request and every push to `main`.
 - Bug report template that asks for invented lines instead of a real chat.
 - `CONTRIBUTING.md` with setup, code style and test conventions.
-- A Pages workflow that builds and deploys `dist/`. It only runs when started by hand, and Pages is not enabled on the repository yet.
+- A Pages workflow that builds and deploys `dist/`. It only runs when started by hand. The repository was made public and the page first deployed on 2026-10-07, to <https://nicolasfeoli.github.io/whatsapp-chat-analyzer/>.
 
 ### Rewrite in TypeScript on 2026-10-06
 
@@ -107,8 +107,8 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 These need a decision rather than more code.
 
 - Decide on the name, given the trademark risk above.
-- Make the repository public and pick a host. GitHub Pages is the simplest; a host that can send headers allows a stricter policy.
-- Once the public URL is known: add `og:url`, a social preview image, and point the footer link at the public repo.
+- Decide whether to stay on GitHub Pages. It is live there now; a host that can send headers allows a stricter policy.
+- Add a social preview image. (`og:url` is set and the footer links to the public repo.)
 - Try it by hand on a real phone, in Chrome and in Safari, with a real Android export.
 
 ### Correctness and robustness
@@ -147,7 +147,7 @@ These need a decision rather than more code.
 
 ### Project hygiene
 
-- GitHub Actions: validate HTML. Enable Pages and run the deploy workflow once a host is chosen.
+- GitHub Actions: validate HTML. Deploy to Pages on every push to `main` instead of by hand.
 - One smoke test in a real browser (Playwright against `vite preview`): load a `.txt`, check that the report renders with no Content-Security-Policy violation. It is the only way to prove that `worker-src 'self'` and `connect-src 'none'` work together with the real worker; the suite uses stand-ins for `Worker` and for the worker's global scope.
 - Dependabot for the npm dependencies.
 - A `SECURITY.md` with a contact address.

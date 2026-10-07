@@ -3,6 +3,8 @@
 [![CI](https://github.com/nicolasfeoli/whatsapp-chat-analyzer/actions/workflows/ci.yml/badge.svg)](https://github.com/nicolasfeoli/whatsapp-chat-analyzer/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
+**[Try it live](https://nicolasfeoli.github.io/whatsapp-chat-analyzer/)**: it opens with an invented example chat, and you can drop your own export on it.
+
 A static page that reads a WhatsApp chat export (`.txt` or `.zip`) and shows who writes most, when the chat is alive, how fast each person replies, and which words and emojis define it.
 
 The chat never leaves the browser tab. There is no backend, and the page's Content-Security-Policy forbids page scripts from opening a network connection.
