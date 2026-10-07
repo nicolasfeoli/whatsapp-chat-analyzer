@@ -39,7 +39,7 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - GitHub Actions runs `npm run check` on Node 22 and 24 for every pull request and every push to `main`.
 - Bug report template that asks for invented lines instead of a real chat.
 - `CONTRIBUTING.md` with setup, code style and test conventions.
-- A Pages workflow that builds and deploys `dist/`. It only runs when started by hand. The repository was made public and the page first deployed on 2026-10-07, to <https://nicolasfeoli.github.io/whatsapp-chat-analyzer/>.
+- A Pages workflow that builds and deploys `dist/`. It runs on every push to `main` and can also be started by hand. The repository was made public and the page first deployed on 2026-10-07, to <https://nicolasfeoli.github.io/whatsapp-chat-analyzer/>.
 
 ### Rewrite in TypeScript on 2026-10-06
 
@@ -147,7 +147,7 @@ These need a decision rather than more code.
 
 ### Project hygiene
 
-- GitHub Actions: validate HTML. Deploy to Pages on every push to `main` instead of by hand.
+- GitHub Actions: validate HTML.
 - One smoke test in a real browser (Playwright against `vite preview`): load a `.txt`, check that the report renders with no Content-Security-Policy violation. It is the only way to prove that `worker-src 'self'` and `connect-src 'none'` work together with the real worker; the suite uses stand-ins for `Worker` and for the worker's global scope.
 - Dependabot for the npm dependencies.
 - A `SECURITY.md` with a contact address.

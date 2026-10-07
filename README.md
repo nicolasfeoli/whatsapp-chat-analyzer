@@ -133,7 +133,7 @@ No UI framework: the report is built as escaped HTML strings, and the charts are
 - **ESLint** with the strict and stylistic type-checked rule sets of typescript-eslint. On top of them: explicit return types, no `any`, no non-null assertions, exhaustive `switch` statements, no nested ternaries, one variable per declaration, and no identifier shorter than three characters apart from `i`, `j`, `x` and `y`. `src/core` may not import from the page or the worker.
 - **Prettier** for formatting; the check fails on any unformatted file.
 - **Coverage thresholds** enforced by the test run: 90% of `src/core`, 85% of `src/ui` and 85% of `src/worker`, each measured on its own for lines, branches, functions and statements. The suite currently covers 99% of statements.
-- **CI** runs `npm run check` on Node 22 and 24 for every pull request and every push to `main`, and keeps the coverage report as an artifact.
+- **CI** runs `npm run check` on Node 22 and 24 for every pull request and every push to `main`, and keeps the coverage report as an artifact. Every push to `main` that passes the same check is also deployed to GitHub Pages.
 
 [CONTRIBUTING.md](CONTRIBUTING.md) has the conventions these tools cannot check.
 
