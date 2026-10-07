@@ -321,8 +321,9 @@ export function renderTrendTooltip(content: TrendTooltipContent): SafeHtml {
 }
 
 /**
- * Connects the tooltip to the charts inside a container. Two listeners per
- * chart serve all of its buckets.
+ * Connects the tooltip to the charts inside a container, for a pointer moving
+ * over a chart and for a tap, which arrives as a click after the pointer has
+ * already left. Three listeners per chart serve all of its buckets.
  *
  * @param container - The element the report was rendered into.
  * @param tooltip - The shared tooltip.
@@ -330,14 +331,16 @@ export function renderTrendTooltip(content: TrendTooltipContent): SafeHtml {
 export function attachTrendChartTooltips(container: ParentNode, tooltip: Tooltip): void {
   const chartElements = container.querySelectorAll<HTMLElement>(`.${TREND_CHART_CLASS}`);
   for (const chartElement of chartElements) {
-    chartElement.addEventListener('pointermove', (event: PointerEvent): void => {
+    const showTooltipAt = (event: MouseEvent): void => {
       const content = findTrendBucketAt(event.target);
       if (content === null) {
         tooltip.hide();
         return;
       }
       tooltip.show(renderTrendTooltip(content), event);
-    });
+    };
+    chartElement.addEventListener('pointermove', showTooltipAt);
+    chartElement.addEventListener('click', showTooltipAt);
     chartElement.addEventListener('pointerleave', (): void => {
       tooltip.hide();
     });

@@ -285,6 +285,21 @@ describe('attachTrendChartTooltips', () => {
     );
   });
 
+  it('shows the tooltip of a bucket that is tapped, which arrives as a click', () => {
+    const container = renderChart(shareChart);
+    const tooltip = recordingTooltip();
+    attachTrendChartTooltips(container, tooltip);
+    const secondBand = container.querySelectorAll('rect.trend-band')[1];
+
+    const tap = new Event('click', { bubbles: true });
+    secondBand?.dispatchEvent(tap);
+
+    expect(tooltip.show).toHaveBeenCalledExactlyOnceWith(
+      renderTrendTooltip(collectTrendTooltipContent(shareChart, 1)),
+      tap,
+    );
+  });
+
   it('hides the tooltip over the heading and when the pointer leaves the chart', () => {
     const container = renderChart(shareChart);
     const tooltip = recordingTooltip();

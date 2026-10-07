@@ -19,7 +19,7 @@ describe('renderHeatmapSection', () => {
 
     expect(textsOfElements(section, '.section-heading h2')).toEqual(['When the chat is alive']);
     expect(textsOfElements(section, '.section-heading p')).toEqual([
-      'Each square is one hour of one weekday. A stronger color means more messages.',
+      'Rows are the days of the week. Columns are the hours of the day, from midnight on the left to 23:00 on the right. Each square adds up every message sent in that hour on that weekday, and a stronger color means more. Hover or tap a square for its number.',
     ]);
   });
 

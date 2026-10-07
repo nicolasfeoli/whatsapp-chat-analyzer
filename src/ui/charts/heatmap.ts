@@ -32,7 +32,7 @@ const HOUR_ATTRIBUTE: SafeHtml = html`data-hour`;
 /** The attribute in which a square carries how many messages were sent in its slot. */
 const MESSAGE_COUNT_ATTRIBUTE: SafeHtml = html`data-message-count`;
 
-/** Only every third hour is labelled above the grid (00, 03, 06 ...); more would crowd. */
+/** Only every third hour is labelled above the grid (00:00, 03:00, 06:00 ...); more would crowd. */
 const HOUR_LABEL_INTERVAL = 3;
 
 /** Row labels show the first three letters of the weekday ("Mon"). */
@@ -99,15 +99,13 @@ export function findBusiestSlotCount(heatmap: WeekdayHourHeatmap): number {
 }
 
 /**
- * Draws the label above one column: the hour for every third column, nothing
- * for the columns in between.
+ * Draws the label above a group of columns: the time the first of them starts
+ * at, as in "09:00". The label spans the whole group, so it has room for the
+ * minutes that tell the reader it is a time of day.
  */
 function renderHourLabel(hour: number): SafeHtml {
-  const isLabelled = hour % HOUR_LABEL_INTERVAL === 0;
-  if (!isLabelled) {
-    return html`<div class="hour-label"></div>`;
-  }
-  return html`<div class="hour-label">${escapeHtml(padToTwoDigits(hour))}</div>`;
+  const label = `${padToTwoDigits(hour)}:00`;
+  return html`<div class="hour-label" style="grid-column:span ${HOUR_LABEL_INTERVAL}">${escapeHtml(label)}</div>`;
 }
 
 /**
@@ -116,7 +114,7 @@ function renderHourLabel(hour: number): SafeHtml {
 function renderHourLabels(): SafeHtml {
   const cornerCellHtml = html`<div></div>`;
   const labels: SafeHtml[] = [cornerCellHtml];
-  for (let hour = 0; hour < HOURS_PER_DAY; hour += 1) {
+  for (let hour = 0; hour < HOURS_PER_DAY; hour += HOUR_LABEL_INTERVAL) {
     labels.push(renderHourLabel(hour));
   }
   return joinHtml(labels);
@@ -206,7 +204,9 @@ function readHeatmapSlot(cell: HTMLElement): HeatmapSlot {
 }
 
 /**
- * Makes one square show its tooltip while the pointer is over it.
+ * Makes one square show its tooltip while the pointer is over it, and when it
+ * is tapped: a finger never hovers, and the tap on a touch screen arrives as a
+ * click after the pointer has already left.
  */
 function attachHeatmapCellEvents(cell: HTMLElement, tooltip: Tooltip): void {
   const slot = readHeatmapSlot(cell);
@@ -216,6 +216,9 @@ function attachHeatmapCellEvents(cell: HTMLElement, tooltip: Tooltip): void {
   });
   cell.addEventListener('pointerleave', (): void => {
     tooltip.hide();
+  });
+  cell.addEventListener('click', (event: MouseEvent): void => {
+    tooltip.show(renderHeatmapTooltip(slot), event);
   });
 }
 
