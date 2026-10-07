@@ -14,6 +14,8 @@ import type { PersonColours } from '../person-colours';
 import { selectMostFrequent, sumOf } from '../ranking';
 import type { CountedEntry } from '../ranking';
 import { formatWholeNumber } from '../text-formatting';
+import { DEFAULT_PEOPLE_SHOWN, renderPeopleShownNote } from './featured-people';
+import type { PeopleShown } from './featured-people';
 import { renderSectionHeading } from './section-heading';
 
 /** How many words the "Most used words" chart shows. */
@@ -143,6 +145,17 @@ function renderMostUsedEmojis(analysis: ChatAnalysis): SafeHtml {
 }
 
 /**
+ * Picks the people whose own words and phrases are listed: those with a
+ * colour of their own, or everyone when the reader asked for everyone.
+ */
+function selectListedPeople(
+  people: readonly PersonStatistics[],
+  peopleShown: PeopleShown,
+): readonly PersonStatistics[] {
+  return peopleShown === 'everyone' ? people : selectColouredPeople(people);
+}
+
+/**
  * Draws the signature words of one person, or nothing when they have none.
  */
 function renderSignatureRow(
@@ -165,18 +178,22 @@ function renderSignatureRow(
 }
 
 /**
- * Draws the "Signature words" block for the coloured people. Empty for a chat
+ * Draws the "Signature words" block for the people listed. Empty for a chat
  * with a single sender (there is nobody to differ from) and when nobody has a
  * signature word.
  */
-function renderSignatureWords(analysis: ChatAnalysis, personColours: PersonColours): SafeHtml {
+function renderSignatureWords(
+  analysis: ChatAnalysis,
+  listedPeople: readonly PersonStatistics[],
+  personColours: PersonColours,
+): SafeHtml {
   const hasSeveralPeople = analysis.people.length > 1;
   if (!hasSeveralPeople) {
     return EMPTY_HTML;
   }
 
   const rowsHtml = joinHtml(
-    selectColouredPeople(analysis.people).map((person: PersonStatistics): SafeHtml =>
+    listedPeople.map((person: PersonStatistics): SafeHtml =>
       renderSignatureRow(person, analysis.wordCounts, personColours),
     ),
   );
@@ -207,12 +224,15 @@ function renderCatchphraseRow(person: PersonStatistics, personColours: PersonCol
 }
 
 /**
- * Draws the "Catchphrases" block for the coloured people. Empty when nobody
+ * Draws the "Catchphrases" block for the people listed. Empty when nobody
  * has a phrase of their own, as in a chat with a single sender.
  */
-function renderCatchphrases(analysis: ChatAnalysis, personColours: PersonColours): SafeHtml {
+function renderCatchphrases(
+  listedPeople: readonly PersonStatistics[],
+  personColours: PersonColours,
+): SafeHtml {
   const rowsHtml = joinHtml(
-    selectColouredPeople(analysis.people).map((person: PersonStatistics): SafeHtml =>
+    listedPeople.map((person: PersonStatistics): SafeHtml =>
       renderCatchphraseRow(person, personColours),
     ),
   );
@@ -229,21 +249,30 @@ function renderCatchphrases(analysis: ChatAnalysis, personColours: PersonColours
  *
  * @param analysis - The analysed chat.
  * @param personColours - The colour assignment shared by all charts.
+ * @param peopleShown - Whether to list the words of the most active people only, or of everyone.
  * @returns A `<section>` element as markup.
  */
 export function renderWordsAndEmojisSection(
   analysis: ChatAnalysis,
   personColours: PersonColours,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
 ): SafeHtml {
+  const listedPeople = selectListedPeople(analysis.people, peopleShown);
   const headingHtml = renderSectionHeading(
     'Words and emojis',
     'Common filler words in English and Spanish are left out.',
   );
   const emojisHtml = renderMostUsedEmojis(analysis);
-  const signatureWordsHtml = renderSignatureWords(analysis, personColours);
+  const signatureWordsHtml = renderSignatureWords(analysis, listedPeople, personColours);
 
   const wordsColumnHtml = html`<div><h3>Most used words</h3>${renderMostUsedWords(analysis)}</div>`;
   const emojisColumnHtml = html`<div><h3>Most used emojis</h3>${emojisHtml}${signatureWordsHtml}</div>`;
-  const catchphrasesHtml = renderCatchphrases(analysis, personColours);
-  return html`<section>${headingHtml}<div class="two-columns">${wordsColumnHtml}${emojisColumnHtml}</div>${catchphrasesHtml}</section>`;
+  const catchphrasesHtml = renderCatchphrases(listedPeople, personColours);
+
+  /* The note only belongs under lists of people; a chat of one has none. */
+  const hasPersonLists = signatureWordsHtml !== EMPTY_HTML || catchphrasesHtml !== EMPTY_HTML;
+  const noteHtml = hasPersonLists
+    ? renderPeopleShownNote(listedPeople.length, analysis.people.length)
+    : EMPTY_HTML;
+  return html`<section>${headingHtml}<div class="two-columns">${wordsColumnHtml}${emojisColumnHtml}</div>${catchphrasesHtml}${noteHtml}</section>`;
 }

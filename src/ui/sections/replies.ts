@@ -12,7 +12,14 @@ import type { SafeHtml } from '../html';
 import { colourOfPerson } from '../person-colours';
 import type { PersonColours } from '../person-colours';
 import { formatWholeNumber } from '../text-formatting';
-import { formatReplyDelay, selectFeaturedPeople, typicalReplyDelayOf } from './featured-people';
+import {
+  DEFAULT_PEOPLE_SHOWN,
+  formatReplyDelay,
+  renderPeopleShownNote,
+  selectFeaturedPeople,
+  typicalReplyDelayOf,
+} from './featured-people';
+import type { PeopleShown } from './featured-people';
 import { renderSectionHeading } from './section-heading';
 
 /** Shown under the reply times of an export that only records minutes. */
@@ -86,24 +93,27 @@ function renderConversationStarts(
  *
  * @param analysis - The analysed chat.
  * @param personColours - The colour assignment shared by all charts.
+ * @param peopleShown - Whether to list the most active people only, or everyone.
  * @returns A `<section>` element as markup, or empty markup for a chat with a
  *   single sender, where nobody replies to anybody.
  */
 export function renderRepliesSection(
   analysis: ChatAnalysis,
   personColours: PersonColours,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
 ): SafeHtml {
   const hasSeveralPeople = analysis.people.length > 1;
   if (!hasSeveralPeople) {
     return EMPTY_HTML;
   }
 
-  const featuredPeople = selectFeaturedPeople(analysis.people);
+  const featuredPeople = selectFeaturedPeople(analysis.people, peopleShown);
   const replyDelaysHtml = renderReplyDelays(analysis, featuredPeople, personColours);
   const conversationStartsHtml = renderConversationStarts(featuredPeople, personColours);
 
   const headingHtml = renderSectionHeading('Replies and openings');
   const replyColumnHtml = html`<div><h3>Typical time to reply</h3>${replyDelaysHtml}</div>`;
   const startsColumnHtml = html`<div><h3>Conversations started</h3>${conversationStartsHtml}</div>`;
-  return html`<section>${headingHtml}<div class="two-columns">${replyColumnHtml}${startsColumnHtml}</div></section>`;
+  const noteHtml = renderPeopleShownNote(featuredPeople.length, analysis.people.length);
+  return html`<section>${headingHtml}<div class="two-columns">${replyColumnHtml}${startsColumnHtml}</div>${noteHtml}</section>`;
 }

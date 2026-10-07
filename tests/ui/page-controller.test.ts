@@ -749,6 +749,102 @@ describe('a file with markup in its name and in its messages', () => {
   });
 });
 
+describe('showing everyone in a large group', () => {
+  /** The names of nine invented people; the last ones write least. */
+  const NINE_NAMES = ['Ana', 'Bob', 'Carla', 'Dani', 'Elena', 'Fede', 'Gabi', 'Hugo', 'Irene'];
+
+  /**
+   * A file in which each of the nine people writes one message fewer than the
+   * one before, so Irene, with a single message, is the least active.
+   */
+  function fileOfNinePeople(): File {
+    const lines: string[] = [];
+    for (const [index, sender] of NINE_NAMES.entries()) {
+      const messageCount = NINE_NAMES.length - index;
+      for (let messageIndex = 0; messageIndex < messageCount; messageIndex++) {
+        const minute = String(index * 6 + messageIndex).padStart(2, '0');
+        lines.push(iphoneLine({ date: '13/01/2024', time: `10:${minute}:00`, sender }));
+      }
+    }
+    return new File([exportText(lines)], 'WhatsApp Chat with The group.txt');
+  }
+
+  /** Ticks or unticks the checkbox the way a click does. */
+  function setShowEveryone(page: TestPage, isChecked: boolean): void {
+    page.elements.showEveryoneCheckbox.checked = isChecked;
+    page.elements.showEveryoneCheckbox.dispatchEvent(new Event('change'));
+  }
+
+  /** The names in the first column of the "Who says what" table, the first table of the report. */
+  function namesInPeopleTable(page: TestPage): string[] {
+    const peopleTable = findElement(page.elements.reportContainer, 'table');
+    return textsOfElements(peopleTable, 'tbody tr td:first-child');
+  }
+
+  it('is not offered for a chat in which nobody is left out', () => {
+    const page = startTestPage();
+
+    expect(page.elements.showEveryoneRow.hidden).toBe(true);
+  });
+
+  it('is offered, unticked, for a chat with more people than the report lists', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfNinePeople(), 'The group');
+
+    expect(page.elements.showEveryoneRow.hidden).toBe(false);
+    expect(page.elements.showEveryoneCheckbox.checked).toBe(false);
+    expect(namesInPeopleTable(page)).toEqual(NINE_NAMES.slice(0, 8));
+    expect(page.elements.reportContainer.textContent).toContain(
+      'Showing the 8 most active of 9 people.',
+    );
+  });
+
+  it('lists everyone when ticked, without reading the file again', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+
+    setShowEveryone(page, true);
+
+    expect(namesInPeopleTable(page)).toEqual(NINE_NAMES);
+    expect(page.elements.reportContainer.textContent).not.toContain('most active of');
+    expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+  });
+
+  it('goes back to the most active when unticked', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    setShowEveryone(page, true);
+
+    setShowEveryone(page, false);
+
+    expect(namesInPeopleTable(page)).toEqual(NINE_NAMES.slice(0, 8));
+  });
+
+  it('works together with hidden names', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    page.elements.hideNamesCheckbox.checked = true;
+
+    setShowEveryone(page, true);
+
+    const report = page.elements.reportContainer;
+    expect(report.textContent).toContain('Person I');
+    expect(report.textContent).not.toContain('Irene');
+  });
+
+  it('is withdrawn, and has no effect, when a small chat is loaded next', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    setShowEveryone(page, true);
+
+    await loadFile(page, fileOfAna(), 'Ana');
+
+    expect(page.elements.showEveryoneRow.hidden).toBe(true);
+    expect(textsOfElements(page.elements.reportContainer, '.legend span')).toEqual(['Ana', 'Bob']);
+  });
+});
+
 describe('hiding names for a screenshot', () => {
   /** Ticks or unticks the checkbox the way a click does. */
   function setHideNames(page: TestPage, isChecked: boolean): void {

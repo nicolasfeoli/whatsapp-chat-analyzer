@@ -12,7 +12,12 @@ import { renderSwatchAndName } from '../person-colours';
 import type { PersonColours } from '../person-colours';
 import { sumOf } from '../ranking';
 import { formatCountWithNoun, formatPercentage } from '../text-formatting';
-import { selectFeaturedPeople } from './featured-people';
+import {
+  DEFAULT_PEOPLE_SHOWN,
+  renderPeopleShownNote,
+  selectFeaturedPeople,
+} from './featured-people';
+import type { PeopleShown } from './featured-people';
 import { renderSectionHeading } from './section-heading';
 
 /** A comparison period of this many days is called a year. */
@@ -94,12 +99,14 @@ function renderPersonRow(
  *
  * @param analysis - The analysed chat.
  * @param personColours - The colour assignment shared by all charts.
+ * @param peopleShown - Whether to list the most active people only, or everyone.
  * @returns A `<section>` element as markup, or empty markup for a chat with a
  *   single sender or one too short to compare.
  */
 export function renderThenAndNowSection(
   analysis: ChatAnalysis,
   personColours: PersonColours,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
 ): SafeHtml {
   const hasSeveralPeople = analysis.people.length > 1;
   const isLongEnough = analysis.comparisonPeriodInDays > 0;
@@ -116,8 +123,9 @@ export function renderThenAndNowSection(
   const headingsHtml = joinHtml(
     headings.map((heading: string): SafeHtml => html`<th>${escapeHtml(heading)}</th>`),
   );
+  const featuredPeople = selectFeaturedPeople(analysis.people, peopleShown);
   const rowsHtml = joinHtml(
-    selectFeaturedPeople(analysis.people).map((person: PersonStatistics): SafeHtml =>
+    featuredPeople.map((person: PersonStatistics): SafeHtml =>
       renderPersonRow(person, earlyTotal, recentTotal, personColours),
     ),
   );
@@ -127,5 +135,6 @@ export function renderThenAndNowSection(
     'Each person’s share of the messages when the chat began and in its latest stretch.',
   );
   const tableHtml = html`<table><thead><tr>${headingsHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
-  return html`<section>${headingHtml}<div class="table-wrapper">${tableHtml}</div></section>`;
+  const noteHtml = renderPeopleShownNote(featuredPeople.length, analysis.people.length);
+  return html`<section>${headingHtml}<div class="table-wrapper">${tableHtml}</div>${noteHtml}</section>`;
 }

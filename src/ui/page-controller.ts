@@ -24,10 +24,12 @@ import { drawTimeline } from './charts/timeline';
 import type { TimelineData } from './charts/timeline-buckets';
 import { renderChatReport } from './chat-report';
 import type { PageElements } from './dom';
+import { COLOURED_PEOPLE_LIMIT } from './person-colours';
 import { cleanChatTitle, describeFileLoadingFailure, readChatTextFromFile } from './file-loading';
 import { setInnerHtml } from './html';
 import { describeAmbiguousDateOrder, summariseParseReport } from './parse-report';
 import { SAMPLE_CHAT_TITLE, generateSampleChatText } from './sample-chat';
+import type { PeopleShown } from './sections/featured-people';
 import { TIMELINE_CONTAINER_ID } from './sections/timeline';
 import type { Tooltip } from './tooltip';
 
@@ -142,7 +144,7 @@ class PageController {
     this.connectFilePicker();
     this.connectDragAndDrop();
     this.connectDateOrderSwitch();
-    this.connectHideNamesSwitch();
+    this.connectDisplaySwitches();
     this.connectWindowEvents();
     this.showSampleChat();
   }
@@ -189,15 +191,23 @@ class PageController {
   }
 
   /**
-   * Renders the report into the page and connects its interactive parts. While
+   * Renders the report into the page and connects its interactive parts. The
+   * "show everyone" row is offered when the chat has more people than the
+   * report lists by default, and decides whom the sections list. While
    * "hide names" is ticked, the report is drawn from a copy of the analysis
    * without names or message text, under a neutral title.
    */
   private showChatReport(analysis: ChatAnalysis, title: string): void {
-    const isHidingNames = this.pageElements.hideNamesCheckbox.checked;
-    const renderedReport = isHidingNames
-      ? renderChatReport(anonymiseAnalysis(analysis), ANONYMOUS_CHAT_TITLE)
-      : renderChatReport(analysis, title);
+    const { hideNamesCheckbox, showEveryoneCheckbox, showEveryoneRow } = this.pageElements;
+    /* The choice only changes a chat with more people than the report lists by default. */
+    const hasPeopleLeftOut = analysis.people.length > COLOURED_PEOPLE_LIMIT;
+    showEveryoneRow.hidden = !hasPeopleLeftOut;
+    const peopleShown: PeopleShown =
+      hasPeopleLeftOut && showEveryoneCheckbox.checked ? 'everyone' : 'most-active';
+
+    const renderedReport = hideNamesCheckbox.checked
+      ? renderChatReport(anonymiseAnalysis(analysis), ANONYMOUS_CHAT_TITLE, peopleShown)
+      : renderChatReport(analysis, title, peopleShown);
     this.displayedTimeline = renderedReport.timeline;
     setInnerHtml(this.pageElements.reportContainer, renderedReport.html);
 
@@ -364,15 +374,19 @@ class PageController {
   }
 
   /**
-   * Redraws the report when "hide names" is ticked or unticked. The chat is
-   * not read again: the analysis on display is drawn a second time.
+   * Redraws the report when "hide names" or "show everyone" is ticked or
+   * unticked. The chat is not read again: the analysis on display is drawn a
+   * second time.
    */
-  private connectHideNamesSwitch(): void {
-    this.pageElements.hideNamesCheckbox.addEventListener('change', (): void => {
-      if (this.displayedChat !== null) {
-        this.showChatReport(this.displayedChat.analysis, this.displayedChat.title);
-      }
-    });
+  private connectDisplaySwitches(): void {
+    const { hideNamesCheckbox, showEveryoneCheckbox } = this.pageElements;
+    for (const checkbox of [hideNamesCheckbox, showEveryoneCheckbox]) {
+      checkbox.addEventListener('change', (): void => {
+        if (this.displayedChat !== null) {
+          this.showChatReport(this.displayedChat.analysis, this.displayedChat.title);
+        }
+      });
+    }
   }
 
   /**

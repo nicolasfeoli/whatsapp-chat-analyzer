@@ -10,7 +10,12 @@ import { hasAnyCountBetweenPeople, renderPersonGrid } from '../charts/person-gri
 import { EMPTY_HTML, html } from '../html';
 import type { SafeHtml } from '../html';
 import type { PersonColours } from '../person-colours';
-import { selectFeaturedPeople } from './featured-people';
+import {
+  DEFAULT_PEOPLE_SHOWN,
+  renderPeopleShownNote,
+  selectFeaturedPeople,
+} from './featured-people';
+import type { PeopleShown } from './featured-people';
 import { renderSectionHeading } from './section-heading';
 
 /** The grid needs at least this many people; with two, each can only answer the other. */
@@ -39,14 +44,16 @@ function countRepliesBetween(replier: PersonStatistics, recipient: PersonStatist
  *
  * @param analysis - The analysed chat.
  * @param personColours - The colour assignment shared by all charts.
+ * @param peopleShown - Whether to list the most active people only, or everyone.
  * @returns A `<section>` element as markup, or empty markup for a chat with
  *   fewer than three senders or without a single reply.
  */
 export function renderReplyPairsSection(
   analysis: ChatAnalysis,
   personColours: PersonColours,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
 ): SafeHtml {
-  const featuredPeople = selectFeaturedPeople(analysis.people);
+  const featuredPeople = selectFeaturedPeople(analysis.people, peopleShown);
   const isGroup = featuredPeople.length >= SMALLEST_GROUP_SIZE;
   if (!isGroup || !hasAnyCountBetweenPeople(featuredPeople, countRepliesBetween)) {
     return EMPTY_HTML;
@@ -57,5 +64,6 @@ export function renderReplyPairsSection(
     'Each row is a person, each column is whose message they answered. The export does not say which message a reply quotes, so a reply counts towards whoever wrote just before it.',
   );
   const gridHtml = renderPersonGrid(featuredPeople, countRepliesBetween, personColours);
-  return html`<section>${headingHtml}${gridHtml}</section>`;
+  const noteHtml = renderPeopleShownNote(featuredPeople.length, analysis.people.length);
+  return html`<section>${headingHtml}${gridHtml}${noteHtml}</section>`;
 }

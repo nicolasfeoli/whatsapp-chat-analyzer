@@ -13,6 +13,8 @@ import type { TimelineData } from './charts/timeline-buckets';
 import { joinHtml } from './html';
 import type { SafeHtml } from './html';
 import { assignPersonColours } from './person-colours';
+import { DEFAULT_PEOPLE_SHOWN } from './sections/featured-people';
+import type { PeopleShown } from './sections/featured-people';
 import { renderConversationEndingsSection } from './sections/conversation-endings';
 import { renderHeatmapSection } from './sections/heatmap';
 import { renderInsightsSection } from './sections/insights';
@@ -40,25 +42,30 @@ export interface RenderedChatReport {
  *
  * @param analysis - The analysed chat.
  * @param title - The name of the chat, usually taken from the file name; untrusted.
+ * @param peopleShown - Whether the sections that compare people list the most active only, or everyone.
  * @returns The markup and the timeline data.
  */
-export function renderChatReport(analysis: ChatAnalysis, title: string): RenderedChatReport {
+export function renderChatReport(
+  analysis: ChatAnalysis,
+  title: string,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
+): RenderedChatReport {
   const personColours = assignPersonColours(analysis.people);
   const timeline = buildTimelineData(analysis, personColours);
 
   const sections: readonly SafeHtml[] = [
     renderSummarySection(analysis, title, personColours),
-    renderInsightsSection(analysis),
-    renderPeopleSection(analysis, personColours),
-    renderMediaTypesSection(analysis, personColours),
+    renderInsightsSection(analysis, peopleShown),
+    renderPeopleSection(analysis, personColours, peopleShown),
+    renderMediaTypesSection(analysis, personColours, peopleShown),
     renderTimelineSection(timeline.granularity),
-    renderThenAndNowSection(analysis, personColours),
+    renderThenAndNowSection(analysis, personColours, peopleShown),
     renderHeatmapSection(analysis),
-    renderRepliesSection(analysis, personColours),
-    renderReplyPairsSection(analysis, personColours),
-    renderMentionsSection(analysis, personColours),
-    renderConversationEndingsSection(analysis, personColours),
-    renderWordsAndEmojisSection(analysis, personColours),
+    renderRepliesSection(analysis, personColours, peopleShown),
+    renderReplyPairsSection(analysis, personColours, peopleShown),
+    renderMentionsSection(analysis, personColours, peopleShown),
+    renderConversationEndingsSection(analysis, personColours, peopleShown),
+    renderWordsAndEmojisSection(analysis, personColours, peopleShown),
     renderRecordsSection(analysis, personColours),
   ];
 

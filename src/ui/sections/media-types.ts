@@ -10,7 +10,12 @@ import type { SafeHtml } from '../html';
 import { renderSwatchAndName } from '../person-colours';
 import type { PersonColours } from '../person-colours';
 import { formatWholeNumber } from '../text-formatting';
-import { selectFeaturedPeople } from './featured-people';
+import {
+  DEFAULT_PEOPLE_SHOWN,
+  renderPeopleShownNote,
+  selectFeaturedPeople,
+} from './featured-people';
+import type { PeopleShown } from './featured-people';
 import { renderSectionHeading } from './section-heading';
 
 /** One column of the table: a type of media and the heading it is shown under. */
@@ -92,6 +97,7 @@ function renderPersonRow(
  *
  * @param analysis - The analysed chat.
  * @param personColours - The colour assignment shared by all charts.
+ * @param peopleShown - Whether to list the most active people only, or everyone.
  * @returns A `<section>` element as markup, or empty markup when no
  *   placeholder of the export says what it stands for, as in an Android
  *   export made without media.
@@ -99,8 +105,9 @@ function renderPersonRow(
 export function renderMediaTypesSection(
   analysis: ChatAnalysis,
   personColours: PersonColours,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
 ): SafeHtml {
-  const featuredPeople = selectFeaturedPeople(analysis.people);
+  const featuredPeople = selectFeaturedPeople(analysis.people, peopleShown);
   const columns = selectUsedColumns(featuredPeople);
   const hasSpecifiedType = columns.some(
     (column: MediaTypeColumn): boolean => column.mediaType !== 'unknown',
@@ -124,5 +131,6 @@ export function renderMediaTypesSection(
     'Photos, stickers, voice notes and the rest, counted from the placeholders the export leaves in their place.',
   );
   const tableHtml = html`<table><thead><tr>${headingsHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
-  return html`<section>${headingHtml}<div class="table-wrapper">${tableHtml}</div></section>`;
+  const noteHtml = renderPeopleShownNote(featuredPeople.length, analysis.people.length);
+  return html`<section>${headingHtml}<div class="table-wrapper">${tableHtml}</div>${noteHtml}</section>`;
 }

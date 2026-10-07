@@ -10,7 +10,12 @@ import { hasAnyCountBetweenPeople, renderPersonGrid } from '../charts/person-gri
 import { EMPTY_HTML, html } from '../html';
 import type { SafeHtml } from '../html';
 import type { PersonColours } from '../person-colours';
-import { selectFeaturedPeople } from './featured-people';
+import {
+  DEFAULT_PEOPLE_SHOWN,
+  renderPeopleShownNote,
+  selectFeaturedPeople,
+} from './featured-people';
+import type { PeopleShown } from './featured-people';
 import { SMALLEST_GROUP_SIZE } from './reply-pairs';
 import { renderSectionHeading } from './section-heading';
 
@@ -58,14 +63,16 @@ export function mentionCountBetween(
  *
  * @param analysis - The analysed chat.
  * @param personColours - The colour assignment shared by all charts.
+ * @param peopleShown - Whether to list the most active people only, or everyone.
  * @returns A `<section>` element as markup, or empty markup for a chat with
  *   fewer than three senders or in which nobody shown mentioned anybody shown.
  */
 export function renderMentionsSection(
   analysis: ChatAnalysis,
   personColours: PersonColours,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
 ): SafeHtml {
-  const featuredPeople = selectFeaturedPeople(analysis.people);
+  const featuredPeople = selectFeaturedPeople(analysis.people, peopleShown);
   const isGroup = featuredPeople.length >= SMALLEST_GROUP_SIZE;
   if (!isGroup || !hasAnyCountBetweenPeople(featuredPeople, mentionCountBetween)) {
     return EMPTY_HTML;
@@ -76,5 +83,6 @@ export function renderMentionsSection(
     'Each row is a person, each column is who they called by name with @.',
   );
   const gridHtml = renderPersonGrid(featuredPeople, mentionCountBetween, personColours);
-  return html`<section>${headingHtml}${gridHtml}</section>`;
+  const noteHtml = renderPeopleShownNote(featuredPeople.length, analysis.people.length);
+  return html`<section>${headingHtml}${gridHtml}${noteHtml}</section>`;
 }
