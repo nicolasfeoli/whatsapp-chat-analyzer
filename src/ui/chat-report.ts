@@ -33,6 +33,7 @@ import { renderReplyPairsSection } from './sections/reply-pairs';
 import { renderReplySpeedPairsSection } from './sections/reply-speed-pairs';
 import { renderSharedSitesSection } from './sections/shared-sites';
 import { renderSummarySection } from './sections/summary';
+import { renderTextingStyleSection } from './sections/texting-style';
 import { renderThenAndNowSection } from './sections/then-and-now';
 import { renderTimelineSection } from './sections/timeline';
 import { renderWhoIsStillHereSection } from './sections/who-is-still-here';
@@ -80,6 +81,7 @@ export function renderChatReport(
     renderReplySpeedPairsSection(analysis, personColours, peopleShown),
     renderMentionsSection(analysis, personColours, peopleShown),
     renderConversationEndingsSection(analysis, personColours, peopleShown),
+    renderTextingStyleSection(analysis, personColours, peopleShown),
     renderWordsAndEmojisSection(analysis, personColours, peopleShown),
     renderSharedSitesSection(analysis, personColours, peopleShown),
     renderPersonProfileSection(analysis, personColours, profiledPersonIndex),

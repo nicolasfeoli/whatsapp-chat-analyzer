@@ -193,6 +193,25 @@ export interface PersonStatistics {
   readonly editedMessageCount: number;
   /** Words typed across all text messages and media captions, links and mentions excluded. */
   readonly wordCount: number;
+  /**
+   * Text messages that are a single word: exactly one word, no link and no
+   * mention, whatever emojis, digits or punctuation come with it. Compare it
+   * with {@link PersonStatistics.textMessageCount} for the share. Captions
+   * are not counted.
+   */
+  readonly singleWordMessageCount: number;
+  /**
+   * Text messages made of emojis and nothing else. Compare it with
+   * {@link PersonStatistics.textMessageCount} for the share. Captions are not
+   * counted.
+   */
+  readonly emojiOnlyMessageCount: number;
+  /**
+   * The number of words in this person's longest text message, links and
+   * mentions excluded; 0 when they never typed a word. Captions are not
+   * counted.
+   */
+  readonly longestMessageWordCount: number;
   /** Emojis used across all text messages and media captions. */
   readonly emojiCount: number;
   /** Text messages that contain a question mark (`?` or `¿`). */

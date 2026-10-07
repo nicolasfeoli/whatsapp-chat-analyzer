@@ -259,6 +259,38 @@ describe('renderChatReport', () => {
       expect(textsOfElements(page, 'tbody td')).toContain('Mostly on Saturdays, around 20:00');
     });
 
+    it('adds how each person writes before words and emojis once somebody typed fifty messages', () => {
+      /* A hundred messages a minute apart, fifty from each: Ana answers in one word, Bob in four. */
+      const lines = Array.from({ length: 100 }, (_unused, index): string => {
+        const hour = 10 + Math.floor(index / 60);
+        const time = `${String(hour)}:${String(index % 60).padStart(2, '0')}:00`;
+        const isFromAna = index % 2 === 0;
+        return iphoneLine({
+          date: '13/01/2024',
+          time,
+          sender: isFromAna ? 'Ana' : 'Bob',
+          text: isFromAna ? 'ok' : 'see you there then',
+        });
+      });
+      const page = parseMarkup(renderChatReport(analyseExport(exportText(lines)), 'Two').html);
+
+      const headings = textsOfElements(page, 'h2');
+      const wordsPosition = headings.indexOf('Words and emojis');
+      const styleSection = Array.from(page.querySelectorAll('section')).find(
+        (section) => section.querySelector('h2')?.textContent === 'How each person writes',
+      );
+
+      expect(headings[wordsPosition - 1]).toBe('How each person writes');
+      expect(
+        Array.from(styleSection?.querySelectorAll('tbody tr') ?? [], (row) =>
+          textsOfElements(row, 'td'),
+        ),
+      ).toEqual([
+        ['Ana', '100%', '0%', '1 word'],
+        ['Bob', '0%', '0%', '4 words'],
+      ]);
+    });
+
     it('adds the most shared sites after words and emojis once the chat holds ten links', () => {
       const lines = Array.from({ length: 10 }, (_unused, index): string =>
         iphoneLine({
