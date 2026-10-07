@@ -556,6 +556,17 @@ describe('drawTimeline', () => {
     );
   });
 
+  it('shows the tooltip of a bar that is tapped, which arrives as a click, without a highlight', () => {
+    const { container, tooltip } = drawIntoNewContainer();
+    const secondBand = findElement(container, '.hover-band[data-bucket-index="1"]');
+
+    const tap = new MouseEvent('click', { clientX: 40, clientY: 60 });
+    secondBand.dispatchEvent(tap);
+
+    expect(secondBand.classList.contains('highlighted')).toBe(false);
+    expect(tooltip.show).toHaveBeenCalledExactlyOnceWith(renderTimelineTooltip(timeline, 1), tap);
+  });
+
   it('removes the highlight and hides the tooltip when the pointer leaves', () => {
     const { container, tooltip } = drawIntoNewContainer();
     const firstBand = findElement(container, '.hover-band[data-bucket-index="0"]');

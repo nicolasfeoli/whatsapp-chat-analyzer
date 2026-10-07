@@ -22,7 +22,7 @@ export function renderHeatmapSection(analysis: ChatAnalysis): SafeHtml {
 
   const headingHtml = renderSectionHeading(
     'When the chat is alive',
-    'Each square is one hour of one weekday. A stronger color means more messages.',
+    'Rows are the days of the week. Columns are the hours of the day, from midnight on the left to 23:00 on the right. Each square adds up every message sent in that hour on that weekday, and a stronger color means more. Hover or tap a square for its number.',
   );
   const gridHtml = renderHeatmapGrid(heatmap);
   const legendHtml = html`<div class="heatmap-legend">1<i></i>${busiestSlotCount} messages</div>`;

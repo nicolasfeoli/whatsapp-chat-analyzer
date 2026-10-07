@@ -464,6 +464,18 @@ describe('attachCalendarTooltips', () => {
     );
   });
 
+  it('shows the tooltip of a square that is tapped, which arrives as a click', () => {
+    const { container, tooltip } = renderConnectedCalendar();
+
+    const tap = new MouseEvent('click', { bubbles: true, clientX: 40, clientY: 60 });
+    findSquare(container, 20231231).dispatchEvent(tap);
+
+    expect(tooltip.show).toHaveBeenCalledExactlyOnceWith(
+      renderCalendarTooltip({ dayKey: 20231231, messageCount: 100 }),
+      tap,
+    );
+  });
+
   it('hides the tooltip when the pointer moves on to a gap, a label or a day outside the chat', () => {
     const { container, tooltip } = renderConnectedCalendar();
 
@@ -494,7 +506,7 @@ describe('attachCalendarTooltips', () => {
     listenerSpy.mockRestore();
 
     expect(container.querySelectorAll('.calendar-day[data-day-key]').length).toBeGreaterThan(1600);
-    expect(listenedEvents).toEqual(['pointermove', 'pointerleave']);
+    expect(listenedEvents).toEqual(['pointermove', 'click', 'pointerleave']);
   });
 
   it('connects nothing in a container without a calendar', () => {

@@ -118,22 +118,21 @@ describe('renderHeatmapGrid', () => {
     ]);
   });
 
-  it('labels every third hour and leaves the others blank', () => {
+  it('labels every third hour as a time of day, each label spanning its three columns', () => {
     const grid = parseMarkup(renderHeatmapGrid(emptyHeatmap()));
-    const hourLabels = textsOfElements(grid, '.hour-label');
+    const hourLabels = Array.from(grid.querySelectorAll<HTMLElement>('.hour-label'));
 
-    expect(hourLabels).toHaveLength(24);
-    expect(hourLabels.filter((label) => label !== '')).toEqual([
-      '00',
-      '03',
-      '06',
-      '09',
-      '12',
-      '15',
-      '18',
-      '21',
+    expect(hourLabels.map((label) => label.textContent)).toEqual([
+      '00:00',
+      '03:00',
+      '06:00',
+      '09:00',
+      '12:00',
+      '15:00',
+      '18:00',
+      '21:00',
     ]);
-    expect(hourLabels[1]).toBe('');
+    expect(hourLabels.map((label) => label.style.gridColumn)).toEqual(Array(8).fill('span 3'));
   });
 
   it('starts with an empty corner cell above the weekday labels', () => {
@@ -220,6 +219,21 @@ describe('attachHeatmapTooltips', () => {
     expect(tooltip.show).toHaveBeenCalledExactlyOnceWith(
       renderHeatmapTooltip({ weekdayIndex: WEDNESDAY, hour: 20, messageCount: 5 }),
       pointerMove,
+    );
+  });
+
+  it('shows the tooltip of a square that is tapped, which arrives as a click', () => {
+    const heatmap = heatmapWith([{ weekdayIndex: WEDNESDAY, hour: 20, messageCount: 5 }]);
+    const container = parseMarkup(renderHeatmapGrid(heatmap));
+    const tooltip = createRecordingTooltip();
+    attachHeatmapTooltips(container, tooltip);
+
+    const tap = new MouseEvent('click', { clientX: 40, clientY: 60 });
+    findCell(container, WEDNESDAY, 20).dispatchEvent(tap);
+
+    expect(tooltip.show).toHaveBeenCalledExactlyOnceWith(
+      renderHeatmapTooltip({ weekdayIndex: WEDNESDAY, hour: 20, messageCount: 5 }),
+      tap,
     );
   });
 
