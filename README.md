@@ -16,7 +16,21 @@ The chat in the screenshot is invented; it is the example the page shows before 
 
 Not affiliated with, endorsed by, or connected to WhatsApp or Meta.
 
-## Why this repo exists
+## Purpose
+
+I wanted to know what one of my group chats looked like from the outside. After years of messages, everyone in it had a theory: who never shuts up, who leaves people on read, who only shows up at two in the morning. Nobody had numbers, so the arguments never ended.
+
+WhatsApp can export a chat as a text file, but the file is thousands of lines with no summary. This page turns it into something you can read in a minute and share with the group:
+
+- **Answers to the arguments.** Who writes most, who starts the conversations, who replies fastest, and who sends five messages in a row before anyone answers.
+- **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence.
+- **Its personality.** The words and emojis each person uses far more than everyone else, and who laughs the most in writing.
+
+A chat is also other people's messages, and they never agreed to have them analysed by a stranger's server. So the page is built so that you do not have to trust it: the file is read inside your browser tab and nothing is uploaded.
+
+The project had a second purpose. The first version was written by an AI in one sitting, and I wanted to find out how far that code holds up once it is reviewed and held to the standards of code I would put my name on. The next section is what I found.
+
+## How it got here
 
 It started as one AI-generated `index.html` that looked finished. I treated it as a pull request from a stranger: read it, tried to break it, and wrote down what I found. The review turned up twelve problems, among them a crash on large chats and several kinds of iPhone message that were silently dropped.
 
