@@ -20,6 +20,7 @@ import { renderHeatmapSection } from './sections/heatmap';
 import { renderInsightsSection } from './sections/insights';
 import { renderMediaTypesSection } from './sections/media-types';
 import { renderMentionsSection } from './sections/mentions';
+import { renderMilestonesSection } from './sections/milestones';
 import { renderPeopleSection } from './sections/people';
 import {
   DEFAULT_PROFILED_PERSON_INDEX,
@@ -76,6 +77,7 @@ export function renderChatReport(
     renderConversationEndingsSection(analysis, personColours, peopleShown),
     renderWordsAndEmojisSection(analysis, personColours, peopleShown),
     renderPersonProfileSection(analysis, personColours, profiledPersonIndex),
+    renderMilestonesSection(analysis, personColours),
     renderRecordsSection(analysis, personColours),
   ];
 

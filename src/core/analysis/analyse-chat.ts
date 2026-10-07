@@ -15,9 +15,20 @@ import {
   MILLISECONDS_PER_DAY,
   MILLISECONDS_PER_HOUR,
 } from '../time-constants';
-import type { ChatAnalysis, ChatMessage, LongestSilence, TimestampResolution } from '../types';
+import type {
+  ChatAnalysis,
+  ChatMessage,
+  ChatMilestone,
+  LongestSilence,
+  TimestampResolution,
+} from '../types';
 import { findBusiestDay, findLongestStreak, keepLongerSilence } from './activity-records';
 import { identifyMediaType } from './media-type';
+import {
+  completeMilestones,
+  findHalfwayMessageNumber,
+  recordMessageMilestones,
+} from './milestones';
 import {
   createPersonStatisticsAccumulator,
   incrementCount,
@@ -90,6 +101,8 @@ interface ChatTotals {
   longestMessageWordCount: number;
   longestSilence: LongestSilence | null;
   conversationCount: number;
+  /** The milestones tied to a message that have been passed so far, oldest first. */
+  readonly milestones: ChatMilestone[];
   /**
    * Questions asked so far in the turn that is still open: the run of messages
    * from the latest sender since somebody else last wrote. They are counted
@@ -127,6 +140,7 @@ function createChatTotals(): ChatTotals {
     longestMessageWordCount: 0,
     longestSilence: null,
     conversationCount: 0,
+    milestones: [],
     questionCountInOpenTurn: 0,
   };
 }
@@ -354,7 +368,7 @@ function recordMessageContent(
 
 /**
  * Walks the messages from oldest to newest and adds each one to the totals of
- * the chat and of its sender.
+ * the chat and of its sender, noting the milestones passed on the way.
  *
  * @param chronologicalMessages - The messages, oldest first.
  * @param comparisonPeriods - The two periods compared in "then and now".
@@ -365,9 +379,10 @@ function accumulateChatTotals(
   comparisonPeriods: ComparisonPeriods,
 ): ChatTotals {
   const totals = createChatTotals();
+  const halfwayMessageNumber = findHalfwayMessageNumber(chronologicalMessages.length);
   let previous: CountedMessage | null = null;
 
-  for (const message of chronologicalMessages) {
+  for (const [index, message] of chronologicalMessages.entries()) {
     const person = getOrCreatePerson(totals, message);
     person.messageCount += 1;
     /* The messages are walked oldest first, so the latest one seen is the newest so far. */
@@ -377,6 +392,7 @@ function accumulateChatTotals(
     recordComparisonPeriod(person, message.timestamp, comparisonPeriods);
     recordConversationFlow(totals, person, message, previous);
     recordMessageContent(totals, person, message);
+    recordMessageMilestones(totals.milestones, message, index + 1, halfwayMessageNumber);
 
     previous = { message, sender: person };
   }
@@ -451,6 +467,11 @@ function buildChatAnalysis(
     activeDayCount: totals.messageCountsByDayKey.size,
     conversationCount: totals.conversationCount,
     totalMessageCount: chronologicalMessages.length,
+    milestones: completeMilestones(
+      totals.milestones,
+      firstMessage.timestamp,
+      lastMessage.timestamp,
+    ),
     comparisonPeriodInDays,
     timestampResolution,
   };

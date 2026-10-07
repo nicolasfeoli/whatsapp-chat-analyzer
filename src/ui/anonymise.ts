@@ -11,7 +11,13 @@
  * lists, since a chat is full of people calling each other by name.
  */
 
-import type { ChatAnalysis, ChatMessage, PersonStatistics, SignaturePhrase } from '../core/index';
+import type {
+  ChatAnalysis,
+  ChatMessage,
+  ChatMilestone,
+  PersonStatistics,
+  SignaturePhrase,
+} from '../core/index';
 import { normaliseMentionedName } from './sections/mentions';
 
 /** The title shown instead of the name of the chat, which is usually a person or a group. */
@@ -153,12 +159,25 @@ function anonymiseMessage(message: ChatMessage, replacement: NameReplacement): C
 }
 
 /**
+ * Copies a milestone with the sender of its message relabelled. A milestone
+ * that names nobody is handed back as it is.
+ */
+function anonymiseMilestone(milestone: ChatMilestone, replacement: NameReplacement): ChatMilestone {
+  if (milestone.kind === 'first-message' || milestone.kind === 'message-count') {
+    const sender = replacement.labelsByName.get(milestone.sender) ?? SOMEBODY_ELSE_LABEL;
+    return { ...milestone, sender };
+  }
+  return milestone;
+}
+
+/**
  * Makes a copy of an analysis in which nobody can be recognised by name and
  * no message can be read.
  *
  * @param analysis - The analysed chat. It is not modified.
- * @returns The copy: same numbers, neutral labels instead of names, hidden
- *   message texts, and word lists without the words of the names.
+ * @returns The copy: same numbers, neutral labels instead of names (also for
+ *   the senders of the milestones), hidden message texts, and word lists
+ *   without the words of the names.
  */
 export function anonymiseAnalysis(analysis: ChatAnalysis): ChatAnalysis {
   const replacement = buildNameReplacement(analysis.people);
@@ -177,5 +196,8 @@ export function anonymiseAnalysis(analysis: ChatAnalysis): ChatAnalysis {
     ),
     wordCounts: removeNameWords(analysis.wordCounts, replacement.nameWords),
     longestMessage,
+    milestones: analysis.milestones.map((milestone: ChatMilestone): ChatMilestone =>
+      anonymiseMilestone(milestone, replacement),
+    ),
   };
 }
