@@ -11,6 +11,7 @@ import { assignPersonColours } from '../../src/ui/person-colours';
 import { renderMilestonesSection } from '../../src/ui/sections/milestones';
 import { renderPeakTimesSection } from '../../src/ui/sections/peak-times';
 import { renderPersonProfileSection } from '../../src/ui/sections/person-profile';
+import { renderReplySpeedPairsSection } from '../../src/ui/sections/reply-speed-pairs';
 import { renderSharedSitesSection } from '../../src/ui/sections/shared-sites';
 import { renderWhoIsStillHereSection } from '../../src/ui/sections/who-is-still-here';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
@@ -52,6 +53,10 @@ const namedChat: ChatAnalysis = chatAnalysis({
       replyCountsByRecipient: new Map([
         ['Bob Vega', 7],
         ['~ Carla', 2],
+      ]),
+      replyDelaysByRecipient: new Map([
+        ['Bob Vega', [60_000, 120_000, 180_000, 240_000, 300_000, 360_000, 420_000]],
+        ['~ Carla', [30_000, 90_000]],
       ]),
       mentionCountsByName: new Map([
         ['Bob Vega', 3],
@@ -129,6 +134,49 @@ describe('anonymiseAnalysis', () => {
       ]),
     );
     expect(hiddenPerson(1).replyCountsByRecipient).toEqual(new Map([['Person A', 5]]));
+  });
+
+  it('relabels whom each reply delay was towards, and keeps the delays', () => {
+    expect(hiddenPerson(0).replyDelaysByRecipient).toEqual(
+      new Map([
+        ['Person B', [60_000, 120_000, 180_000, 240_000, 300_000, 360_000, 420_000]],
+        ['Person C', [30_000, 90_000]],
+      ]),
+    );
+    expect(hiddenPerson(1).replyDelaysByRecipient.size).toBe(0);
+  });
+
+  it('joins the delays towards people it has no label for under somebody else', () => {
+    const chatWithStrangers = chatAnalysis({
+      people: [
+        personStatistics({
+          name: 'Ana',
+          messageCount: 2,
+          replyDelaysByRecipient: new Map([
+            ['Dani who left', [1000]],
+            ['Another stranger', [2000, 3000]],
+          ]),
+        }),
+      ],
+    });
+
+    expect(anonymiseAnalysis(chatWithStrangers).people[0]?.replyDelaysByRecipient).toEqual(
+      new Map([[SOMEBODY_ELSE_LABEL, [1000, 2000, 3000]]]),
+    );
+  });
+
+  it('leaves no name in "How fast each answers whom"', () => {
+    const sectionHtml = renderReplySpeedPairsSection(
+      hiddenChat,
+      assignPersonColours(hiddenChat.people),
+    );
+
+    /* The median of Ana's seven delays towards Bob Vega is the fourth, four minutes. */
+    expect(sectionHtml).toContain('Person B');
+    expect(sectionHtml).toContain('>4 min</td>');
+    for (const nameWord of ['Ana', 'Bob', 'Vega', 'Carla']) {
+      expect(sectionHtml).not.toContain(nameWord);
+    }
   });
 
   it('relabels the people somebody mentioned, with or without the "not a contact" tilde', () => {

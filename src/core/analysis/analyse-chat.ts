@@ -102,6 +102,13 @@ interface ChatTotals {
   longestMessageWordCount: number;
   longestSilence: LongestSilence | null;
   conversationCount: number;
+  /**
+   * The reply delays of each person split by whom they answered: by the name
+   * of the replier, then by the name of the recipient. The inner map is the
+   * one handed out as the person's `replyDelaysByRecipient`; it is kept here
+   * with writable lists so a delay can be added without copying the list.
+   */
+  readonly replyDelaysByReplierName: Map<string, Map<string, number[]>>;
   /** The milestones tied to a message that have been passed so far, oldest first. */
   readonly milestones: ChatMilestone[];
   /**
@@ -142,6 +149,7 @@ function createChatTotals(): ChatTotals {
     longestMessageWordCount: 0,
     longestSilence: null,
     conversationCount: 0,
+    replyDelaysByReplierName: new Map<string, Map<string, number[]>>(),
     milestones: [],
     questionCountInOpenTurn: 0,
   };
@@ -293,6 +301,53 @@ function recordConversationEnd(totals: ChatTotals, lastSpeaker: PersonStatistics
 }
 
 /**
+ * Looks up the reply delays of a person by recipient, creating the table on
+ * their first reply and handing it to the person's totals.
+ */
+function getOrCreateReplyDelaysByRecipient(
+  totals: ChatTotals,
+  replier: PersonStatisticsAccumulator,
+): Map<string, number[]> {
+  const existingDelaysByRecipient = totals.replyDelaysByReplierName.get(replier.name);
+  if (existingDelaysByRecipient !== undefined) {
+    return existingDelaysByRecipient;
+  }
+
+  const newDelaysByRecipient = new Map<string, number[]>();
+  totals.replyDelaysByReplierName.set(replier.name, newDelaysByRecipient);
+  replier.replyDelaysByRecipient = newDelaysByRecipient;
+  return newDelaysByRecipient;
+}
+
+/**
+ * Records one reply: its delay among the replier's delays, once more in their
+ * count of replies to the recipient, and its delay among those to that
+ * recipient.
+ *
+ * @param totals - The totals of the chat.
+ * @param replier - The totals of whoever wrote the reply.
+ * @param recipientName - The name of whoever wrote the message just before it.
+ * @param delayInMilliseconds - The time between that message and the reply.
+ */
+function recordReply(
+  totals: ChatTotals,
+  replier: PersonStatisticsAccumulator,
+  recipientName: string,
+  delayInMilliseconds: number,
+): void {
+  replier.replyDelaysInMilliseconds.push(delayInMilliseconds);
+  incrementCount(replier.replyCountsByRecipient, recipientName);
+
+  const delaysByRecipient = getOrCreateReplyDelaysByRecipient(totals, replier);
+  const delaysToRecipient = delaysByRecipient.get(recipientName);
+  if (delaysToRecipient === undefined) {
+    delaysByRecipient.set(recipientName, [delayInMilliseconds]);
+    return;
+  }
+  delaysToRecipient.push(delayInMilliseconds);
+}
+
+/**
  * Updates everything that depends on the message before this one: who opened
  * and who closed the conversation, who replied to whom and how long it took,
  * the longest silence, and turns.
@@ -329,8 +384,7 @@ function recordConversationFlow(
   const isWithinReplyWindow =
     gapInMilliseconds >= 0 && gapInMilliseconds < LONGEST_REPLY_DELAY_IN_MILLISECONDS;
   if (isWithinReplyWindow) {
-    person.replyDelaysInMilliseconds.push(gapInMilliseconds);
-    incrementCount(person.replyCountsByRecipient, previous.sender.name);
+    recordReply(totals, person, previous.sender.name, gapInMilliseconds);
   }
 }
 

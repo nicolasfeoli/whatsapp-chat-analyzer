@@ -24,7 +24,7 @@ I wanted to know what one of my group chats looked like from the outside. After 
 
 WhatsApp can export a chat as a text file, but the file is thousands of lines with no summary. This page turns it into something you can read in a minute and share with the group:
 
-- **Answers to the arguments.** Who writes most, who starts the conversations, who replies fastest, who answers whom, who mentions whom, who edits their messages after sending them, on which weekday and at what hour each person mostly writes, whose questions are left hanging, and who sends five messages in a row before anyone answers.
+- **Answers to the arguments.** Who writes most, who starts the conversations, who replies fastest, who answers whom and how fast, who mentions whom, who edits their messages after sending them, on which weekday and at what hour each person mostly writes, whose questions are left hanging, and who sends five messages in a row before anyone answers.
 - **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence, who took over the chat since it began, who has not written in a long time, and the milestones on the way: the 10,000th message and who sent it, the day half of everything had been said, the latest anniversary. Pick a year, the last twelve months or any two dates, and the whole report is counted again for just that stretch.
 - **Its personality.** The words, catchphrases and emojis each person uses far more than everyone else, who laughs the most in writing, and who sends the stickers, the photos and the voice notes, and which sites the links lead to, for the chat and for each person.
 
@@ -93,7 +93,7 @@ The dev server relaxes `connect-src` to its own WebSocket so hot reload works. `
 ## Tests
 
 ```sh
-npm test               # Vitest, 2,277 tests in 70 files
+npm test               # Vitest, 2,323 tests in 71 files
 npm run test:coverage  # the same, with a coverage report in coverage/
 npm run check          # type check, lint, formatting, tests with coverage, build
 ```

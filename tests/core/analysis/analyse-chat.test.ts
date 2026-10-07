@@ -1315,6 +1315,68 @@ describe('analyseChat', () => {
     });
   });
 
+  describe('how fast each person answers each other one', () => {
+    /** Bob answers Ana after one and after five minutes, and Carla after thirty seconds. */
+    const messages = [
+      textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00:00' }),
+      textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:01:00' }),
+      textMessage({ sender: 'Carla', sentAt: '2024-01-13 10:03:00' }),
+      textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:03:30' }),
+      textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:10:00' }),
+      textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:15:00' }),
+    ];
+
+    it('keeps the delays of a person apart by whose message they answered', () => {
+      const bob = findPerson(analyseMessages(messages), 'Bob');
+
+      expect(bob.replyDelaysByRecipient).toEqual(
+        new Map([
+          ['Ana', [MILLISECONDS_PER_MINUTE, 5 * MILLISECONDS_PER_MINUTE]],
+          ['Carla', [30 * MILLISECONDS_PER_SECOND]],
+        ]),
+      );
+    });
+
+    it('holds one delay for every reply counted towards that person', () => {
+      const analysis = analyseMessages(messages);
+
+      for (const person of analysis.people) {
+        const delayCounts = [...person.replyDelaysByRecipient].map(
+          ([recipientName, delays]) => [recipientName, delays.length] as const,
+        );
+        expect(new Map(delayCounts)).toEqual(person.replyCountsByRecipient);
+      }
+    });
+
+    it('holds, taken together, the delays recorded for the person as a whole', () => {
+      const bob = findPerson(analyseMessages(messages), 'Bob');
+      const delaysOfEveryPair = [...bob.replyDelaysByRecipient.values()].flat();
+      const ascending = (first: number, second: number): number => first - second;
+
+      expect(delaysOfEveryPair.sort(ascending)).toEqual(
+        [...bob.replyDelaysInMilliseconds].sort(ascending),
+      );
+    });
+
+    it('records nothing for an answer that comes after twelve hours or more', () => {
+      const lateAnswer = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 08:00:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 20:00:00' }),
+      ];
+
+      expect(findPerson(analyseMessages(lateAnswer), 'Bob').replyDelaysByRecipient.size).toBe(0);
+    });
+
+    it('records nothing for somebody who was never the one to answer', () => {
+      const monologue = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:05' }),
+      ];
+
+      expect(findPerson(analyseMessages(monologue), 'Ana').replyDelaysByRecipient.size).toBe(0);
+    });
+  });
+
   describe('the last word of a conversation', () => {
     it('goes to whoever wrote last before eight hours of silence', () => {
       const messages = [

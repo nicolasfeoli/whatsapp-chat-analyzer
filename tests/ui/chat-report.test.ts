@@ -200,6 +200,26 @@ describe('renderChatReport', () => {
       ]);
     });
 
+    it('adds how fast each answers whom after who answers whom once a pair has five replies', () => {
+      /* Ana and Bob take turns a minute apart, so each answers the other five times; Carla closes. */
+      const lines = Array.from({ length: 11 }, (_unused, index): string =>
+        iphoneLine({
+          date: '13/01/2024',
+          time: `10:${String(index).padStart(2, '0')}:00`,
+          sender: index % 2 === 0 ? 'Ana' : 'Bob',
+          text: 'and then?',
+        }),
+      );
+      lines.push(iphoneLine({ date: '13/01/2024', time: '10:11:30', sender: 'Carla', text: 'hi' }));
+      const page = parseMarkup(renderChatReport(analyseExport(exportText(lines)), 'Group').html);
+
+      const headings = textsOfElements(page, 'h2');
+      const pairsPosition = headings.indexOf('Who answers whom');
+
+      expect(headings[pairsPosition + 1]).toBe('How fast each answers whom');
+      expect(textsOfElements(page, '.person-grid tbody td')).toContain('1 min');
+    });
+
     it('adds what gets sent after who says what when the export names its media', () => {
       const withStickers = analyseExport(
         exportText([

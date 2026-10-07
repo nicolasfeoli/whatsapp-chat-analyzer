@@ -62,6 +62,7 @@ export function personStatistics(parts: PersonStatisticsParts): PersonStatistics
     conversationsEndedCount: 0,
     unansweredQuestionCount: 0,
     replyCountsByRecipient: new Map<string, number>(),
+    replyDelaysByRecipient: new Map<string, readonly number[]>(),
     turnCount: 0,
     emojiCounts: new Map<string, number>(),
     wordCounts: new Map<string, number>(),

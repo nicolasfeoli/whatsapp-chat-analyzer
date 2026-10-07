@@ -23,6 +23,7 @@ import { renderMentionsSection } from '../../../src/ui/sections/mentions';
 import { renderPeopleSection } from '../../../src/ui/sections/people';
 import { renderRepliesSection } from '../../../src/ui/sections/replies';
 import { renderReplyPairsSection } from '../../../src/ui/sections/reply-pairs';
+import { renderReplySpeedPairsSection } from '../../../src/ui/sections/reply-speed-pairs';
 import { renderThenAndNowSection } from '../../../src/ui/sections/then-and-now';
 import { renderWhoIsStillHereSection } from '../../../src/ui/sections/who-is-still-here';
 import { renderWordsAndEmojisSection } from '../../../src/ui/sections/words-and-emojis';
@@ -53,6 +54,8 @@ function buildPerson(index: number): PersonStatistics {
     conversationsEndedCount: 5,
     mediaCountsByType: new Map([['photo', 3]]),
     replyCountsByRecipient: new Map([['Person 1', 4]]),
+    /* Five replies, the fewest a typical time is written for. */
+    replyDelaysByRecipient: new Map([['Person 1', [1000, 2000, 3000, 4000, 5000]]]),
     mentionCountsByName: new Map([['Person 1', 2]]),
     signaturePhrases: [{ phrase: `phrase of ${String(number)}`, count: 6 }],
   });
@@ -137,6 +140,11 @@ const sectionCases: readonly SectionCase[] = [
   {
     name: 'Who answers whom',
     render: (peopleShown) => renderReplyPairsSection(analysis, personColours, peopleShown),
+    defaultNote: EIGHT_OF_TEN_NOTE,
+  },
+  {
+    name: 'How fast each answers whom',
+    render: (peopleShown) => renderReplySpeedPairsSection(analysis, personColours, peopleShown),
     defaultNote: EIGHT_OF_TEN_NOTE,
   },
   {

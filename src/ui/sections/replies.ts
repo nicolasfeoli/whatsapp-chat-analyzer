@@ -23,7 +23,7 @@ import type { PeopleShown } from './featured-people';
 import { renderSectionHeading } from './section-heading';
 
 /** Shown under the reply times of an export that only records minutes. */
-const MINUTE_RESOLUTION_NOTE: SafeHtml = html`<p class="hint">This export records times to the minute, so replies are rounded.</p>`;
+export const MINUTE_RESOLUTION_NOTE: SafeHtml = html`<p class="hint">This export records times to the minute, so replies are rounded.</p>`;
 
 /** Shown instead of the chart when nobody has replied often enough to measure. */
 const NOT_ENOUGH_REPLIES_NOTE: SafeHtml = html`<p class="hint">Not enough back and forth to measure.</p>`;
