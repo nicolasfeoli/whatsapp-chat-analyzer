@@ -15,6 +15,8 @@ export interface MessageParts {
   readonly text?: string;
   /** For a media message, what was typed in front of the placeholder. */
   readonly caption?: string;
+  /** Whether the export marks the message as edited; not unless stated. */
+  readonly isEdited?: boolean;
 }
 
 /**
@@ -75,6 +77,7 @@ export function textMessage(parts: MessageParts = {}): TextMessage {
     timestamp: localTime(parts.sentAt ?? DEFAULT_SENT_AT),
     sender: parts.sender ?? DEFAULT_SENDER,
     text: parts.text ?? DEFAULT_TEXT,
+    isEdited: parts.isEdited ?? false,
   };
 }
 
@@ -90,6 +93,7 @@ export function mediaMessage(parts: MessageParts = {}): MediaMessage {
     timestamp: localTime(parts.sentAt ?? DEFAULT_SENT_AT),
     sender: parts.sender ?? DEFAULT_SENDER,
     text: parts.text ?? '<Media omitted>',
+    isEdited: parts.isEdited ?? false,
     caption: parts.caption ?? '',
   };
 }
@@ -106,6 +110,7 @@ export function deletedMessage(parts: MessageParts = {}): DeletedMessage {
     timestamp: localTime(parts.sentAt ?? DEFAULT_SENT_AT),
     sender: parts.sender ?? DEFAULT_SENDER,
     text: parts.text ?? 'This message was deleted',
+    isEdited: parts.isEdited ?? false,
   };
 }
 

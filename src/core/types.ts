@@ -49,6 +49,12 @@ interface ChatMessageBase {
    * is the placeholder the export wrote, which is never counted as words.
    */
   readonly text: string;
+  /**
+   * Whether the export marks the message as edited after it was sent, with
+   * the note `<This message was edited>` at its end. The note itself is not
+   * part of `text`. Only the English and the Spanish note are recognised.
+   */
+  readonly isEdited: boolean;
 }
 
 /*
@@ -179,6 +185,12 @@ export interface PersonStatistics {
   readonly mediaCountsByType: ReadonlyMap<MediaType, number>;
   /** Deleted-message tombstones. */
   readonly deletedCount: number;
+  /**
+   * Messages of any kind that the export marks as edited after they were
+   * sent. An export says that a message was edited, not how often or what it
+   * said before.
+   */
+  readonly editedMessageCount: number;
   /** Words typed across all text messages and media captions, links and mentions excluded. */
   readonly wordCount: number;
   /** Emojis used across all text messages and media captions. */

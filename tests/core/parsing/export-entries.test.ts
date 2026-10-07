@@ -45,6 +45,7 @@ describe('readExportEntries', () => {
           text: 'happy new year',
           kind: 'text',
           caption: '',
+          isEdited: false,
         },
       ]);
     });

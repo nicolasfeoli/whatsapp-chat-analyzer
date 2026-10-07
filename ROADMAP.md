@@ -85,6 +85,8 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - "Milestones" counts the messages the export holds. System notices, pasted lines that were folded away and anything deleted from the phone before exporting are not among them, so "the 10,000th message" is the 10,000th the page read, and an export that starts after the group was created has a later "first message" than the group. Messages are counted in order of their time; two sent in the same second count in their order in the file.
 - The round numbers are 1,000, 10,000, 50,000 and 100,000 and nothing in between or beyond. The half is reported from a hundred messages on and names no sender. Only the latest anniversary is listed, as the day so many years after the first message whether or not anybody wrote on it; a chat begun on 29 February has it on 28 February in other years. The section is left out when the first message is the only milestone.
 - While a period is chosen, the milestones are those of the period: its first message, its 1,000th, and no anniversary unless the period itself is longer than a year.
+- Edited messages are counted only where the export writes the note in English (`<This message was edited>`) or Spanish (`<Se editó este mensaje.>`). An export in another language shows no "Edited" column at all, and its note stays in the text and is counted as typed words. The export says that a message was edited, not how often or what it said before, and somebody who types the note at the end of a message is counted as having edited it.
+- The "Edited" column is left out when no message carries the note. That is also the case for a chat from before WhatsApp had editing and, while a period is chosen, for a period without an edited message.
 - A typed continuation line that itself starts like a timestamp (`01/01/24 10:00 - breakfast with Bob: yes`) becomes a message from an invented sender.
 - A participant whose only messages are dated more than ten minutes before the message above them is folded away as pasted text. A line pasted after a media message is counted as folded but its text is not kept.
 - Media is split by type only when the placeholder names it. An Android export made without media writes the same `<Media omitted>` for everything, so its media stays one number. An attached document whose file name contains a word such as "video" is counted under that word.
@@ -139,7 +141,6 @@ These need a decision rather than more code.
 - Verify the PT, DE, FR and IT markers against real exports, and move them into table-driven locale packs.
 - Fold pasted chat lines from real participants without breaking time-zone changes.
 - Let the user merge participants (renamed contacts, number versus saved name) and exclude one.
-- Report edited-message counts; they are already detected and then thrown away.
 - Use `Intl.Segmenter` for emoji and for word splitting in languages without spaces.
 - Real progress percentage while parsing.
 - Replace inline style attributes so the policy can drop `unsafe-inline` for styles.

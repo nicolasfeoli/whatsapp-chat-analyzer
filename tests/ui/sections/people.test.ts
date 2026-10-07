@@ -195,6 +195,74 @@ describe('renderPeopleSection', () => {
     });
   });
 
+  describe('edited messages', () => {
+    /** A chat in which Ana corrected twelve of her messages and Bob none of his. */
+    const withEditedMessages = chatAnalysis({
+      people: [
+        personStatistics({
+          name: 'Ana',
+          messageCount: 1500,
+          deletedCount: 30,
+          editedMessageCount: 1200,
+          emojiCounts: new Map([[RED_HEART, 2]]),
+        }),
+        personStatistics({ name: 'Bob', messageCount: 500 }),
+      ],
+    });
+
+    it('has no "Edited" column when the export marks no message as edited', () => {
+      expect(textsOfElements(renderSection(anaAndBob), 'thead th')).not.toContain('Edited');
+      expect(readTableRows(renderSection(anaAndBob))[0]).toHaveLength(10);
+    });
+
+    it('adds an "Edited" column between "Deleted" and "Top emojis" when one message is', () => {
+      expect(textsOfElements(renderSection(withEditedMessages), 'thead th').slice(-3)).toEqual([
+        'Deleted',
+        'Edited',
+        'Top emojis',
+      ]);
+    });
+
+    it('fills it with each person’s count, zero included', () => {
+      const [anaRow, bobRow] = readTableRows(renderSection(withEditedMessages));
+
+      expect(anaRow?.slice(-3)).toEqual(['30', '1,200', RED_HEART]);
+      expect(bobRow?.slice(-3)).toEqual(['0', '0', '']);
+    });
+
+    it('gives every row as many cells as there are headings', () => {
+      const section = renderSection(withEditedMessages);
+
+      expect(textsOfElements(section, 'thead th')).toHaveLength(11);
+      expect(readTableRows(section).map((row) => row.length)).toEqual([11, 11]);
+    });
+
+    it('shows the column when a single message in the whole chat was edited', () => {
+      const analysis = chatAnalysis({
+        people: [
+          personStatistics({ name: 'Ana', messageCount: 10 }),
+          personStatistics({ name: 'Bob', messageCount: 5, editedMessageCount: 1 }),
+        ],
+      });
+
+      expect(textsOfElements(renderSection(analysis), 'thead th')).toContain('Edited');
+    });
+
+    it('shows the column when only somebody beyond the eight listed edited a message', () => {
+      const people = Array.from({ length: 10 }, (_unused, index) =>
+        personStatistics({
+          name: `Person ${index + 1}`,
+          messageCount: 10 - index,
+          editedMessageCount: index === 9 ? 1 : 0,
+        }),
+      );
+      const section = renderSection(chatAnalysis({ people }));
+
+      expect(textsOfElements(section, 'thead th')).toContain('Edited');
+      expect(readTableRows(section).map((row) => row[9])).toEqual(new Array(8).fill('0'));
+    });
+  });
+
   describe('a large group', () => {
     const tenPeople = Array.from({ length: 10 }, (_unused, index) =>
       personStatistics({ name: `Person ${index + 1}`, messageCount: 10 - index }),

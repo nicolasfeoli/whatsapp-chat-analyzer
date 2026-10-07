@@ -20,6 +20,7 @@ import type { MessageLineMatch } from './line-pattern';
 import {
   classifyMessageBody,
   findTrailingMarkedPlaceholder,
+  hasEditedMessageSuffix,
   isSystemNoticeSender,
   splitSenderAndText,
 } from './message-classification';
@@ -40,6 +41,12 @@ export interface ExportEntry extends TimestampParts {
    * media without a caption and for every other kind of message.
    */
   readonly caption: string;
+  /**
+   * Whether the message ends in the note of an edited message. It is kept
+   * here because the note is cut off a captioned placeholder, whose `text`
+   * no longer shows it.
+   */
+  readonly isEdited: boolean;
 }
 
 /** Everything the first pass learns about a file. */
@@ -171,6 +178,7 @@ function createEntryFromLine(
       text: captionedPlaceholder,
       kind: 'media',
       caption: cutCaptionBeforePlaceholder(senderAndText.text, captionedPlaceholder),
+      isEdited: hasEditedMessageSuffix(senderAndText.text),
     };
   }
 
@@ -188,6 +196,7 @@ function createEntryFromLine(
     text: senderAndText.text,
     kind: classification,
     caption: '',
+    isEdited: hasEditedMessageSuffix(senderAndText.text),
   };
 }
 
@@ -217,6 +226,9 @@ function createReadingProgress(): ReadingProgress {
  * line (`...and many more <mark>image omitted`), so everything collected so
  * far was the caption of a photo: the entry becomes media, its text becomes
  * the placeholder and what was collected becomes its caption.
+ *
+ * The note of an edited message stands at the very end of a message, so the
+ * line that is now the last one decides whether the entry counts as edited.
  */
 function appendContinuationLine(
   progress: ReadingProgress,
@@ -237,9 +249,11 @@ function appendContinuationLine(
     continuedEntry.caption = `${continuedEntry.text}\n${lastCaptionLine}`.trim();
     continuedEntry.kind = 'media';
     continuedEntry.text = captionedPlaceholder;
+    continuedEntry.isEdited = hasEditedMessageSuffix(cleanedLine);
     return;
   }
   continuedEntry.text += `\n${cleanedLine}`;
+  continuedEntry.isEdited = hasEditedMessageSuffix(continuedEntry.text);
 }
 
 /**

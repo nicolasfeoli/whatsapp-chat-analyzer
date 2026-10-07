@@ -72,6 +72,7 @@ describe('parseChat', () => {
           timestamp: localTime('2023-12-31 22:00:15'),
           sender: 'Ana',
           text: 'feliz año',
+          isEdited: false,
         },
       ]);
     });
@@ -160,6 +161,85 @@ describe('parseChat', () => {
       ]);
 
       expect(textsOf(parseChat(rawText).messages)).toEqual(['first line\nsecond line']);
+    });
+
+    it.each([
+      {
+        description: 'the English note of an iPhone export',
+        rawText: iphoneLine({ text: `fixed it ${LEFT_TO_RIGHT_MARK}<This message was edited>` }),
+      },
+      {
+        description: 'the Spanish note of an Android export',
+        rawText: androidLine({ text: 'ya lo arreglé <Se editó este mensaje.>' }),
+      },
+      {
+        description: 'a note at the end of a multi-line message',
+        rawText: exportText([
+          androidLine({ text: 'first line' }),
+          'second line <This message was edited>',
+        ]),
+      },
+    ])('marks a message with $description as edited', ({ rawText }) => {
+      expect(parseChat(rawText).messages[0]?.isEdited).toBe(true);
+    });
+
+    it('does not mark a message without the note', () => {
+      const rawText = androidLine({ text: 'never touched' });
+
+      expect(parseChat(rawText).messages[0]?.isEdited).toBe(false);
+    });
+
+    it('does not mark a message that only quotes the note before more text', () => {
+      const rawText = exportText([
+        androidLine({ text: 'it said <This message was edited>' }),
+        'and then nothing else',
+      ]);
+
+      expect(parseChat(rawText).messages[0]).toMatchObject({
+        text: 'it said <This message was edited>\nand then nothing else',
+        isEdited: false,
+      });
+    });
+
+    it('marks a photo whose caption was edited, although its text is only the placeholder', () => {
+      const rawText = iphoneLine({
+        text: `happy birthday ${LEFT_TO_RIGHT_MARK}image omitted ${LEFT_TO_RIGHT_MARK}<This message was edited>`,
+      });
+
+      expect(parseChat(rawText).messages[0]).toMatchObject({
+        kind: 'media',
+        text: 'image omitted',
+        caption: 'happy birthday',
+        isEdited: true,
+      });
+    });
+
+    it('marks a photo whose caption of several lines was edited', () => {
+      const rawText = exportText([
+        iphoneLine({ text: 'happy birthday Bob' }),
+        `and many more ${LEFT_TO_RIGHT_MARK}image omitted ${LEFT_TO_RIGHT_MARK}<This message was edited>`,
+      ]);
+
+      expect(parseChat(rawText).messages[0]).toMatchObject({
+        kind: 'media',
+        caption: 'happy birthday Bob\nand many more',
+        isEdited: true,
+      });
+    });
+
+    it('does not mark a photo with a caption nobody edited', () => {
+      const rawText = exportText([
+        iphoneLine({ text: 'happy birthday Bob' }),
+        `and many more ${LEFT_TO_RIGHT_MARK}image omitted`,
+      ]);
+
+      expect(parseChat(rawText).messages[0]?.isEdited).toBe(false);
+    });
+
+    it('does not mark a deleted message', () => {
+      const rawText = androidLine({ text: 'This message was deleted' });
+
+      expect(parseChat(rawText).messages[0]).toMatchObject({ kind: 'deleted', isEdited: false });
     });
   });
 

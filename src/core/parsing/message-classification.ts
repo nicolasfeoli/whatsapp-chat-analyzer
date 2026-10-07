@@ -274,6 +274,17 @@ export function findTrailingMarkedPlaceholder(lineWithMarks: string): string | n
 }
 
 /**
+ * Tells whether a message ends in the "This message was edited" note, i.e.
+ * whether its sender changed it after sending it.
+ *
+ * @param text - The complete text of a message, or the last line of one.
+ * @returns `true` when the note stands at the very end.
+ */
+export function hasEditedMessageSuffix(text: string): boolean {
+  return EDITED_MESSAGE_SUFFIX_PATTERN.test(text);
+}
+
+/**
  * Removes the "This message was edited" note from the end of a message, so it
  * is not counted as four typed words.
  *

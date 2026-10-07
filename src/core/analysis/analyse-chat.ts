@@ -331,13 +331,17 @@ function recordConversationFlow(
 /**
  * Counts the content of a message: a media placeholder with the words of its
  * caption, a deleted tombstone, or the links, emojis and words of typed text.
- * A typed question is also added to the questions of the open turn.
+ * A typed question is also added to the questions of the open turn. A message
+ * of any kind that was edited after sending is counted as such.
  */
 function recordMessageContent(
   totals: ChatTotals,
   person: PersonStatisticsAccumulator,
   message: ChatMessage,
 ): void {
+  if (message.isEdited) {
+    person.editedMessageCount += 1;
+  }
   if (message.kind === 'media') {
     person.mediaCount += 1;
     incrementCount(person.mediaCountsByType, identifyMediaType(message.text));
