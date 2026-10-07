@@ -57,6 +57,11 @@ describe('findPageElements', () => {
     expect(pageElements.hideNamesCheckbox.type).toBe('checkbox');
     expect(pageElements.showEveryoneRow.id).toBe('show-everyone-row');
     expect(pageElements.showEveryoneCheckbox.type).toBe('checkbox');
+    expect(pageElements.periodRow.id).toBe('period-row');
+    expect(pageElements.periodSelect.id).toBe('period-select');
+    expect(pageElements.periodFromInput.type).toBe('date');
+    expect(pageElements.periodToInput.type).toBe('date');
+    expect(pageElements.periodNote.id).toBe('period-note');
     expect(pageElements.reportContainer.id).toBe('report');
     expect(pageElements.tooltip.id).toBe('tooltip');
   });

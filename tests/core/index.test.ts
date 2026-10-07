@@ -506,6 +506,7 @@ describe('public API', () => {
       'mondayFirstWeekdayIndexOf',
       'parseChat',
       'removeLinks',
+      'sortableDayNumber',
       'startOfDay',
     ]);
   });
