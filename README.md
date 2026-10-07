@@ -28,7 +28,7 @@ WhatsApp can export a chat as a text file, but the file is thousands of lines wi
 - **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence, who took over the chat since it began, who has not written in a long time, and the milestones on the way: the 10,000th message and who sent it, the day half of everything had been said, the latest anniversary. A calendar with one square per day shows every year at a glance, down to the single day the chat fell silent or boiled over. Pick a year, the last twelve months or any two dates, and the whole report is counted again for just that stretch.
 - **Its personality.** The words, catchphrases and emojis each person uses far more than everyone else, who laughs the most in writing, who answers in one word or one emoji and who writes paragraphs, and who sends the stickers, the photos and the voice notes, and which sites the links lead to, for the chat and for each person. A row of awards near the top hands out the titles: the night owl, the novelist, the opener, each with the number that earned it. And for the word the lists did not pick, a search field: type any word or short phrase and see how many messages contain it, who says it most, and how that changed from month to month.
 
-A chat is also other people's messages, and they never agreed to have them analysed by a stranger's server. So the page is built so that you do not have to trust it: the file is read inside your browser tab and nothing is uploaded. A switch replaces the names with neutral labels and hides message text before you share a screenshot. A button draws the headline numbers as one picture to pass on, with the names or with the labels, and it is drawn inside the tab like everything else. In a large group the report lists the most active people, and another switch lists everyone. Whoever is left out can still be looked up: one section shows a single person of your choice up close, with their numbers, the hours and weekdays they write in, their words, and whom they answer and mention most.
+A chat is also other people's messages, and they never agreed to have them analysed by a stranger's server. So the page is built so that you do not have to trust it: the file is read inside your browser tab and nothing is uploaded. A switch replaces the names with neutral labels and hides message text before you share a screenshot. A button draws the headline numbers as one picture to pass on, with the names or with the labels, and it is drawn inside the tab like everything else. Another opens the print dialog, where the whole report comes out as pages or as a PDF, without the controls and in colours meant for paper. In a large group the report lists the most active people, and another switch lists everyone. Whoever is left out can still be looked up: one section shows a single person of your choice up close, with their numbers, the hours and weekdays they write in, their words, and whom they answer and mention most.
 
 The project had a second purpose. The first version was written by an AI in one sitting, and I wanted to find out how far that code holds up once it is reviewed and held to the standards of code I would put my name on. The next section is what I found.
 
@@ -93,7 +93,7 @@ The dev server relaxes `connect-src` to its own WebSocket so hot reload works. `
 ## Tests
 
 ```sh
-npm test               # Vitest, 2,765 tests in 84 files
+npm test               # Vitest, 2,800 tests in 85 files
 npm run test:coverage  # the same, with a coverage report in coverage/
 npm run check          # type check, lint, formatting, tests with coverage, build
 ```
@@ -103,6 +103,7 @@ The tests mirror `src/`:
 - `tests/core` covers parsing and analysis: both platforms, 12 and 24 hour clocks, ambiguous date orders, impossible dates such as 31/02, pasted lines, non-Latin digits, emoji sequences and the 400,000-message chat. `tests/core/known-limits.test.ts` pins the inputs the parser is known to get wrong, so they are not mistaken for regressions.
 - `tests/ui` covers the page in a simulated browser (jsdom): every section of the report, the charts and their tooltips, file loading from `.txt` and `.zip`, the size limits, the worker client with its main-thread fallback, and the page controller driving the real `index.html` end to end. Each of those end-to-end tests starts a page of its own. One test renders a chat whose names and messages are markup and checks that no element is created from them.
 - `tests/worker` covers how the worker answers requests, including an analysis that throws, and the worker's entry point behind a stand-in for its global scope.
+- `tests/styles` pins what the print layout leaves out and that it never writes out a link's address.
 - `tests/project` checks that the licence notices of the bundled libraries ship with the page.
 
 No test runs in a real browser yet, so the Content-Security-Policy and the real Web Worker are checked by hand; see the roadmap.
@@ -121,7 +122,7 @@ Every chat line in the tests is invented, and the zips are built inside the test
 | `src/ui/charts/`       | Timeline, heatmap, calendar, horizontal bars, the grid of people and the bar strips                     |
 | `src/ui/summary-card/` | The summary image: what it says, where each text goes, the canvas shell and the download                |
 | `src/worker/`          | Runs the core off the main thread, behind a typed message protocol                                      |
-| `src/styles/`          | Styles, light and dark                                                                                  |
+| `src/styles/`          | Styles, light and dark, and the layout for print                                                        |
 | `index.html`           | Page shell and Content-Security-Policy                                                                  |
 | `public/`              | Fonts, favicon and third-party licence notices, copied to the build unchanged                           |
 | `tests/`               | Mirrors `src/`; `tests/fixtures/` holds the builders for invented chats                                 |
