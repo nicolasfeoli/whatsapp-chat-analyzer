@@ -298,6 +298,48 @@ export interface BusiestDay {
   readonly messageCount: number;
 }
 
+/** The oldest message of the chat. Its text is the first of {@link ChatAnalysis.messages}. */
+export interface FirstMessageMilestone {
+  readonly kind: 'first-message';
+  /** When it was sent. */
+  readonly timestamp: Date;
+  /** Who sent it, by their name as the export wrote it. */
+  readonly sender: string;
+}
+
+/** The message that brought the chat to a round number of messages. */
+export interface MessageCountMilestone {
+  readonly kind: 'message-count';
+  /** When that message was sent. */
+  readonly timestamp: Date;
+  /** Who sent it, by their name as the export wrote it. */
+  readonly sender: string;
+  /** The round number reached: 1,000, 10,000, 50,000 or 100,000. */
+  readonly messageCount: number;
+}
+
+/** The message with which half of all the messages of the chat had been sent. */
+export interface HalfOfMessagesMilestone {
+  readonly kind: 'half-of-messages';
+  /** When that message was sent. */
+  readonly timestamp: Date;
+  /** Its position in the chat, counting from 1: half of the total, rounded up. */
+  readonly messageCount: number;
+}
+
+/** The latest anniversary of the first message that the chat lived to see. */
+export interface AnniversaryMilestone {
+  readonly kind: 'anniversary';
+  /** Midnight at the start of the anniversary. */
+  readonly timestamp: Date;
+  /** How many whole years after the first message it is; at least 1. */
+  readonly years: number;
+}
+
+/** One moment the chat passed, discriminated by `kind`. */
+export type ChatMilestone =
+  FirstMessageMilestone | MessageCountMilestone | HalfOfMessagesMilestone | AnniversaryMilestone;
+
 /** Everything the page draws, computed from the messages of one chat. */
 export interface ChatAnalysis {
   /** All messages sorted by timestamp, oldest first. Never empty. */
@@ -338,6 +380,13 @@ export interface ChatAnalysis {
   readonly conversationCount: number;
   /** Total number of messages. */
   readonly totalMessageCount: number;
+  /**
+   * The moments the chat passed, oldest first: always its first message, then
+   * each round number of messages it reached, the message that made half of
+   * them (from a hundred messages on) and its latest anniversary (from one
+   * year on).
+   */
+  readonly milestones: readonly ChatMilestone[];
   /**
    * The length in days of the two periods compared in "then and now": the
    * first so many days of the chat and the last so many. It is one year for a

@@ -8,10 +8,11 @@ import {
 } from '../../src/ui/anonymise';
 import type { ChatAnalysis } from '../../src/core/types';
 import { assignPersonColours } from '../../src/ui/person-colours';
+import { renderMilestonesSection } from '../../src/ui/sections/milestones';
 import { renderPersonProfileSection } from '../../src/ui/sections/person-profile';
 import { renderWhoIsStillHereSection } from '../../src/ui/sections/who-is-still-here';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
-import { localTime, mediaMessage, textMessage } from '../fixtures/messages';
+import { localMidnight, localTime, mediaMessage, textMessage } from '../fixtures/messages';
 
 const longestMessage = textMessage({
   sender: 'Bob Vega',
@@ -281,6 +282,69 @@ describe('anonymiseAnalysis', () => {
       expect(sectionHtml).toContain('Gone quiet');
       expect(sectionHtml).not.toContain('Ana');
       expect(sectionHtml).not.toContain('Carla');
+    });
+  });
+
+  describe('the milestones', () => {
+    const chatWithMilestones = chatAnalysis({
+      people: namedChat.people,
+      milestones: [
+        { kind: 'first-message', timestamp: localTime('2023-03-14 08:00'), sender: 'Bob Vega' },
+        { kind: 'half-of-messages', timestamp: localTime('2023-09-01 12:00'), messageCount: 30 },
+        { kind: 'anniversary', timestamp: localMidnight('2024-03-14'), years: 1 },
+        {
+          kind: 'message-count',
+          timestamp: localTime('2024-05-06 07:08'),
+          sender: '~ Carla',
+          messageCount: 1_000,
+        },
+        {
+          kind: 'message-count',
+          timestamp: localTime('2025-01-02 03:04'),
+          sender: 'Dani who left',
+          messageCount: 10_000,
+        },
+      ],
+    });
+    const hiddenMilestones = anonymiseAnalysis(chatWithMilestones).milestones;
+
+    it('relabels the sender of the first message and of each round number', () => {
+      expect(hiddenMilestones[0]).toEqual({
+        kind: 'first-message',
+        timestamp: localTime('2023-03-14 08:00'),
+        sender: 'Person B',
+      });
+      expect(hiddenMilestones[3]).toEqual({
+        kind: 'message-count',
+        timestamp: localTime('2024-05-06 07:08'),
+        sender: 'Person C',
+        messageCount: 1_000,
+      });
+    });
+
+    it('labels a sender it has no label for as somebody else', () => {
+      expect(hiddenMilestones[4]).toMatchObject({ sender: SOMEBODY_ELSE_LABEL });
+    });
+
+    it('keeps the milestones that name nobody as they are', () => {
+      expect(hiddenMilestones[1]).toEqual(chatWithMilestones.milestones[1]);
+      expect(hiddenMilestones[2]).toEqual(chatWithMilestones.milestones[2]);
+    });
+
+    it('leaves no name in the "Milestones" section', () => {
+      const hidden = anonymiseAnalysis(chatWithMilestones);
+
+      const sectionHtml = renderMilestonesSection(hidden, assignPersonColours(hidden.people));
+
+      expect(sectionHtml).toContain('Person B');
+      expect(sectionHtml).toContain('Somebody else');
+      for (const nameWord of ['Ana', 'Bob', 'Vega', 'Carla', 'Dani']) {
+        expect(sectionHtml).not.toContain(nameWord);
+      }
+    });
+
+    it('does not change the milestones it was given', () => {
+      expect(chatWithMilestones.milestones[0]).toMatchObject({ sender: 'Bob Vega' });
     });
   });
 

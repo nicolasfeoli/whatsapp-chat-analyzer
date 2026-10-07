@@ -7,6 +7,7 @@ import {
   MILLISECONDS_PER_SECOND,
 } from '../../../src/core/time-constants';
 import { analyseMessages, findPerson, participantNames } from '../../fixtures/analysis-readers';
+import type { ChatMessage } from '../../../src/core/types';
 import { PARTY_POPPER, RED_HEART } from '../../fixtures/emojis';
 import {
   deletedMessage,
@@ -487,6 +488,119 @@ describe('analyseChat', () => {
       expect(findPerson(analysis, 'Ana').lastMessageTimestamp).toEqual(
         analysis.lastMessageTimestamp,
       );
+    });
+  });
+
+  describe('milestones', () => {
+    /**
+     * Builds a chat of one message a minute from 14 March 2023, 08:00 on, in
+     * which Ana and Bob take turns: Ana sends the odd messages, Bob the even.
+     */
+    function chatOfMessageCount(messageCount: number): ChatMessage[] {
+      const firstMinute = localTime('2023-03-14 08:00').getTime();
+      return Array.from({ length: messageCount }, (_unused, index): ChatMessage => ({
+        kind: 'text',
+        timestamp: new Date(firstMinute + index * MILLISECONDS_PER_MINUTE),
+        sender: index % 2 === 0 ? 'Ana' : 'Bob',
+        text: 'hello',
+      }));
+    }
+
+    it('gives a chat of one message its first message and nothing else', () => {
+      const analysis = analyseMessages([
+        textMessage({ sender: 'Ana', sentAt: '2023-03-14 08:00' }),
+      ]);
+
+      expect(analysis.milestones).toEqual([
+        { kind: 'first-message', timestamp: localTime('2023-03-14 08:00'), sender: 'Ana' },
+      ]);
+    });
+
+    it('takes the oldest message as the first, wherever it stands in the file', () => {
+      const analysis = analyseMessages([
+        textMessage({ sender: 'Bob', sentAt: '2023-03-14 09:00' }),
+        textMessage({ sender: 'Carla', sentAt: '2023-03-14 08:00' }),
+      ]);
+
+      expect(analysis.milestones).toEqual([
+        { kind: 'first-message', timestamp: localTime('2023-03-14 08:00'), sender: 'Carla' },
+      ]);
+    });
+
+    it('does not report the half of a chat of 99 messages', () => {
+      const kinds = analyseMessages(chatOfMessageCount(99)).milestones.map(
+        (milestone) => milestone.kind,
+      );
+
+      expect(kinds).toEqual(['first-message']);
+    });
+
+    it('reports the message that makes half of a chat of 100 messages', () => {
+      const analysis = analyseMessages(chatOfMessageCount(100));
+
+      /* The 50th message is sent 49 minutes after 08:00. */
+      expect(analysis.milestones).toEqual([
+        { kind: 'first-message', timestamp: localTime('2023-03-14 08:00'), sender: 'Ana' },
+        { kind: 'half-of-messages', timestamp: localTime('2023-03-14 08:49'), messageCount: 50 },
+      ]);
+    });
+
+    it('does not report the 1,000th message of a chat of 999', () => {
+      const kinds = analyseMessages(chatOfMessageCount(999)).milestones.map(
+        (milestone) => milestone.kind,
+      );
+
+      expect(kinds).toEqual(['first-message', 'half-of-messages']);
+    });
+
+    it('reports the 1,000th message of a chat of 1,000, with who sent it', () => {
+      const analysis = analyseMessages(chatOfMessageCount(1_000));
+
+      /* The 1,000th message is an even one, so it is from Bob, 999 minutes after 08:00: 00:39 the next day. */
+      expect(analysis.milestones).toEqual([
+        { kind: 'first-message', timestamp: localTime('2023-03-14 08:00'), sender: 'Ana' },
+        { kind: 'half-of-messages', timestamp: localTime('2023-03-14 16:19'), messageCount: 500 },
+        {
+          kind: 'message-count',
+          timestamp: localTime('2023-03-15 00:39'),
+          sender: 'Bob',
+          messageCount: 1_000,
+        },
+      ]);
+    });
+
+    it('reports every round number a large chat reached, and none it did not', () => {
+      const analysis = analyseMessages(chatOfMessageCount(50_001));
+
+      const reachedCounts = analysis.milestones
+        .filter((milestone) => milestone.kind === 'message-count')
+        .map((milestone) => milestone.messageCount);
+
+      expect(reachedCounts).toEqual([1_000, 10_000, 50_000]);
+    });
+
+    it('adds the latest anniversary of a chat that lasted more than a year', () => {
+      const analysis = analyseMessages([
+        textMessage({ sender: 'Ana', sentAt: '2023-03-14 08:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2025-06-01 12:00' }),
+      ]);
+
+      expect(analysis.milestones).toEqual([
+        { kind: 'first-message', timestamp: localTime('2023-03-14 08:00'), sender: 'Ana' },
+        { kind: 'anniversary', timestamp: localMidnight('2025-03-14'), years: 2 },
+      ]);
+    });
+
+    it('lists the milestones in order of time', () => {
+      /* A hundred messages on the first day, then one more over a year later. */
+      const messages = [
+        ...chatOfMessageCount(100),
+        textMessage({ sender: 'Bob', sentAt: '2024-04-01 12:00' }),
+      ];
+
+      const kinds = analyseMessages(messages).milestones.map((milestone) => milestone.kind);
+
+      expect(kinds).toEqual(['first-message', 'half-of-messages', 'anniversary']);
     });
   });
 
