@@ -8,6 +8,7 @@ import {
   iphoneLine,
   iphoneNotTypedLine,
 } from '../../fixtures/export-lines';
+import { THE_EXPORTER, groupEvent, namedMember } from '../../fixtures/group-events';
 import { localTime, sendersOf, textsOf } from '../../fixtures/messages';
 import {
   ARABIC_AFTER_NOON_MARKER,
@@ -565,5 +566,128 @@ describe('parseChat', () => {
 
       expect(parseChat(rawText).report.systemNoticeCount).toBe(1);
     });
+  });
+});
+
+describe('parseChat, the history of a group', () => {
+  /** A group that is created, grows by two, loses one and is renamed, with two messages. */
+  const groupExport = exportText([
+    androidNoticeLine({
+      date: '12/30/23',
+      time: '9:00 PM',
+      notice: 'Messages and calls are end-to-end encrypted.',
+    }),
+    androidNoticeLine({ date: '12/30/23', time: '9:00 PM', notice: 'Ana created group "Trip"' }),
+    androidNoticeLine({ date: '12/30/23', time: '9:01 PM', notice: 'Ana added Bob and Carla' }),
+    androidLine({ date: '12/31/23', time: '10:00 PM', sender: 'Ana', text: 'hi all' }),
+    androidNoticeLine({ date: '12/31/23', time: '10:05 PM', notice: 'Carla left' }),
+    androidLine({ date: '12/31/23', time: '10:06 PM', sender: 'Bob', text: 'oh' }),
+    androidNoticeLine({
+      date: '1/2/24',
+      time: '8:00 AM',
+      notice: 'Bob changed the group name from "Trip" to "Trip 2024"',
+    }),
+  ]);
+
+  it('keeps the notices about the group as events, dated like the messages', () => {
+    expect(parseChat(groupExport).groupEvents).toEqual([
+      groupEvent('2023-12-30 21:00', {
+        kind: 'created',
+        creator: namedMember('Ana'),
+        groupName: 'Trip',
+      }),
+      groupEvent('2023-12-30 21:01', {
+        kind: 'added',
+        actor: namedMember('Ana'),
+        members: [namedMember('Bob'), namedMember('Carla')],
+      }),
+      groupEvent('2023-12-31 22:05', { kind: 'left', member: namedMember('Carla') }),
+      groupEvent('2024-01-02 08:00', {
+        kind: 'renamed',
+        actor: namedMember('Bob'),
+        previousName: 'Trip',
+        newName: 'Trip 2024',
+      }),
+    ]);
+  });
+
+  it('does not make a message or a sender out of an event', () => {
+    const parsedChat = parseChat(groupExport);
+
+    expect(textsOf(parsedChat.messages)).toEqual(['hi all', 'oh']);
+    expect(sendersOf(parsedChat.messages)).toEqual(['Ana', 'Bob']);
+  });
+
+  it('counts the events among the system notices, so the report still adds up', () => {
+    const parsedChat = parseChat(groupExport);
+
+    /* 7 entries: 2 messages and 5 notices, of which 4 are kept as events. */
+    expect(parsedChat.report).toEqual({
+      nonEmptyLineCount: 7,
+      entryCount: 7,
+      systemNoticeCount: 5,
+      unreadableDateCount: 0,
+      foldedPastedLineCount: 0,
+      platform: 'Android',
+    });
+    expect(parsedChat.groupEvents).toHaveLength(4);
+  });
+
+  it('reads the dates of the events in the order decided from the messages', () => {
+    const rawText = exportText([
+      androidNoticeLine({ date: '03/04/24', time: '10:00', notice: 'Bob left' }),
+      androidLine({ date: '31/12/24', time: '10:00', sender: 'Ana', text: 'bye' }),
+    ]);
+
+    expect(parseChat(rawText).groupEvents[0]?.timestamp).toEqual(localTime('2024-04-03 10:00'));
+  });
+
+  it('leaves out an event whose date is impossible, without counting it as unreadable', () => {
+    const rawText = exportText([
+      androidNoticeLine({ date: '2/30/24', time: '10:00', notice: 'Bob left' }),
+      androidLine({ date: '12/31/24', time: '10:00', sender: 'Ana', text: 'bye' }),
+    ]);
+
+    const parsedChat = parseChat(rawText);
+
+    expect(parsedChat.groupEvents).toEqual([]);
+    expect(parsedChat.report.systemNoticeCount).toBe(1);
+    expect(parsedChat.report.unreadableDateCount).toBe(0);
+  });
+
+  it('reads the events of an iPhone export, attributed to a sender or not', () => {
+    const rawText = exportText([
+      iphoneNotTypedLine({ time: '21:00:00', sender: 'Trip', text: 'Ana added you' }),
+      `[31/12/2023, 21:30:00] ${LEFT_TO_RIGHT_MARK}Bob joined using this group's invite link`,
+      iphoneLine({ time: '22:00:00', sender: 'Ana', text: 'welcome' }),
+    ]);
+
+    const parsedChat = parseChat(rawText);
+
+    expect(parsedChat.groupEvents).toEqual([
+      groupEvent('2023-12-31 21:00', {
+        kind: 'added',
+        actor: namedMember('Ana'),
+        members: [THE_EXPORTER],
+      }),
+      groupEvent('2023-12-31 21:30', {
+        kind: 'joined',
+        member: namedMember('Bob'),
+        isThroughInviteLink: true,
+      }),
+    ]);
+    expect(sendersOf(parsedChat.messages)).toEqual(['Ana']);
+  });
+
+  it('has no events in a chat of two', () => {
+    expect(parseChat(androidLine()).groupEvents).toEqual([]);
+  });
+
+  it('has no events when the file holds notices but no message', () => {
+    const parsedChat = parseChat(androidNoticeLine({ notice: 'Bob left' }));
+
+    expect(parsedChat.messages).toEqual([]);
+    expect(parsedChat.groupEvents).toEqual([]);
+    expect(parsedChat.report.systemNoticeCount).toBe(1);
   });
 });

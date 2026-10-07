@@ -10,12 +10,19 @@
  * is for. Words that are part of somebody's name are taken out of the word
  * lists, since a chat is full of people calling each other by name. The sites
  * that links lead to stay as well, except those named after a participant.
+ *
+ * The events of the group history name people too, also people who never
+ * wrote a message. Each of those gets a label of their own ("Member 1"), and
+ * the names the group had are left out, since a group name gives a chat away.
  */
 
 import type {
   ChatAnalysis,
   ChatMessage,
   ChatMilestone,
+  GroupChange,
+  GroupEvent,
+  GroupMember,
   PersonStatistics,
   SignaturePhrase,
 } from '../core/index';
@@ -29,6 +36,17 @@ export const HIDDEN_MESSAGE_TEXT = 'Message hidden';
 
 /** The label under which mentions of people who never wrote in the chat are added up. */
 export const SOMEBODY_ELSE_LABEL = 'Somebody else';
+
+/**
+ * Writes the neutral label of somebody the group history names who never
+ * wrote a message, such as a person who was added and left without a word.
+ *
+ * @param index - 0 for the first such person the events name, 1 for the next, and so on.
+ * @returns `"Member 1"`, `"Member 2"` and upwards.
+ */
+export function anonymousMemberLabelOf(index: number): string {
+  return `Member ${index + 1}`;
+}
 
 /** The letters the first twenty-six people are labelled with. */
 const LABEL_LETTERS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -229,14 +247,106 @@ function anonymiseMilestone(milestone: ChatMilestone, replacement: NameReplaceme
 }
 
 /**
+ * Gives the people of the group history their labels: a participant keeps the
+ * label they have everywhere else, and everybody else gets a numbered label
+ * that stays the same from one event to the next.
+ */
+interface GroupMemberRelabelling {
+  /** Copies a person of an event with their name replaced. */
+  readonly relabel: (member: GroupMember) => GroupMember;
+}
+
+/**
+ * Prepares the labels of the people the group history names.
+ */
+function createGroupMemberRelabelling(replacement: NameReplacement): GroupMemberRelabelling {
+  const labelsOfOtherMembers = new Map<string, string>();
+
+  const labelOf = (name: string): string => {
+    const comparedName = normaliseMentionedName(name);
+    const participantLabel =
+      replacement.labelsByName.get(name) ?? replacement.labelsByMentionedName.get(comparedName);
+    if (participantLabel !== undefined) {
+      return participantLabel;
+    }
+    const knownLabel = labelsOfOtherMembers.get(comparedName);
+    if (knownLabel !== undefined) {
+      return knownLabel;
+    }
+    const newLabel = anonymousMemberLabelOf(labelsOfOtherMembers.size);
+    labelsOfOtherMembers.set(comparedName, newLabel);
+    return newLabel;
+  };
+
+  return {
+    relabel: (member: GroupMember): GroupMember =>
+      member.kind === 'named' ? { kind: 'named', name: labelOf(member.name) } : member,
+  };
+}
+
+/**
+ * Copies what a group event says happened with every person relabelled and
+ * every group name left out.
+ */
+function anonymiseGroupChange(
+  change: GroupChange,
+  relabelling: GroupMemberRelabelling,
+): GroupChange {
+  const relabelOptional = (member: GroupMember | null): GroupMember | null =>
+    member === null ? null : relabelling.relabel(member);
+
+  switch (change.kind) {
+    case 'created':
+      return { kind: 'created', creator: relabelling.relabel(change.creator), groupName: null };
+    case 'joined':
+      return { ...change, member: relabelling.relabel(change.member) };
+    case 'left':
+      return { ...change, member: relabelling.relabel(change.member) };
+    case 'added':
+    case 'removed':
+      return {
+        kind: change.kind,
+        actor: relabelOptional(change.actor),
+        members: change.members.map(relabelling.relabel),
+      };
+    case 'renamed':
+      return {
+        kind: 'renamed',
+        actor: relabelling.relabel(change.actor),
+        previousName: null,
+        newName: null,
+      };
+    case 'icon-changed':
+      return { ...change, actor: relabelling.relabel(change.actor) };
+  }
+}
+
+/**
+ * Copies the events of the group history without a name in them. The events
+ * are walked oldest first, so the numbered labels follow the order in which
+ * people first appear.
+ */
+function anonymiseGroupEvents(
+  groupEvents: readonly GroupEvent[],
+  replacement: NameReplacement,
+): GroupEvent[] {
+  const relabelling = createGroupMemberRelabelling(replacement);
+  return groupEvents.map((groupEvent: GroupEvent): GroupEvent => ({
+    timestamp: groupEvent.timestamp,
+    change: anonymiseGroupChange(groupEvent.change, relabelling),
+  }));
+}
+
+/**
  * Makes a copy of an analysis in which nobody can be recognised by name and
  * no message can be read.
  *
  * @param analysis - The analysed chat. It is not modified.
  * @returns The copy: same numbers, neutral labels instead of names (also for
  *   the senders of the milestones), hidden message texts, word lists without
- *   the words of the names, and site lists without the sites named after a
- *   participant.
+ *   the words of the names, site lists without the sites named after a
+ *   participant, and a group history with labels for everybody it names and
+ *   without the names of the group.
  */
 export function anonymiseAnalysis(analysis: ChatAnalysis): ChatAnalysis {
   const replacement = buildNameReplacement(analysis.people);
@@ -259,5 +369,6 @@ export function anonymiseAnalysis(analysis: ChatAnalysis): ChatAnalysis {
     milestones: analysis.milestones.map((milestone: ChatMilestone): ChatMilestone =>
       anonymiseMilestone(milestone, replacement),
     ),
+    groupEvents: anonymiseGroupEvents(analysis.groupEvents, replacement),
   };
 }

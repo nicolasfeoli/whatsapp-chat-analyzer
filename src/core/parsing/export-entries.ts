@@ -1,6 +1,8 @@
 /**
  * First pass over the text of an export: split it into lines, recognise the
- * entries, drop system notices and attach continuation lines.
+ * entries, drop system notices and attach continuation lines. A notice about
+ * who is in the group or what it is called is kept on the side as a group
+ * notice; it never becomes an entry.
  *
  * Dates are deliberately left as three uninterpreted numbers here, because
  * whether `03/04/24` is the third of April or the fourth of March can only be
@@ -8,8 +10,9 @@
  */
 
 import type { Mutable } from '../mutable';
-import type { ExportPlatform, MessageKind } from '../types';
+import type { ExportPlatform, GroupChange, MessageKind } from '../types';
 import type { TimestampParts } from './date-construction';
+import { readGroupNotice } from './group-notices';
 import {
   LEFT_TO_RIGHT_MARK,
   removeInvisibleCharacters,
@@ -49,6 +52,15 @@ export interface ExportEntry extends TimestampParts {
   readonly isEdited: boolean;
 }
 
+/**
+ * A system notice about the group as read from the file: its timestamp, still
+ * as the numbers the export wrote, and what it says happened.
+ */
+export interface ExportGroupNotice extends TimestampParts {
+  /** What the notice says happened. */
+  readonly change: GroupChange;
+}
+
 /** Everything the first pass learns about a file. */
 export interface ExportEntriesReading {
   /** The messages in file order; system notices are already left out. */
@@ -57,7 +69,12 @@ export interface ExportEntriesReading {
   readonly nonEmptyLineCount: number;
   /** Lines that start with a timestamp: messages and system notices together. */
   readonly entryCount: number;
-  /** Entries dropped as system notices. */
+  /**
+   * The system notices about who is in the group and what it is called, in
+   * file order. They are counted in `systemNoticeCount` like every notice.
+   */
+  readonly groupNotices: readonly ExportGroupNotice[];
+  /** Entries that are system notices, whether dropped or kept as group notices. */
   readonly systemNoticeCount: number;
   /** The client that wrote the export, judged from the first entry; `null` when there is none. */
   readonly platform: ExportPlatform | null;
@@ -76,6 +93,8 @@ type ExportEntryUnderConstruction = Mutable<ExportEntry>;
 interface ReadingProgress extends Mutable<ExportEntriesReading> {
   /** Narrowed from the result type so continuation lines can be appended to the entries. */
   entries: ExportEntryUnderConstruction[];
+  /** Narrowed from the result type so notices can be appended. */
+  groupNotices: ExportGroupNotice[];
   /**
    * The entry that a line without a timestamp would continue, or `null` when
    * such a line belongs to nothing that is kept (the file has not reached its
@@ -143,6 +162,68 @@ function cutCaptionBeforePlaceholder(visibleText: string, placeholder: string): 
 }
 
 /**
+ * Copies the numbers of the timestamp out of a matched line.
+ */
+function timestampPartsOf(lineMatch: MessageLineMatch): TimestampParts {
+  return {
+    firstDateNumber: lineMatch.firstDateNumber,
+    secondDateNumber: lineMatch.secondDateNumber,
+    thirdDateNumber: lineMatch.thirdDateNumber,
+    hour: lineMatch.hour,
+    minute: lineMatch.minute,
+    second: lineMatch.second ?? 0,
+    meridiem: lineMatch.meridiem,
+  };
+}
+
+/**
+ * Finds the wording of a system notice in a line that was not read as a message.
+ *
+ * A notice is written in one of two ways. Android, and iPhone at times, write
+ * it straight after the timestamp (`31/12/23, 22:00 - Bob added Carl`); a
+ * group name with a colon in it can make such a line look as if it had a
+ * sender. iPhone otherwise attributes it to the group or to a person and puts
+ * the left-to-right mark in front (`[...] Trip: <mark>Bob added Carl`).
+ *
+ * The mark is required in the second case. Without it somebody typed the
+ * words, and the line was dropped for another reason (it mentions a "security
+ * code", say); what a person typed is never read as an event.
+ *
+ * @returns The text of the notice, or `null` when the line holds typed words.
+ */
+function findNoticeWording(originalLine: string, lineMatch: MessageLineMatch): string | null {
+  const senderAndText = splitSenderAndText(lineMatch.content);
+  if (senderAndText === null || isSystemNoticeSender(senderAndText.sender)) {
+    return lineMatch.content;
+  }
+  if (isBodyMarkedAsNotTyped(originalLine, senderAndText.sender)) {
+    return senderAndText.text;
+  }
+  return null;
+}
+
+/**
+ * Reads a line that was not kept as a message as a notice about the group.
+ *
+ * @returns The notice with its timestamp, or `null` when the line says nothing
+ *   about who is in the group or what it is called, in which case it is dropped.
+ */
+function createGroupNoticeFromLine(
+  originalLine: string,
+  lineMatch: MessageLineMatch,
+): ExportGroupNotice | null {
+  const noticeWording = findNoticeWording(originalLine, lineMatch);
+  if (noticeWording === null) {
+    return null;
+  }
+  const change = readGroupNotice(noticeWording);
+  if (change === null) {
+    return null;
+  }
+  return { ...timestampPartsOf(lineMatch), change };
+}
+
+/**
  * Turns a matched line into an entry, or decides that it is a system notice.
  *
  * @returns The entry, or `null` for a system notice.
@@ -160,15 +241,7 @@ function createEntryFromLine(
     return null;
   }
 
-  const timestampParts: TimestampParts = {
-    firstDateNumber: lineMatch.firstDateNumber,
-    secondDateNumber: lineMatch.secondDateNumber,
-    thirdDateNumber: lineMatch.thirdDateNumber,
-    hour: lineMatch.hour,
-    minute: lineMatch.minute,
-    second: lineMatch.second ?? 0,
-    meridiem: lineMatch.meridiem,
-  };
+  const timestampParts = timestampPartsOf(lineMatch);
 
   const captionedPlaceholder = findCaptionedPlaceholder(originalLine, cleanedLine);
   if (captionedPlaceholder !== null) {
@@ -206,6 +279,7 @@ function createEntryFromLine(
 function createReadingProgress(): ReadingProgress {
   return {
     entries: [],
+    groupNotices: [],
     nonEmptyLineCount: 0,
     entryCount: 0,
     systemNoticeCount: 0,
@@ -259,6 +333,7 @@ function appendContinuationLine(
 /**
  * Handles a line that starts with a timestamp: counts it, lets the first one
  * decide the platform, and keeps it as an entry unless it is a system notice.
+ * A system notice is counted, and kept on the side when it is about the group.
  */
 function recordEntryLine(
   progress: ReadingProgress,
@@ -273,6 +348,10 @@ function recordEntryLine(
   const entry = createEntryFromLine(originalLine, cleanedLine, lineMatch);
   if (entry === null) {
     progress.systemNoticeCount += 1;
+    const groupNotice = createGroupNoticeFromLine(originalLine, lineMatch);
+    if (groupNotice !== null) {
+      progress.groupNotices.push(groupNotice);
+    }
     return;
   }
 
@@ -309,7 +388,8 @@ function readLine(progress: ReadingProgress, originalLine: string): void {
  * as words, and the lines after a system notice belong to the notice.
  *
  * @param rawText - The complete text of the export.
- * @returns The messages with uninterpreted dates, and the counts for the parse report.
+ * @returns The messages and the group notices with uninterpreted dates, and
+ *   the counts for the parse report.
  */
 export function readExportEntries(rawText: string): ExportEntriesReading {
   const progress = createReadingProgress();
@@ -319,6 +399,7 @@ export function readExportEntries(rawText: string): ExportEntriesReading {
 
   return {
     entries: progress.entries,
+    groupNotices: progress.groupNotices,
     nonEmptyLineCount: progress.nonEmptyLineCount,
     entryCount: progress.entryCount,
     systemNoticeCount: progress.systemNoticeCount,

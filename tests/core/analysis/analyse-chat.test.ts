@@ -9,6 +9,7 @@ import {
 import { analyseMessages, findPerson, participantNames } from '../../fixtures/analysis-readers';
 import type { ChatMessage } from '../../../src/core/types';
 import { PARTY_POPPER, RED_HEART } from '../../fixtures/emojis';
+import { groupEvent, namedMember } from '../../fixtures/group-events';
 import {
   deletedMessage,
   localMidnight,
@@ -1698,5 +1699,60 @@ describe('analyseChat', () => {
         5 * MILLISECONDS_PER_HOUR,
       );
     });
+  });
+});
+
+describe('analyseChat, the history of a group', () => {
+  const messages = [
+    textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'hello' }),
+    textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:01', text: 'hi' }),
+  ];
+  const carlaJoined = groupEvent('2024-01-13 10:02', {
+    kind: 'joined',
+    member: namedMember('Carla'),
+    isThroughInviteLink: false,
+  });
+  const groupCreated = groupEvent('2024-01-01 09:00', {
+    kind: 'created',
+    creator: namedMember('Ana'),
+    groupName: 'Trip',
+  });
+  const carlaLeft = groupEvent('2024-02-01 09:00', { kind: 'left', member: namedMember('Carla') });
+
+  it('has no events unless it is given some', () => {
+    expect(analyseChat(messages, 'second').groupEvents).toEqual([]);
+  });
+
+  it('hands the events on sorted from oldest to newest, without changing the list given', () => {
+    const groupEvents = [carlaLeft, carlaJoined, groupCreated];
+
+    const analysis = analyseChat(messages, 'second', groupEvents);
+
+    expect(analysis.groupEvents).toEqual([groupCreated, carlaJoined, carlaLeft]);
+    expect(groupEvents).toEqual([carlaLeft, carlaJoined, groupCreated]);
+  });
+
+  it('keeps events of the same moment in the order they were given', () => {
+    const bobJoined = groupEvent('2024-01-13 10:02', {
+      kind: 'joined',
+      member: namedMember('Bob'),
+      isThroughInviteLink: false,
+    });
+
+    expect(analyseChat(messages, 'second', [carlaJoined, bobJoined]).groupEvents).toEqual([
+      carlaJoined,
+      bobJoined,
+    ]);
+  });
+
+  it('changes no other number: the events are not messages and name no participant', () => {
+    const withoutEvents = analyseChat(messages, 'second');
+
+    const withEvents = analyseChat(messages, 'second', [groupCreated, carlaJoined, carlaLeft]);
+
+    expect({ ...withEvents, groupEvents: [] }).toEqual(withoutEvents);
+    expect(participantNames(withEvents)).toEqual(['Ana', 'Bob']);
+    expect(withEvents.firstMessageTimestamp).toEqual(localTime('2024-01-13 10:00'));
+    expect(withEvents.lastMessageTimestamp).toEqual(localTime('2024-01-13 10:01'));
   });
 });

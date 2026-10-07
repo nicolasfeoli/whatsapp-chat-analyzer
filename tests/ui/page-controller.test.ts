@@ -41,7 +41,13 @@ import {
 import { WORD_SEARCH_HINT } from '../../src/ui/sections/word-search';
 import { createTooltip } from '../../src/ui/tooltip';
 import { analysedResult } from '../fixtures/analysis-builders';
-import { androidLine, exportText, iphoneLine, iphoneNotTypedLine } from '../fixtures/export-lines';
+import {
+  androidLine,
+  androidNoticeLine,
+  exportText,
+  iphoneLine,
+  iphoneNotTypedLine,
+} from '../fixtures/export-lines';
 import { findElement, textsOfElements } from '../fixtures/markup';
 import { loadIndexHtmlBody } from '../fixtures/page';
 import { createRecordingSummaryImageServices } from '../fixtures/summary-image';
@@ -2365,5 +2371,92 @@ describe('looking up a word', () => {
       expect(page.elements.reportContainer.querySelector('#word-search-input')).toBeNull();
       expect(textsOfElements(page.elements.reportContainer, 'h2')).not.toContain('Look up a word');
     });
+  });
+});
+
+describe('the history of a group', () => {
+  /**
+   * A group export: Ana creates "Lake trip" and adds Bob and Dani, the two
+   * write on new year's eve, Dani leaves without a word, and the description
+   * is changed, which is not group history.
+   */
+  const GROUP_CHAT_TEXT = exportText([
+    androidNoticeLine({ date: '30/12/23', time: '21:00', notice: 'Ana created group "Lake trip"' }),
+    androidNoticeLine({ date: '30/12/23', time: '21:01', notice: 'Ana added Bob and Dani' }),
+    androidLine({ date: '31/12/23', time: '22:00', sender: 'Ana', text: 'happy new year' }),
+    androidLine({ date: '31/12/23', time: '22:01', sender: 'Bob', text: 'same to you' }),
+    androidNoticeLine({ date: '31/12/23', time: '23:00', notice: 'Dani left' }),
+    androidNoticeLine({
+      date: '31/12/23',
+      time: '23:05',
+      notice: 'Bob changed the group description',
+    }),
+  ]);
+
+  /** The group export as a file called "Lake trip". */
+  function fileOfTheGroup(): File {
+    return new File([GROUP_CHAT_TEXT], 'Lake trip.txt', { type: 'text/plain' });
+  }
+
+  /** Lists what the events of "Group history" read, newest first; empty without the section. */
+  function groupHistoryOf(page: TestPage): string[] {
+    return textsOfElements(page.elements.reportContainer, '.group-history .milestone-description');
+  }
+
+  it('lists the events of a group export, newest first', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfTheGroup(), 'Lake trip');
+
+    expect(groupHistoryOf(page)).toEqual([
+      'Dani left',
+      'Ana added Bob and Dani',
+      'Ana created the group “Lake trip”',
+    ]);
+  });
+
+  it('counts only the two people who wrote', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfTheGroup(), 'Lake trip');
+
+    expect(textsOfElements(page.elements.reportContainer, '.legend span')).toEqual(['Ana', 'Bob']);
+  });
+
+  it('says in the line under the picker how many notices were kept and how many skipped', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfTheGroup(), 'Lake trip');
+
+    /* 6 lines: 2 messages, 3 notices kept as events, 1 skipped. */
+    expect(page.elements.parseReport.textContent).toBe(
+      'Read 2 messages from 6 lines of an Android export, dates as day/month/year. Kept 3 system notices as group history. Skipped 1 system notice.',
+    );
+  });
+
+  it('shows no such section for a chat without group notices', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfAna(), 'Ana');
+
+    expect(groupHistoryOf(page)).toEqual([]);
+    expect(textsOfElements(page.elements.reportContainer, 'h2')).not.toContain('Group history');
+  });
+
+  it('relabels everybody and hides the group name when names are hidden', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfTheGroup(), 'Lake trip');
+
+    page.elements.hideNamesCheckbox.checked = true;
+    page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+
+    expect(groupHistoryOf(page)).toEqual([
+      'Member 1 left',
+      'Person A added Person B and Member 1',
+      'Person A created the group',
+    ]);
+    for (const name of ['Ana', 'Bob', 'Dani', 'Lake']) {
+      expect(page.elements.reportContainer.textContent).not.toContain(name);
+    }
   });
 });

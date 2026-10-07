@@ -19,7 +19,13 @@ import { renderTimelineSvg, renderTimelineTooltip } from '../../src/ui/charts/ti
 import { renderChatReport } from '../../src/ui/chat-report';
 import { assignPersonColours } from '../../src/ui/person-colours';
 import { renderWordSearchOutcome } from '../../src/ui/sections/word-search';
-import { androidLine, exportText, iphoneLine, iphoneNotTypedLine } from '../fixtures/export-lines';
+import {
+  androidLine,
+  exportText,
+  iphoneLine,
+  iphoneNotTypedLine,
+  iphoneNoticeLine,
+} from '../fixtures/export-lines';
 import { findElement, parseMarkup, tagNamesIn, textsOfElements } from '../fixtures/markup';
 
 /** The width the timeline is drawn at in these tests. */
@@ -369,6 +375,33 @@ describe('renderChatReport', () => {
       expect(sitesSection?.innerHTML).toContain('example.com');
       expect(sitesSection?.innerHTML).not.toContain('page-');
       expect(sitesSection?.innerHTML).not.toContain('from=ana');
+    });
+
+    it('puts "Group history" where the report turns to who is in the chat, and only for a group', () => {
+      const lines = writeConversation('Ana', 'Bob', 'see you at the lake');
+      const notice = iphoneNoticeLine({
+        date: '01/01/2024',
+        time: '09:00:00',
+        notice: 'Ana added <b>Dani</b>',
+      });
+      const withoutNotice = parseMarkup(
+        renderChatReport(analyseExport(exportText(lines)), 'Two').html,
+      );
+      const withNotice = parseMarkup(
+        renderChatReport(analyseExport(exportText([notice, ...lines])), 'Two').html,
+      );
+
+      const headings = textsOfElements(withNotice, 'h2');
+
+      expect(textsOfElements(withoutNotice, 'h2')).not.toContain('Group history');
+      expect(headings.filter((heading) => heading !== 'Group history')).toEqual(
+        textsOfElements(withoutNotice, 'h2'),
+      );
+      expect(headings[headings.indexOf('When the chat is alive') - 1]).toBe('Group history');
+      /* A name in a notice is as untrusted as a sender: it is shown as text. */
+      expect(textsOfElements(withNotice, '.group-history .milestone-description')).toEqual([
+        'Ana added <b>Dani</b>',
+      ]);
     });
 
     it('does not count the words of a media placeholder among the most used words', () => {

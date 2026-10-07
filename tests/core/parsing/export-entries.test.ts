@@ -9,6 +9,7 @@ import {
   iphoneNotTypedLine,
   iphoneNoticeLine,
 } from '../../fixtures/export-lines';
+import { namedMember } from '../../fixtures/group-events';
 import {
   BYTE_ORDER_MARK,
   INVENTED_PHONE_NUMBER_GROUPS,
@@ -587,5 +588,144 @@ describe('readExportEntries', () => {
     it('reports no seconds for an empty text', () => {
       expect(readExportEntries('').hasSecondsInTimestamps).toBe(false);
     });
+  });
+});
+
+describe('readExportEntries, notices about the group', () => {
+  it.each([
+    {
+      description: 'an Android notice without a sender',
+      line: androidNoticeLine({ notice: 'Bob added Carl' }),
+      change: { kind: 'added', actor: namedMember('Bob'), members: [namedMember('Carl')] },
+    },
+    {
+      description: 'an iPhone notice without a sender',
+      line: iphoneNoticeLine({ notice: 'Ana created this group' }),
+      change: { kind: 'created', creator: namedMember('Ana'), groupName: null },
+    },
+    {
+      description: 'an iPhone notice attributed to the group, with the left-to-right mark',
+      line: iphoneNotTypedLine({ sender: 'Trip', text: 'Ana created group “Trip”' }),
+      change: { kind: 'created', creator: namedMember('Ana'), groupName: 'Trip' },
+    },
+    {
+      description: 'an iPhone notice attributed to the person it is about',
+      line: iphoneNotTypedLine({ sender: 'Bob', text: 'Bob left' }),
+      change: { kind: 'left', member: namedMember('Bob') },
+    },
+    {
+      description: 'an Android rename whose new name contains a colon',
+      line: androidNoticeLine({ notice: 'Bob changed the group name to "Party: 2024"' }),
+      change: {
+        kind: 'renamed',
+        actor: namedMember('Bob'),
+        previousName: null,
+        newName: 'Party: 2024',
+      },
+    },
+    {
+      description: 'a Spanish Android notice',
+      line: androidNoticeLine({ notice: 'Bob salió del grupo' }),
+      change: { kind: 'left', member: namedMember('Bob') },
+    },
+  ])('keeps $description on the side, and still counts it as a notice', ({ line, change }) => {
+    const reading = readExportEntries(line);
+
+    expect(reading.groupNotices.map((groupNotice) => groupNotice.change)).toEqual([change]);
+    expect(reading.entries).toEqual([]);
+    expect(reading.entryCount).toBe(1);
+    expect(reading.systemNoticeCount).toBe(1);
+  });
+
+  it('keeps the numbers of the timestamp as written, for the date order to be decided later', () => {
+    const rawText = iphoneNoticeLine({ date: '03/04/2024', time: '09:08:07', notice: 'Bob left' });
+
+    expect(readExportEntries(rawText).groupNotices[0]).toMatchObject({
+      firstDateNumber: 3,
+      secondDateNumber: 4,
+      thirdDateNumber: 2024,
+      hour: 9,
+      minute: 8,
+      second: 7,
+    });
+  });
+
+  it('reads a name wrapped in invisible characters without them', () => {
+    const wrappedName = `${LEFT_TO_RIGHT_MARK}Bob${LEFT_TO_RIGHT_MARK}`;
+    const rawText = androidNoticeLine({ notice: `Ana added ${wrappedName}` });
+
+    expect(readExportEntries(rawText).groupNotices[0]?.change).toMatchObject({
+      members: [namedMember('Bob')],
+    });
+  });
+
+  it.each([
+    {
+      description: 'the encryption banner',
+      line: androidNoticeLine({ notice: 'Messages and calls are end-to-end encrypted.' }),
+    },
+    {
+      description: 'a change of the group description',
+      line: androidNoticeLine({ notice: 'Bob changed the group description' }),
+    },
+    {
+      description: 'an iPhone notice about something else',
+      line: iphoneNotTypedLine({ sender: 'Ana', text: 'Ana is a contact.' }),
+    },
+  ])('drops $description as before', ({ line }) => {
+    const reading = readExportEntries(line);
+
+    expect(reading.groupNotices).toEqual([]);
+    expect(reading.systemNoticeCount).toBe(1);
+  });
+
+  describe('words somebody typed', () => {
+    it.each([
+      { description: 'on Android', line: androidLine({ sender: 'Ana', text: 'Bob left' }) },
+      { description: 'on iPhone', line: iphoneLine({ sender: 'Ana', text: 'Bob left' }) },
+    ])('stay a message when they read like a notice, $description', ({ line }) => {
+      const reading = readExportEntries(line);
+
+      expect(reading.groupNotices).toEqual([]);
+      expect(reading.entries.map((entry) => entry.text)).toEqual(['Bob left']);
+      expect(reading.systemNoticeCount).toBe(0);
+    });
+
+    it('are not read as an event when the message is dropped for another reason', () => {
+      /* Dropped because of "security code" (a known limit); "Bob left" was typed. */
+      const rawText = androidLine({ sender: 'Ana', text: 'security code' });
+      const typedNotice = iphoneLine({ sender: 'Bob left', text: 'missed video call' });
+
+      expect(readExportEntries(rawText).groupNotices).toEqual([]);
+      expect(readExportEntries(typedNotice).groupNotices).toEqual([]);
+    });
+
+    it('are not read as an event when the sender is dropped as a notice', () => {
+      const rawText = androidLine({ sender: 'Uncle Left Shark', text: 'Bob left' });
+
+      const reading = readExportEntries(rawText);
+
+      expect(reading.groupNotices).toEqual([]);
+      expect(reading.systemNoticeCount).toBe(1);
+    });
+  });
+
+  it('does not let the lines after a kept notice continue anything', () => {
+    const rawText = exportText([
+      androidLine({ sender: 'Ana', text: 'hello' }),
+      androidNoticeLine({ notice: 'Bob left' }),
+      'a stray line',
+    ]);
+
+    const reading = readExportEntries(rawText);
+
+    expect(reading.entries.map((entry) => entry.text)).toEqual(['hello']);
+    expect(reading.groupNotices).toHaveLength(1);
+  });
+
+  it('does not let a notice decide whether the export records seconds', () => {
+    const rawText = iphoneNoticeLine({ time: '21:59:30', notice: 'Bob left' });
+
+    expect(readExportEntries(rawText).hasSecondsInTimestamps).toBe(false);
   });
 });

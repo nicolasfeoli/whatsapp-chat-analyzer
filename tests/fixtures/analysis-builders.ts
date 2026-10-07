@@ -124,7 +124,8 @@ function totalMessageCountOf(people: readonly PersonStatistics[]): number {
 /**
  * Builds the analysis of a small chat. Unless stated otherwise it is a single
  * Saturday, 13 January 2024, with one message from Ana, read from an export
- * that records seconds, and whose only milestone is that first message.
+ * that records seconds, whose only milestone is that first message and
+ * which holds no group event.
  * `totalMessageCount` follows from the people given.
  *
  * @param parts - The parts the test is about.
@@ -157,6 +158,7 @@ export function chatAnalysis(parts: Partial<ChatAnalysis> = {}): ChatAnalysis {
     conversationCount: 1,
     totalMessageCount: totalMessageCountOf(people),
     milestones: [{ kind: 'first-message', timestamp: firstMessage.timestamp, sender: 'Ana' }],
+    groupEvents: [],
     comparisonPeriodInDays: 0,
     timestampResolution: 'second',
     ...parts,
