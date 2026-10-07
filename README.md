@@ -93,7 +93,7 @@ The dev server relaxes `connect-src` to its own WebSocket so hot reload works. `
 ## Tests
 
 ```sh
-npm test               # Vitest, 3,229 tests in 94 files
+npm test               # Vitest, 3,233 tests in 94 files
 npm run test:coverage  # the same, with a coverage report in coverage/
 npm run check          # type check, lint, formatting, tests with coverage, build
 ```

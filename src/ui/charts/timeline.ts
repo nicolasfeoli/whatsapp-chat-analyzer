@@ -465,7 +465,9 @@ export function renderTimelineTooltip(timeline: TimelineData, bucketIndex: numbe
 }
 
 /**
- * Makes one hover band highlight itself and show the tooltip of its bar.
+ * Makes one hover band highlight itself and show the tooltip of its bar. A tap
+ * shows the tooltip too: a finger never hovers, and its tap arrives as a click
+ * after the pointer has already left, so the band is not highlighted for it.
  */
 function attachHoverBandEvents(
   hoverBand: SVGElement,
@@ -481,6 +483,9 @@ function attachHoverBandEvents(
   hoverBand.addEventListener('pointerleave', (): void => {
     hoverBand.classList.remove(HIGHLIGHTED_HOVER_BAND_CLASS);
     tooltip.hide();
+  });
+  hoverBand.addEventListener('click', (event: MouseEvent): void => {
+    tooltip.show(renderTimelineTooltip(timeline, bucketIndex), event);
   });
 }
 

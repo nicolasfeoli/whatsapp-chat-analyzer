@@ -388,18 +388,22 @@ export function findCalendarDayAt(eventTarget: EventTarget | null): CalendarDayC
 }
 
 /**
- * Makes one calendar show the tooltip of the square under the pointer. Two
- * listeners serve all of its squares.
+ * Makes one calendar show the tooltip of the square under the pointer, and of
+ * a square that is tapped: a finger never hovers, and its tap arrives as a
+ * click after the pointer has already left. Three listeners serve all of its
+ * squares.
  */
 function attachCalendarEvents(calendarElement: HTMLElement, tooltip: Tooltip): void {
-  calendarElement.addEventListener('pointermove', (event: PointerEvent): void => {
+  const showTooltipAt = (event: MouseEvent): void => {
     const day = findCalendarDayAt(event.target);
     if (day === null) {
       tooltip.hide();
       return;
     }
     tooltip.show(renderCalendarTooltip(day), event);
-  });
+  };
+  calendarElement.addEventListener('pointermove', showTooltipAt);
+  calendarElement.addEventListener('click', showTooltipAt);
   calendarElement.addEventListener('pointerleave', (): void => {
     tooltip.hide();
   });
