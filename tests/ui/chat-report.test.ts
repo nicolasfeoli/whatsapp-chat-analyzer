@@ -239,6 +239,30 @@ describe('renderChatReport', () => {
       expect(textsOfElements(page, 'tbody td')).toContain('Mostly on Saturdays, around 20:00');
     });
 
+    it('adds the most shared sites after words and emojis once the chat holds ten links', () => {
+      const lines = Array.from({ length: 10 }, (_unused, index): string =>
+        iphoneLine({
+          date: '13/01/2024',
+          time: `10:${String(index).padStart(2, '0')}:00`,
+          sender: index % 2 === 0 ? 'Ana' : 'Bob',
+          text: `look https://www.example.com/page-${String(index)}?from=ana`,
+        }),
+      );
+      const page = parseMarkup(renderChatReport(analyseExport(exportText(lines)), 'Two').html);
+
+      const headings = textsOfElements(page, 'h2');
+      const wordsPosition = headings.indexOf('Words and emojis');
+
+      expect(headings[wordsPosition + 1]).toBe('Most shared sites');
+      /* The first and the longest message are quoted in full elsewhere; this section must not. */
+      const sitesSection = Array.from(page.querySelectorAll('section')).find(
+        (section) => section.querySelector('h2')?.textContent === 'Most shared sites',
+      );
+      expect(sitesSection?.innerHTML).toContain('example.com');
+      expect(sitesSection?.innerHTML).not.toContain('page-');
+      expect(sitesSection?.innerHTML).not.toContain('from=ana');
+    });
+
     it('does not count the words of a media placeholder among the most used words', () => {
       const withStickers = analyseExport(
         exportText([

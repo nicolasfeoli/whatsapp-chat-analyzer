@@ -247,6 +247,57 @@ describe('analyseChat', () => {
       });
     });
 
+    it('counts the sites of the links each participant shared, and of the chat', () => {
+      const messages = [
+        textMessage({
+          sender: 'Ana',
+          sentAt: '2024-01-13 10:00',
+          text: 'https://www.example.com/one and https://example.org/two?key=secret',
+        }),
+        textMessage({
+          sender: 'Bob',
+          sentAt: '2024-01-13 10:01',
+          text: 'also https://m.example.com/three',
+        }),
+        mediaMessage({
+          sender: 'Bob',
+          sentAt: '2024-01-13 10:02',
+          text: 'image omitted',
+          caption: 'from https://example.com/four',
+        }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect([...findPerson(analysis, 'Ana').linkSiteCounts]).toEqual([
+        ['example.com', 1],
+        ['example.org', 1],
+      ]);
+      expect([...findPerson(analysis, 'Bob').linkSiteCounts]).toEqual([['example.com', 2]]);
+      expect([...analysis.linkSiteCounts]).toEqual([
+        ['example.com', 3],
+        ['example.org', 1],
+      ]);
+    });
+
+    it('counts a link without a site as a link, but under no site', () => {
+      const messages = [textMessage({ sender: 'Ana', text: 'router: http://192.168.0.1/admin' })];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').linkCount).toBe(1);
+      expect(findPerson(analysis, 'Ana').linkSiteCounts.size).toBe(0);
+      expect(analysis.linkSiteCounts.size).toBe(0);
+    });
+
+    it('does not read a site from the map link of a shared location, which is media', () => {
+      const messages = [
+        mediaMessage({ sender: 'Ana', text: 'Location: https://maps.example.com/?q=1,2' }),
+      ];
+
+      expect(analyseMessages(messages).linkSiteCounts.size).toBe(0);
+    });
+
     it('counts the significant words of each participant', () => {
       const messages = [
         textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'pizza tonight' }),

@@ -93,6 +93,7 @@ interface ChatTotals {
   readonly messageCountsByDayKey: Map<number, number>;
   readonly emojiCounts: Map<string, number>;
   readonly wordCounts: Map<string, number>;
+  readonly linkSiteCounts: Map<string, number>;
   /** How often each phrase occurs in the whole chat. Reduced to a few per person before it is handed out. */
   readonly phraseCounts: Map<string, number>;
   /** How often each person used each phrase, by the person's name. */
@@ -134,6 +135,7 @@ function createChatTotals(): ChatTotals {
     messageCountsByDayKey: new Map<number, number>(),
     emojiCounts: new Map<string, number>(),
     wordCounts: new Map<string, number>(),
+    linkSiteCounts: new Map<string, number>(),
     phraseCounts: new Map<string, number>(),
     phraseCountsByName: new Map<string, Map<string, number>>(),
     longestMessage: null,
@@ -228,8 +230,9 @@ function getOrCreatePhraseCounts(totals: ChatTotals, sender: string): Map<string
 }
 
 /**
- * Counts the emojis, words and phrases of something a person typed towards
- * the tables of the whole chat and the phrase table of that person.
+ * Counts the emojis, words, linked sites and phrases of something a person
+ * typed towards the tables of the whole chat and the phrase table of that
+ * person.
  */
 function recordTypedTextInChatTables(
   totals: ChatTotals,
@@ -241,6 +244,9 @@ function recordTypedTextInChatTables(
   }
   for (const word of textStatistics.significantWords) {
     incrementCount(totals.wordCounts, word);
+  }
+  for (const site of textStatistics.linkSites) {
+    incrementCount(totals.linkSiteCounts, site);
   }
   if (textStatistics.phrases.length === 0) {
     return;
@@ -460,6 +466,7 @@ function buildChatAnalysis(
     messageCountsByDayKey: totals.messageCountsByDayKey,
     emojiCounts: totals.emojiCounts,
     wordCounts: totals.wordCounts,
+    linkSiteCounts: totals.linkSiteCounts,
     longestMessage: totals.longestMessage,
     longestMessageWordCount: totals.longestMessageWordCount,
     longestSilence: totals.longestSilence,

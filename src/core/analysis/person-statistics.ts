@@ -39,6 +39,7 @@ export function createPersonStatisticsAccumulator(
     emojiCount: 0,
     questionCount: 0,
     linkCount: 0,
+    linkSiteCounts: new Map<string, number>(),
     laughingMessageCount: 0,
     nightMessageCount: 0,
     messageCountsByHour: new Array<number>(HOURS_PER_DAY).fill(0),
@@ -91,8 +92,8 @@ export function recordHourAndWeekday(
 }
 
 /**
- * Counts each emoji, significant word and mentioned name of a text once more
- * in the person's tables.
+ * Counts each emoji, significant word, mentioned name and linked site of a
+ * text once more in the person's tables.
  */
 function recordEmojisWordsAndMentions(
   person: PersonStatisticsAccumulator,
@@ -106,6 +107,9 @@ function recordEmojisWordsAndMentions(
   }
   for (const mentionedName of textStatistics.mentionedNames) {
     incrementCount(person.mentionCountsByName, mentionedName);
+  }
+  for (const site of textStatistics.linkSites) {
+    incrementCount(person.linkSiteCounts, site);
   }
 }
 

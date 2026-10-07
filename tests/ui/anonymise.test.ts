@@ -11,6 +11,7 @@ import { assignPersonColours } from '../../src/ui/person-colours';
 import { renderMilestonesSection } from '../../src/ui/sections/milestones';
 import { renderPeakTimesSection } from '../../src/ui/sections/peak-times';
 import { renderPersonProfileSection } from '../../src/ui/sections/person-profile';
+import { renderSharedSitesSection } from '../../src/ui/sections/shared-sites';
 import { renderWhoIsStillHereSection } from '../../src/ui/sections/who-is-still-here';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
 import { localMidnight, localTime, mediaMessage, textMessage } from '../fixtures/messages';
@@ -317,6 +318,80 @@ describe('anonymiseAnalysis', () => {
       expect(sectionHtml).not.toContain('Ana');
       expect(sectionHtml).not.toContain('Bob');
       expect(sectionHtml).not.toContain('Vega');
+    });
+  });
+
+  describe('the sites links lead to', () => {
+    /** A chat in which Ana links to a news site and Bob Vega to sites that carry their names. */
+    const chatWithLinks = chatAnalysis({
+      linkSiteCounts: new Map([
+        ['news.example', 12],
+        ['bob-vega.example', 5],
+        ['ana2024.example', 3],
+        ['banana.example', 2],
+        ['shop.ana', 1],
+      ]),
+      people: [
+        personStatistics({
+          name: 'Ana',
+          messageCount: 30,
+          linkSiteCounts: new Map([
+            ['news.example', 12],
+            ['banana.example', 2],
+            ['shop.ana', 1],
+          ]),
+        }),
+        personStatistics({
+          name: 'Bob Vega',
+          messageCount: 20,
+          linkSiteCounts: new Map([
+            ['bob-vega.example', 5],
+            ['ana2024.example', 3],
+          ]),
+        }),
+      ],
+    });
+    const hiddenChatWithLinks = anonymiseAnalysis(chatWithLinks);
+
+    it('keeps the sites that are not names, with their counts', () => {
+      expect(hiddenChatWithLinks.linkSiteCounts.get('news.example')).toBe(12);
+      expect(hiddenChatWithLinks.people[0]?.linkSiteCounts.get('news.example')).toBe(12);
+    });
+
+    it('takes out the sites named after a participant, for the chat and for each person', () => {
+      expect([...hiddenChatWithLinks.linkSiteCounts.keys()]).toEqual([
+        'news.example',
+        'banana.example',
+        'shop.ana',
+      ]);
+      expect([...(hiddenChatWithLinks.people[1]?.linkSiteCounts.keys() ?? [])]).toEqual([]);
+    });
+
+    it('keeps a site that merely contains a name inside a longer word', () => {
+      expect(hiddenChatWithLinks.linkSiteCounts.has('banana.example')).toBe(true);
+    });
+
+    it('does not take a top-level domain for a name', () => {
+      expect(hiddenChatWithLinks.linkSiteCounts.has('shop.ana')).toBe(true);
+    });
+
+    it('leaves no name in the "Most shared sites" section', () => {
+      const sectionHtml = renderSharedSitesSection(
+        hiddenChatWithLinks,
+        assignPersonColours(hiddenChatWithLinks.people),
+      );
+
+      expect(sectionHtml).toContain('news.example');
+      expect(sectionHtml).toContain('Person B</td><td>–</td>');
+      expect(sectionHtml).not.toContain('Ana');
+      expect(sectionHtml).not.toContain('Bob');
+      expect(sectionHtml).not.toContain('vega');
+      expect(sectionHtml).not.toContain('ana2024');
+    });
+
+    it('does not change the tables it was given', () => {
+      expect(chatWithLinks.linkSiteCounts.size).toBe(5);
+      expect(chatWithLinks.people[1]?.linkSiteCounts.size).toBe(2);
     });
   });
 

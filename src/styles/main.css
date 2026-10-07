@@ -490,6 +490,9 @@ td:first-child {
   margin-right: 8px;
 }
 
+.top-sites-heading {
+  margin: 24px 0 10px;
+}
 .catchphrases {
   margin-top: 24px;
   display: flex;

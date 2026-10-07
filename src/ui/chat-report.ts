@@ -30,6 +30,7 @@ import {
 import { renderRecordsSection } from './sections/records';
 import { renderRepliesSection } from './sections/replies';
 import { renderReplyPairsSection } from './sections/reply-pairs';
+import { renderSharedSitesSection } from './sections/shared-sites';
 import { renderSummarySection } from './sections/summary';
 import { renderThenAndNowSection } from './sections/then-and-now';
 import { renderTimelineSection } from './sections/timeline';
@@ -78,6 +79,7 @@ export function renderChatReport(
     renderMentionsSection(analysis, personColours, peopleShown),
     renderConversationEndingsSection(analysis, personColours, peopleShown),
     renderWordsAndEmojisSection(analysis, personColours, peopleShown),
+    renderSharedSitesSection(analysis, personColours, peopleShown),
     renderPersonProfileSection(analysis, personColours, profiledPersonIndex),
     renderMilestonesSection(analysis, personColours),
     renderRecordsSection(analysis, personColours),

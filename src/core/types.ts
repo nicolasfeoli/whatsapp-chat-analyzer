@@ -199,6 +199,14 @@ export interface PersonStatistics {
   readonly questionCount: number;
   /** Links shared (`http://`, `https://` or `www.`), in text messages and media captions. */
   readonly linkCount: number;
+  /**
+   * How often this person shared a link to each site, keyed by the site
+   * (`example.com`: the host of the link, lower-cased and reduced to what looks
+   * like its registrable domain), in order of first use. The path and the
+   * query of a link are never kept. Links without such a host are left out, so
+   * the counts can add up to less than {@link PersonStatistics.linkCount}.
+   */
+  readonly linkSiteCounts: ReadonlyMap<string, number>;
   /** Text messages that contain at least one written laugh such as "haha" or "jaja". */
   readonly laughingMessageCount: number;
   /** Messages sent between midnight and 04:59. */
@@ -370,6 +378,11 @@ export interface ChatAnalysis {
   readonly emojiCounts: ReadonlyMap<string, number>;
   /** How often each significant word was used in the whole chat, in order of first use. */
   readonly wordCounts: ReadonlyMap<string, number>;
+  /**
+   * How often a link to each site was shared in the whole chat, keyed by the
+   * site as in {@link PersonStatistics.linkSiteCounts}, in order of first use.
+   */
+  readonly linkSiteCounts: ReadonlyMap<string, number>;
   /** The text message with the most words, or `null` when no message contains a word. */
   readonly longestMessage: ChatMessage | null;
   /** Number of words in {@link ChatAnalysis.longestMessage}; 0 when there is none. */

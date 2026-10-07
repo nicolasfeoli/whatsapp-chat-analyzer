@@ -1,14 +1,21 @@
 /**
- * What can be counted in the text of one typed message: links, a question,
- * emojis, words and written laughs.
+ * What can be counted in the text of one typed message: links and the sites
+ * they lead to, a question, emojis, words and written laughs.
  */
 
+import { findSiteOfLink } from './link-hosts';
 import { isStopWord } from './stop-words';
 
 /** Everything counted in the text of one message. */
 export interface MessageTextStatistics {
   /** Links in the message. */
   readonly linkCount: number;
+  /**
+   * The site each link leads to (`example.com`), in order of appearance,
+   * repeats included. A link without a host that looks like a site has no
+   * entry, so the list can be shorter than {@link MessageTextStatistics.linkCount}.
+   */
+  readonly linkSites: readonly string[];
   /** Whether the message, links aside, contains `?` or `¿`. */
   readonly containsQuestion: boolean;
   /** Every emoji in the message in order of appearance, repeats included. */
@@ -115,6 +122,24 @@ const LAUGH_PATTERN =
 export function countLinks(text: string): number {
   const links = text.match(LINK_PATTERN);
   return links === null ? 0 : links.length;
+}
+
+/**
+ * Lists the sites the links of a text lead to: the host of each link, reduced
+ * to its registrable-looking domain. Nothing else of a link is kept.
+ *
+ * @param text - The text of a message.
+ * @returns One site per link that has one, in order of appearance, repeats included.
+ */
+export function extractLinkSites(text: string): string[] {
+  const sites: string[] = [];
+  for (const link of text.match(LINK_PATTERN) ?? []) {
+    const site = findSiteOfLink(link);
+    if (site !== null) {
+      sites.push(site);
+    }
+  }
+  return sites;
 }
 
 /**
@@ -240,9 +265,11 @@ export function extractPhrases(text: string): string[] {
  *
  * @param text - The complete text of a message of kind `text`, or the caption
  *   of a media message.
- * @returns Links, question, emojis, words, laughs, mentions and phrases found in it.
+ * @returns Links and their sites, question, emojis, words, laughs, mentions
+ *   and phrases found in it.
  */
 export function analyseMessageText(text: string): MessageTextStatistics {
+  const linkSites = extractLinkSites(text);
   const linkCount = countLinks(text);
   const mentionedNames = extractMentionedNames(text);
   const textWithoutLinks = removeMentions(removeLinks(text));
@@ -262,6 +289,7 @@ export function analyseMessageText(text: string): MessageTextStatistics {
 
   return {
     linkCount,
+    linkSites,
     containsQuestion: QUESTION_MARK_PATTERN.test(textWithoutLinks),
     emojis: extractEmojis(textWithoutLinks),
     wordCount: words.length,
