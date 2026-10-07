@@ -1,0 +1,277 @@
+/**
+ * Every type shared between the parser, the analysis, the worker and the page.
+ *
+ * Results cross the worker boundary by structured clone, so everything here is
+ * plain data: objects, arrays, numbers, strings, booleans, `Map` and `Date`.
+ * No class instances and no functions.
+ */
+
+/* -------------------------------------------------------------------------- */
+/* Messages                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * What a message is, as far as the statistics care.
+ *
+ * - `text`: something the sender typed.
+ * - `media`: a placeholder the export wrote instead of a photo, video, voice
+ *   note, sticker, document, poll or location.
+ * - `deleted`: the "This message was deleted" tombstone.
+ */
+export type MessageKind = 'text' | 'media' | 'deleted';
+
+/** The fields every message has, whatever its kind. */
+interface ChatMessageBase {
+  /** When the message was sent, in the local time zone of the device running the analysis. */
+  readonly timestamp: Date;
+  /** The sender's name exactly as the export wrote it (a contact name or a phone number). */
+  readonly sender: string;
+  /**
+   * The message body. For `text` messages this is what was typed, including any
+   * continuation lines joined with `\n`. For `media` and `deleted` messages it
+   * is the placeholder the export wrote, which is never counted as words.
+   */
+  readonly text: string;
+}
+
+/*
+ * The three variants below are intentionally identical apart from `kind`. The
+ * export gives a media placeholder and a deleted-message tombstone the same
+ * shape as typed text (a time, a sender and a line of text), and the page shows
+ * that line for a deleted message. They are separate interfaces so that code
+ * handling messages has to say which kinds it means (`message.kind === 'text'`)
+ * and so that a field specific to one kind has an obvious place to go.
+ */
+
+/** A message the sender typed. */
+export interface TextMessage extends ChatMessageBase {
+  readonly kind: 'text';
+}
+
+/** A placeholder for a photo, video, voice note, sticker, document, poll or location. */
+export interface MediaMessage extends ChatMessageBase {
+  readonly kind: 'media';
+}
+
+/** The tombstone left behind when a message was deleted. */
+export interface DeletedMessage extends ChatMessageBase {
+  readonly kind: 'deleted';
+}
+
+/** One message of the chat, discriminated by {@link MessageKind} in `kind`. */
+export type ChatMessage = TextMessage | MediaMessage | DeletedMessage;
+
+/* -------------------------------------------------------------------------- */
+/* Parsing                                                                    */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * The order of the three numbers in a date.
+ *
+ * - `dmy`: day/month/year, e.g. `31/12/23`.
+ * - `mdy`: month/day/year, e.g. `12/31/23`.
+ * - `ymd`: year/month/day, e.g. `2023/12/31`.
+ */
+export type DateOrder = 'dmy' | 'mdy' | 'ymd';
+
+/**
+ * The two date orders that can be confused with each other. A year-first date
+ * is recognisable on its own, so it never needs forcing.
+ */
+export type AmbiguousDateOrder = 'dmy' | 'mdy';
+
+/** Which WhatsApp client wrote the export, judged from the layout of its lines. */
+export type ExportPlatform = 'iPhone' | 'Android';
+
+/**
+ * How finely the export records time. iPhone exports include seconds; Android
+ * exports stop at the minute, so a reply within the same minute has a delay of 0.
+ */
+export type TimestampResolution = 'second' | 'minute';
+
+/**
+ * What was read and what was skipped while parsing, so that a half-understood
+ * file does not pass for a complete one.
+ */
+export interface ParseReport {
+  /** Lines of the file that contain something other than white space. */
+  readonly nonEmptyLineCount: number;
+  /** Lines that start with a timestamp, i.e. messages and system notices together. */
+  readonly entryCount: number;
+  /** Entries dropped because they are system notices rather than messages. */
+  readonly systemNoticeCount: number;
+  /** Entries dropped because their date or time is impossible, such as 31/02. */
+  readonly unreadableDateCount: number;
+  /** Entries that turned out to be lines pasted from another chat and were folded into the message quoting them. */
+  readonly foldedPastedLineCount: number;
+  /** The client that wrote the export, or `null` when the file has no entry at all. */
+  readonly platform: ExportPlatform | null;
+}
+
+/** The outcome of parsing the text of a chat export. */
+export interface ParsedChat {
+  /** The messages in the order they appear in the file. Empty when the text is not a chat export. */
+  readonly messages: readonly ChatMessage[];
+  /** How the dates were read, or `null` when no message was found. */
+  readonly dateOrder: DateOrder | null;
+  /**
+   * `true` when the file alone cannot settle day/month against month/day (no
+   * number above 12 in either position), or when the caller forced an order.
+   * The page then offers a switch.
+   */
+  readonly isDateOrderAmbiguous: boolean;
+  /** Whether any kept message carried seconds. `second` when no message was found. */
+  readonly timestampResolution: TimestampResolution;
+  /** What was read and what was skipped. */
+  readonly report: ParseReport;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Analysis                                                                   */
+/* -------------------------------------------------------------------------- */
+
+/** Everything counted for one participant. */
+export interface PersonStatistics {
+  /** The participant's name as written in the export. */
+  readonly name: string;
+  /** Every message from this person: text, media and deleted together. */
+  readonly messageCount: number;
+  /** Messages that are typed text (neither media nor deleted). */
+  readonly textMessageCount: number;
+  /** Media placeholders sent. */
+  readonly mediaCount: number;
+  /** Deleted-message tombstones. */
+  readonly deletedCount: number;
+  /** Words typed across all text messages, links excluded. */
+  readonly wordCount: number;
+  /** Emojis used across all text messages. */
+  readonly emojiCount: number;
+  /** Text messages that contain a question mark (`?` or `¿`). */
+  readonly questionCount: number;
+  /** Links shared (`http://`, `https://` or `www.`). */
+  readonly linkCount: number;
+  /** Text messages that contain at least one written laugh such as "haha" or "jaja". */
+  readonly laughingMessageCount: number;
+  /** Messages sent between midnight and 04:59. */
+  readonly nightMessageCount: number;
+  /**
+   * One entry per reply: the time in milliseconds between someone else's
+   * message and this person's answer, when it came within twelve hours.
+   * Feed it to `median` for the typical reply time.
+   */
+  readonly replyDelaysInMilliseconds: readonly number[];
+  /** Conversations this person opened (the first message, or the first after a long silence). */
+  readonly conversationsStartedCount: number;
+  /** Runs of consecutive messages from this person. `messageCount / turnCount` is messages per turn. */
+  readonly turnCount: number;
+  /** How often this person used each emoji, in order of first use. */
+  readonly emojiCounts: ReadonlyMap<string, number>;
+  /** How often this person used each significant word (lower-cased; laughs, short words and stop words left out), in order of first use. */
+  readonly wordCounts: ReadonlyMap<string, number>;
+}
+
+/**
+ * Message counts for each hour of each weekday: seven rows (Monday first,
+ * Sunday last) of twenty-four columns (hour 0 to hour 23).
+ */
+export type WeekdayHourHeatmap = readonly (readonly number[])[];
+
+/** The longest gap between two consecutive messages. */
+export interface LongestSilence {
+  /** Length of the gap in milliseconds. */
+  readonly durationInMilliseconds: number;
+  /** Timestamp of the message before the gap. */
+  readonly from: Date;
+  /** Timestamp of the message that broke the silence. */
+  readonly to: Date;
+}
+
+/** The longest run of consecutive calendar days with at least one message. */
+export interface LongestStreak {
+  /** Number of days in the run; 1 when no two active days are adjacent. */
+  readonly lengthInDays: number;
+  /** Midnight at the start of the first day of the run. */
+  readonly from: Date;
+  /** Midnight at the start of the last day of the run. */
+  readonly to: Date;
+}
+
+/** The calendar day with the most messages. */
+export interface BusiestDay {
+  /** Midnight at the start of that day. */
+  readonly date: Date;
+  /** Messages sent on that day. */
+  readonly messageCount: number;
+}
+
+/** Everything the page draws, computed from the messages of one chat. */
+export interface ChatAnalysis {
+  /** All messages sorted by timestamp, oldest first. Never empty. */
+  readonly messages: readonly ChatMessage[];
+  /** One entry per participant, the most talkative first. */
+  readonly people: readonly PersonStatistics[];
+  /** Message counts per weekday and hour. */
+  readonly weekdayHourHeatmap: WeekdayHourHeatmap;
+  /**
+   * Messages per calendar day. The key is the day written as the number
+   * `YYYYMMDD` (see `dayKeyFromDate` and `dateFromDayKey`); entries are in
+   * chronological order.
+   */
+  readonly messageCountsByDayKey: ReadonlyMap<number, number>;
+  /** How often each emoji was used in the whole chat, in order of first use. */
+  readonly emojiCounts: ReadonlyMap<string, number>;
+  /** How often each significant word was used in the whole chat, in order of first use. */
+  readonly wordCounts: ReadonlyMap<string, number>;
+  /** The text message with the most words, or `null` when no message contains a word. */
+  readonly longestMessage: ChatMessage | null;
+  /** Number of words in {@link ChatAnalysis.longestMessage}; 0 when there is none. */
+  readonly longestMessageWordCount: number;
+  /** The longest gap between consecutive messages, or `null` when no two messages are apart in time. */
+  readonly longestSilence: LongestSilence | null;
+  /** The longest run of consecutive active days. */
+  readonly longestStreak: LongestStreak;
+  /** The day with the most messages. */
+  readonly busiestDay: BusiestDay;
+  /** Timestamp of the oldest message. */
+  readonly firstMessageTimestamp: Date;
+  /** Timestamp of the newest message. */
+  readonly lastMessageTimestamp: Date;
+  /** Calendar days from the first message to the last, both included. */
+  readonly spanInDays: number;
+  /** Calendar days on which at least one message was sent. */
+  readonly activeDayCount: number;
+  /** Conversations in the chat: the first message plus every message that follows a long silence. */
+  readonly conversationCount: number;
+  /** Total number of messages. */
+  readonly totalMessageCount: number;
+  /** Whether the export records seconds or only minutes; the page rounds reply times accordingly. */
+  readonly timestampResolution: TimestampResolution;
+}
+
+/* -------------------------------------------------------------------------- */
+/* From text to everything the page draws                                     */
+/* -------------------------------------------------------------------------- */
+
+/** The text did not contain a single readable message. */
+export interface EmptyChatExportResult {
+  readonly kind: 'empty';
+}
+
+/** The text was read as a chat and analysed. */
+export interface AnalysedChatExportResult {
+  readonly kind: 'analysed';
+  /** Everything the page draws. */
+  readonly analysis: ChatAnalysis;
+  /** How the dates were read. */
+  readonly dateOrder: DateOrder;
+  /** Whether the page should offer the day/month switch. */
+  readonly isDateOrderAmbiguous: boolean;
+  /** What was read and what was skipped. */
+  readonly report: ParseReport;
+}
+
+/**
+ * The result of `analyseChatExport` in `core/index.ts`: either nothing was found, or
+ * the complete analysis together with how the file was read. Discriminated by `kind`.
+ */
+export type ChatExportAnalysisResult = EmptyChatExportResult | AnalysedChatExportResult;

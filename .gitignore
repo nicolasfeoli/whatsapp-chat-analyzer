@@ -7,3 +7,8 @@ Chat de WhatsApp*.txt
 exports/
 private/
 .DS_Store
+
+# Tooling output
+node_modules/
+dist/
+coverage/

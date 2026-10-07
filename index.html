@@ -1,63 +1,97 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<!-- Only this site's own files may load, and scripts may not open connections. Inline style attributes are allowed because the charts set colours and widths that way. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'">
-<meta name="referrer" content="no-referrer">
-<title>WhatsApp Chat Analyzer</title>
-<meta name="description" content="See who writes most, when a chat is alive and how fast each person replies. Your WhatsApp export is read inside the browser and never uploaded.">
-<meta property="og:type" content="website">
-<meta property="og:title" content="WhatsApp Chat Analyzer">
-<meta property="og:description" content="See who writes most, when a chat is alive and how fast each person replies. Your WhatsApp export is read inside the browser and never uploaded.">
-<meta name="twitter:card" content="summary">
-<link rel="icon" href="favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="vendor/fonts/fonts.css">
-<link rel="stylesheet" href="style.css">
-</head>
-<body>
-<div class="wrap">
-  <header style="display:flex;flex-direction:column;gap:8px">
-    <h1>WhatsApp Chat Analyzer</h1>
-    <p class="lede">Load a chat export from your phone and see who writes most, when the chat is alive, how fast each person replies, and which words and emojis define it.</p>
-  </header>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+    <!-- Only this site's own files may load, and scripts may not open connections. Inline style attributes are allowed because the charts set colours and widths that way. -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'none'; script-src 'self'; worker-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self'; img-src 'self' data:; connect-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>WhatsApp Chat Analyzer</title>
+    <meta
+      name="description"
+      content="See who writes most, when a chat is alive and how fast each person replies. Your WhatsApp export is read inside the browser and never uploaded."
+    />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="WhatsApp Chat Analyzer" />
+    <meta
+      property="og:description"
+      content="See who writes most, when a chat is alive and how fast each person replies. Your WhatsApp export is read inside the browser and never uploaded."
+    />
+    <meta name="twitter:card" content="summary" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <link rel="stylesheet" href="/src/styles/main.css" />
+  </head>
+  <body>
+    <div class="page-wrapper">
+      <header class="page-header">
+        <h1>WhatsApp Chat Analyzer</h1>
+        <p class="lede">
+          Load a chat export from your phone and see who writes most, when the chat is alive, how
+          fast each person replies, and which words and emojis define it.
+        </p>
+      </header>
 
-  <div class="loader" id="loader">
-    <div class="loader-row">
-      <button class="btn" id="pick" type="button">Choose export file</button>
-      <input type="file" id="file" accept=".txt,.zip,text/plain,application/zip" hidden>
-      <span class="hint">or drop the <span class="mono">.txt</span> or <span class="mono">.zip</span> here. The file is read inside this browser tab and is never uploaded.</span>
+      <div class="loader" id="loader">
+        <div class="loader-row">
+          <button class="button" id="choose-file-button" type="button">Choose export file</button>
+          <input type="file" id="file-input" accept=".txt,.zip,text/plain,application/zip" hidden />
+          <span class="hint"
+            >or drop the <span class="monospace">.txt</span> or
+            <span class="monospace">.zip</span> here. The file is read inside this browser tab and
+            is never uploaded.</span
+          >
+        </div>
+        <div class="status" id="status-line" role="status" hidden></div>
+        <div class="parse-report" id="parse-report" hidden></div>
+        <div class="sample-note" id="sample-note">
+          You are looking at an invented example chat between Marta and Diego. Load your own export
+          to replace it.
+        </div>
+        <div class="loader-row" id="date-order-row" hidden>
+          <span class="hint" id="date-order-message"></span>
+          <button class="link-button" id="switch-date-order-button" type="button">Switch</button>
+        </div>
+        <details>
+          <summary>How to export a chat from WhatsApp</summary>
+          <ol>
+            <li>Open the chat or group in WhatsApp on your phone.</li>
+            <li>
+              Android: tap the three dots, then More, then Export chat. iPhone: tap the chat name at
+              the top, scroll down, then Export Chat.
+            </li>
+            <li>Choose Without media. The export is smaller and the analysis is the same.</li>
+            <li>
+              Send the file to yourself (email, Drive, Files) and open this page on the device where
+              you saved it.
+            </li>
+          </ol>
+        </details>
+      </div>
+
+      <div id="report"></div>
+
+      <footer>
+        <p>
+          Works with Android and iPhone exports, 12 or 24 hour clocks. English and Spanish are fully
+          supported; Portuguese, German, French and Italian on a best-effort basis. Reply times
+          count only replies sent within 12 hours. A new conversation starts after 8 hours of
+          silence.
+        </p>
+        <p>
+          Privacy: your chat is read and analysed inside this tab. Nothing is uploaded, stored or
+          tracked, and the page is locked down so it can only load its own files.
+          <a href="https://github.com/nicolasfeoli/whatsapp-chat-analyzer" rel="noopener"
+            >Read the source</a
+          >. Not affiliated with WhatsApp or Meta.
+        </p>
+      </footer>
     </div>
-    <div class="status" id="status" role="status" hidden></div>
-    <div class="report" id="report" hidden></div>
-    <div class="sample-note" id="sampleNote">You are looking at an invented example chat between Marta and Diego. Load your own export to replace it.</div>
-    <div class="loader-row" id="dateRow" hidden>
-      <span class="hint" id="dateMsg"></span>
-      <button class="link" id="swapDates" type="button">Switch</button>
-    </div>
-    <details>
-      <summary>How to export a chat from WhatsApp</summary>
-      <ol>
-        <li>Open the chat or group in WhatsApp on your phone.</li>
-        <li>Android: tap the three dots, then More, then Export chat. iPhone: tap the chat name at the top, scroll down, then Export Chat.</li>
-        <li>Choose Without media. The export is smaller and the analysis is the same.</li>
-        <li>Send the file to yourself (email, Drive, Files) and open this page on the device where you saved it.</li>
-      </ol>
-    </details>
-  </div>
+    <div id="tooltip" hidden></div>
 
-  <div id="out" style="display:flex;flex-direction:column;gap:36px"></div>
-
-  <footer>
-    <p>Works with Android and iPhone exports, 12 or 24 hour clocks. English and Spanish are fully supported; Portuguese, German, French and Italian on a best-effort basis. Reply times count only replies sent within 12 hours. A new conversation starts after 8 hours of silence.</p>
-    <p>Privacy: your chat is read and analysed inside this tab. Nothing is uploaded, stored or tracked, and the page is locked down so it can only load its own files. <a href="https://github.com/nicolasfeoli/whatsapp-chat-analyzer" rel="noopener">Read the source</a>. Not affiliated with WhatsApp or Meta.</p>
-  </footer>
-</div>
-<div id="tip" hidden></div>
-
-<script src="vendor/jszip.min.js"></script>
-<script src="core.js"></script>
-<script src="app.js"></script>
-</body>
+    <script type="module" src="/src/ui/main.ts"></script>
+  </body>
 </html>
