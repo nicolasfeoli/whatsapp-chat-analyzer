@@ -11,6 +11,7 @@ import { describe, expect, it } from 'vitest';
 import type { PersonStatistics } from '../../../src/core/types';
 import { assignPersonColours } from '../../../src/ui/person-colours';
 import type { SafeHtml } from '../../../src/ui/html';
+import { renderAwardsSection } from '../../../src/ui/sections/awards';
 import { renderConversationEndingsSection } from '../../../src/ui/sections/conversation-endings';
 import {
   renderPeopleShownNote,
@@ -116,6 +117,11 @@ interface SectionCase {
 }
 
 const sectionCases: readonly SectionCase[] = [
+  {
+    name: 'Awards',
+    render: (peopleShown) => renderAwardsSection(analysis, personColours, peopleShown),
+    defaultNote: EIGHT_OF_TEN_NOTE,
+  },
   {
     name: 'Who says what',
     render: (peopleShown) => renderPeopleSection(analysis, personColours, peopleShown),

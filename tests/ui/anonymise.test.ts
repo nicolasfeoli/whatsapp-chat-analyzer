@@ -8,6 +8,7 @@ import {
 } from '../../src/ui/anonymise';
 import type { ChatAnalysis } from '../../src/core/types';
 import { assignPersonColours } from '../../src/ui/person-colours';
+import { renderAwardsSection } from '../../src/ui/sections/awards';
 import { renderMilestonesSection } from '../../src/ui/sections/milestones';
 import { renderPeakTimesSection } from '../../src/ui/sections/peak-times';
 import { renderPersonProfileSection } from '../../src/ui/sections/person-profile';
@@ -289,6 +290,31 @@ describe('anonymiseAnalysis', () => {
     expect(sectionHtml).toContain('Person B</span><small>7 replies</small>');
     expect(sectionHtml).toContain('Somebody else</span><small>5 mentions</small>');
     expect(sectionHtml).toContain('dinner<small>3</small>');
+  });
+
+  describe('the awards', () => {
+    /** Ana writes at night and Bob Vega opens the conversations. */
+    const chatWithAwards = chatAnalysis({
+      conversationCount: 30,
+      people: [
+        personStatistics({ name: 'Ana', messageCount: 200, nightMessageCount: 50 }),
+        personStatistics({ name: 'Bob Vega', messageCount: 100, conversationsStartedCount: 21 }),
+      ],
+    });
+    const hiddenChatWithAwards = anonymiseAnalysis(chatWithAwards);
+
+    it('gives the titles to labels instead of names, for the same numbers', () => {
+      const sectionHtml = renderAwardsSection(
+        hiddenChatWithAwards,
+        assignPersonColours(hiddenChatWithAwards.people),
+      );
+
+      expect(sectionHtml).toContain('Person A</span><span class="award-reason">25% of their');
+      expect(sectionHtml).toContain('Person B</span><span class="award-reason">started 21 of');
+      expect(sectionHtml).not.toContain('Ana');
+      expect(sectionHtml).not.toContain('Bob');
+      expect(sectionHtml).not.toContain('Vega');
+    });
   });
 
   describe('"Who is still here"', () => {

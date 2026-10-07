@@ -35,13 +35,13 @@ import { countSilentDaysAtEnd, formatSilence, hasGoneQuiet } from './who-is-stil
 const MESSAGES_IN_RATIO_COMPARISON = 10;
 
 /** A person needs this many typed messages before their laughing or word averages are compared. */
-const MINIMUM_TEXT_MESSAGES_FOR_WRITING_HABITS = 10;
+export const MINIMUM_TEXT_MESSAGES_FOR_WRITING_HABITS = 10;
 
 /** A person needs this many messages before their share of night messages is compared. */
-const MINIMUM_MESSAGES_FOR_NIGHT_OWL = 20;
+export const MINIMUM_MESSAGES_FOR_NIGHT_OWL = 20;
 
 /** The night owl is only named when at least 3% of their messages are sent at night. */
-const MINIMUM_NIGHT_SHARE_FOR_NIGHT_OWL = 0.03;
+export const MINIMUM_NIGHT_SHARE_FOR_NIGHT_OWL = 0.03;
 
 /** A person needs this many turns before their messages-per-turn average is compared. */
 const MINIMUM_TURNS_FOR_MESSAGES_IN_A_ROW = 5;
