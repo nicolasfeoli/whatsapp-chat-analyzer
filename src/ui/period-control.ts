@@ -82,9 +82,10 @@ export function showPeriodInDateFields(elements: PeriodControlElements, period: 
 
 /**
  * Makes the row state the period the report is drawn for: the list shows the
- * ready-made period with exactly those days, or "Custom range" when there is
- * none; the date fields hold its first and last day; and the note names the
- * days unless the period is the whole chat.
+ * ready-made period with exactly those days (the one already selected when
+ * several have them), or "Custom range" when there is none; the date fields
+ * hold its first and last day; and the note names the days unless the period
+ * is the whole chat.
  *
  * @param elements - The elements of the row.
  * @param presets - The ready-made periods of the chat.
@@ -98,7 +99,15 @@ export function showDisplayedPeriod(
   wholeChat: Period,
 ): void {
   const { periodSelect, periodNote } = elements;
-  periodSelect.value = findPresetOfPeriod(presets, period)?.value ?? CUSTOM_PERIOD_VALUE;
+  /* Two entries can stand for the same days: "Last 12 months" and the last year of a chat that ends on 31 December. */
+  const selectedPreset = presets.find(
+    (preset: PeriodPreset): boolean => preset.value === periodSelect.value,
+  );
+  const isSelectionShown =
+    selectedPreset !== undefined && isSamePeriod(selectedPreset.period, period);
+  if (!isSelectionShown) {
+    periodSelect.value = findPresetOfPeriod(presets, period)?.value ?? CUSTOM_PERIOD_VALUE;
+  }
   showPeriodInDateFields(elements, period);
 
   const isWholeChat = isSamePeriod(period, wholeChat);

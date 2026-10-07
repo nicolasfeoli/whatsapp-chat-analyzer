@@ -145,6 +145,40 @@ describe('showDisplayedPeriod', () => {
     );
   });
 
+  describe('two ready-made periods with the same days', () => {
+    /** A chat from 14 March 2022 to 31 December 2023: its last twelve months are the year 2023. */
+    const chatEndingOnNewYearsEve: Period = { firstDayKey: 20220314, lastDayKey: 20231231 };
+
+    /** The whole of 2023, which two entries of the list stand for. */
+    const allOf2023: Period = { firstDayKey: 20230101, lastDayKey: 20231231 };
+
+    const presetsWithTwins: readonly PeriodPreset[] = [
+      { value: 'whole-chat', label: 'The whole chat', period: chatEndingOnNewYearsEve },
+      { value: 'last-12-months', label: 'Last 12 months', period: allOf2023 },
+      { value: 'year-2023', label: '2023', period: allOf2023 },
+    ];
+
+    it('keeps the entry the reader picked, not the first one with those days', () => {
+      const elements = findPageElements();
+      offerPeriodChoices(elements, presetsWithTwins, chatEndingOnNewYearsEve, true);
+      elements.periodSelect.value = 'year-2023';
+
+      showDisplayedPeriod(elements, presetsWithTwins, allOf2023, chatEndingOnNewYearsEve);
+
+      expect(elements.periodSelect.value).toBe('year-2023');
+    });
+
+    it('selects the first of them when the list was showing another period', () => {
+      const elements = findPageElements();
+      offerPeriodChoices(elements, presetsWithTwins, chatEndingOnNewYearsEve, true);
+      elements.periodSelect.value = 'whole-chat';
+
+      showDisplayedPeriod(elements, presetsWithTwins, allOf2023, chatEndingOnNewYearsEve);
+
+      expect(elements.periodSelect.value).toBe('last-12-months');
+    });
+  });
+
   it('withdraws the note when the whole chat is shown again', () => {
     const elements = offerPeriodsOfChat();
     showDisplayedPeriod(elements, presets, year2023, wholeChat);

@@ -194,7 +194,7 @@ function renderMethodNote(analysis: ChatAnalysis): SafeHtml {
   const note =
     `“${GONE_QUIET_LABEL}” means no message for more than ${String(QUIET_AFTER_DAYS)} days ` +
     `and for at least the last tenth of the chat, counted back from its last message on ${lastDay}. ` +
-    'It does not mean somebody left the group, which the page does not read from an export.';
+    'It does not mean somebody left the group: the status goes by messages alone, and who joined or left is listed under “Group history” when the export says so.';
   return html`<p class="hint">${escapeHtml(note)}</p>`;
 }
 

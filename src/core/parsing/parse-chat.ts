@@ -12,6 +12,7 @@
  *    quoting them.
  */
 
+import { MILLISECONDS_PER_DAY } from '../time-constants';
 import type {
   AmbiguousDateOrder,
   ChatMessage,
@@ -27,6 +28,14 @@ import { readExportEntries } from './export-entries';
 import type { ExportEntriesReading, ExportEntry, ExportGroupNotice } from './export-entries';
 import { removeEditedMessageSuffix } from './message-classification';
 import { foldPastedLines } from './pasted-lines';
+
+/**
+ * A group notice may be dated this long before the newest entry above it in
+ * the file and still be an event of this chat. Phones disagree about the time
+ * and a journey moves the clock by hours, but never by more than a day; a
+ * notice from further back was pasted from another chat.
+ */
+const LONGEST_BACKWARD_JUMP_OF_NOTICE_IN_MILLISECONDS = MILLISECONDS_PER_DAY;
 
 /** The messages with readable dates, and how many entries had none. */
 interface DatedMessages {
@@ -75,17 +84,44 @@ function buildDatedMessages(entries: readonly ExportEntry[], dateOrder: DateOrde
  * Gives every group notice its timestamp, under the date order chosen from the
  * messages. A notice whose date or time is impossible is left out; it remains
  * counted as a system notice.
+ *
+ * So does a notice dated more than {@link LONGEST_BACKWARD_JUMP_OF_NOTICE_IN_MILLISECONDS}
+ * before the newest entry above it in the file. An export is written in the
+ * order things happened, so such a notice did not happen in this chat:
+ * somebody pasted lines of another chat into a message, and a pasted
+ * `Bob left` would otherwise be told as the history of this group.
+ *
+ * @param groupNotices - The notices about the group, in file order.
+ * @param entries - The entries of the file, which the notices count their place by.
+ * @param dateOrder - How the dates of the file are read.
+ * @returns The notices that are events of this chat, in file order.
  */
 function buildGroupEvents(
   groupNotices: readonly ExportGroupNotice[],
+  entries: readonly ExportEntry[],
   dateOrder: DateOrder,
 ): GroupEvent[] {
   const groupEvents: GroupEvent[] = [];
+  /* The entries above the notice being read are walked once, keeping the newest time seen. */
+  let walkedEntryCount = 0;
+  let newestEntryTime = -Infinity;
+
   for (const groupNotice of groupNotices) {
-    const timestamp = buildTimestamp(groupNotice, dateOrder);
-    if (timestamp !== null) {
-      groupEvents.push({ timestamp, change: groupNotice.change });
+    for (const entry of entries.slice(walkedEntryCount, groupNotice.precedingEntryCount)) {
+      const entryTime = buildTimestamp(entry, dateOrder)?.getTime() ?? -Infinity;
+      newestEntryTime = Math.max(newestEntryTime, entryTime);
     }
+    walkedEntryCount = Math.max(walkedEntryCount, groupNotice.precedingEntryCount);
+
+    const timestamp = buildTimestamp(groupNotice, dateOrder);
+    if (timestamp === null) {
+      continue;
+    }
+    const backwardJump = newestEntryTime - timestamp.getTime();
+    if (backwardJump > LONGEST_BACKWARD_JUMP_OF_NOTICE_IN_MILLISECONDS) {
+      continue;
+    }
+    groupEvents.push({ timestamp, change: groupNotice.change });
   }
   return groupEvents;
 }
@@ -159,7 +195,11 @@ export function parseChat(
 
   return {
     messages: folding.messages,
-    groupEvents: buildGroupEvents(reading.groupNotices, dateOrderDecision.dateOrder),
+    groupEvents: buildGroupEvents(
+      reading.groupNotices,
+      reading.entries,
+      dateOrderDecision.dateOrder,
+    ),
     dateOrder: dateOrderDecision.dateOrder,
     isDateOrderAmbiguous: dateOrderDecision.isAmbiguous,
     timestampResolution,
