@@ -9,6 +9,7 @@
 import type {
   AnalysedChatExportResult,
   ChatAnalysis,
+  MediaType,
   ParseReport,
   PersonStatistics,
 } from '../../src/core/types';
@@ -34,6 +35,7 @@ export function personStatistics(parts: PersonStatisticsParts): PersonStatistics
     messageCount: 0,
     textMessageCount: 0,
     mediaCount: 0,
+    mediaCountsByType: new Map<MediaType, number>(),
     deletedCount: 0,
     wordCount: 0,
     emojiCount: 0,

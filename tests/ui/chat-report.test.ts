@@ -16,7 +16,7 @@ import type { ChatAnalysis } from '../../src/core/index';
 import { renderHeatmapTooltip } from '../../src/ui/charts/heatmap';
 import { renderTimelineSvg, renderTimelineTooltip } from '../../src/ui/charts/timeline';
 import { renderChatReport } from '../../src/ui/chat-report';
-import { androidLine, exportText, iphoneLine } from '../fixtures/export-lines';
+import { androidLine, exportText, iphoneLine, iphoneNotTypedLine } from '../fixtures/export-lines';
 import { findElement, parseMarkup, tagNamesIn, textsOfElements } from '../fixtures/markup';
 
 /** The width the timeline is drawn at in these tests. */
@@ -189,6 +189,54 @@ describe('renderChatReport', () => {
         'How conversations end',
         'Words and emojis',
       ]);
+    });
+
+    it('adds what gets sent after who says what when the export names its media', () => {
+      const withStickers = analyseExport(
+        exportText([
+          iphoneLine({ date: '13/01/2024', time: '10:00:00', sender: 'Ana', text: 'look' }),
+          iphoneNotTypedLine({
+            date: '13/01/2024',
+            time: '10:01:00',
+            sender: 'Bob',
+            text: 'sticker omitted',
+          }),
+        ]),
+      );
+
+      const headings = textsOfElements(
+        parseMarkup(renderChatReport(withStickers, 'Two').html),
+        'h2',
+      );
+
+      expect(headings.slice(2, 4)).toEqual(['Who says what', 'What gets sent']);
+    });
+
+    it('does not count the words of a media placeholder among the most used words', () => {
+      const withStickers = analyseExport(
+        exportText([
+          iphoneLine({
+            date: '13/01/2024',
+            time: '10:00:00',
+            sender: 'Ana',
+            text: 'pizza tonight',
+          }),
+          iphoneNotTypedLine({
+            date: '13/01/2024',
+            time: '10:01:00',
+            sender: 'Bob',
+            text: 'sticker omitted',
+          }),
+          iphoneNotTypedLine({
+            date: '13/01/2024',
+            time: '10:02:00',
+            sender: 'Bob',
+            text: 'sticker omitted',
+          }),
+        ]),
+      );
+
+      expect([...withStickers.wordCounts.keys()]).toEqual(['pizza', 'tonight']);
     });
 
     it('leaves out who answers whom for a chat of two', () => {

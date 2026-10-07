@@ -66,13 +66,16 @@ describe('known limits of the parser', () => {
       expect(parseChat(rawText).messages[0]?.kind).toBe('text');
     });
 
-    it('counts an iPhone placeholder as typed text when a space precedes the colon', () => {
-      const rawText = `[31/12/2023, 22:00:00] Ana : ${LEFT_TO_RIGHT_MARK}image omitted`;
+    it('does not count the caption of a photo, on the same line or the next, as typed words', () => {
+      const rawText = exportText([
+        `[31/12/2023, 22:00:00] Ana: happy birthday ${LEFT_TO_RIGHT_MARK}image omitted`,
+        'and many more',
+      ]);
 
       const [message] = parseChat(rawText).messages;
 
-      expect(message?.sender).toBe('Ana');
-      expect(message?.kind).toBe('text');
+      expect(message?.kind).toBe('media');
+      expect(message?.text).toBe('image omitted');
     });
   });
 

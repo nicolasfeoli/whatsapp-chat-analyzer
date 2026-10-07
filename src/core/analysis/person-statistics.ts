@@ -4,7 +4,7 @@
  */
 
 import type { Mutable } from '../mutable';
-import type { PersonStatistics } from '../types';
+import type { MediaType, PersonStatistics } from '../types';
 import type { MessageTextStatistics } from './text-statistics';
 
 /**
@@ -26,6 +26,7 @@ export function createPersonStatisticsAccumulator(name: string): PersonStatistic
     messageCount: 0,
     textMessageCount: 0,
     mediaCount: 0,
+    mediaCountsByType: new Map<MediaType, number>(),
     deletedCount: 0,
     wordCount: 0,
     emojiCount: 0,

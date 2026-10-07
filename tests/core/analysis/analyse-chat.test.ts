@@ -632,6 +632,56 @@ describe('analyseChat', () => {
     });
   });
 
+  describe('media by type', () => {
+    it('splits the media of each person by what the placeholder stands for', () => {
+      const messages = [
+        mediaMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'sticker omitted' }),
+        mediaMessage({ sender: 'Ana', sentAt: '2024-01-13 10:01', text: 'image omitted' }),
+        mediaMessage({ sender: 'Ana', sentAt: '2024-01-13 10:02', text: 'sticker omitted' }),
+        mediaMessage({ sender: 'Bob', sentAt: '2024-01-13 10:03', text: 'audio omitted' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').mediaCountsByType).toEqual(
+        new Map([
+          ['sticker', 2],
+          ['photo', 1],
+        ]),
+      );
+      expect(findPerson(analysis, 'Bob').mediaCountsByType).toEqual(new Map([['audio', 1]]));
+    });
+
+    it('counts a placeholder that does not name its media as unknown', () => {
+      const messages = [mediaMessage({ sender: 'Ana', text: '<Media omitted>' })];
+
+      const ana = findPerson(analyseMessages(messages), 'Ana');
+
+      expect(ana.mediaCountsByType).toEqual(new Map([['unknown', 1]]));
+    });
+
+    it('adds up to the number of media messages', () => {
+      const messages = [
+        mediaMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'GIF omitted' }),
+        mediaMessage({ sender: 'Ana', sentAt: '2024-01-13 10:01', text: '<Media omitted>' }),
+        mediaMessage({ sender: 'Ana', sentAt: '2024-01-13 10:02', text: 'POLL:' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:03', text: 'sticker omitted' }),
+      ];
+
+      const ana = findPerson(analyseMessages(messages), 'Ana');
+      const countsByType = [...ana.mediaCountsByType.values()];
+
+      expect(ana.mediaCount).toBe(3);
+      expect(countsByType.reduce((total, count) => total + count, 0)).toBe(3);
+    });
+
+    it('counts nothing for somebody who only typed', () => {
+      const ana = findPerson(analyseMessages([textMessage({ sender: 'Ana' })]), 'Ana');
+
+      expect(ana.mediaCountsByType.size).toBe(0);
+    });
+  });
+
   describe('who replies to whom', () => {
     it('credits a reply to whoever wrote the message just before it', () => {
       const messages = [

@@ -8,6 +8,7 @@
  */
 
 import type { MessageKind } from '../types';
+import { LEFT_TO_RIGHT_MARK } from './invisible-characters';
 
 /** What {@link classifyMessageBody} can answer: a kind of message, or "not a message". */
 export type MessageBodyClassification = MessageKind | 'system-notice';
@@ -153,6 +154,13 @@ const EDITED_MESSAGE_SUFFIX_PATTERN =
   /\s*<(this message was edited|se edit[oó] este mensaje\.?)>\s*$/i;
 
 /**
+ * The left-to-right marks and white space at the very end of a line. An edited
+ * note is preceded by a mark of its own, which is left behind when the note is
+ * removed and says nothing about the text before it.
+ */
+const TRAILING_MARKS_AND_WHITE_SPACE_PATTERN = /[\u200e\s]+$/;
+
+/**
  * Splits the content of an entry into sender and text at the first `": "`.
  *
  * @param content - Everything after the timestamp.
@@ -232,6 +240,37 @@ export function classifyMessageBody(
     return 'system-notice';
   }
   return 'text';
+}
+
+/**
+ * Finds the iPhone placeholder at the end of a line that also holds a caption.
+ *
+ * A photo, video or GIF sent with a caption is exported on one line: the
+ * caption as it was typed, then the left-to-right mark, then the placeholder
+ * (`happy birthday <mark>image omitted`). The mark is therefore not in front
+ * of the body, and going by the body alone the line reads as a typed sentence
+ * that ends in "image omitted".
+ *
+ * @param lineWithMarks - One line of an iPhone export with its left-to-right
+ *   marks still in place and every other invisible character removed.
+ * @returns The placeholder that follows the last mark, without the caption;
+ *   `null` when the line has no mark or what follows it is not a placeholder.
+ */
+export function findTrailingMarkedPlaceholder(lineWithMarks: string): string | null {
+  const lineWithoutEditedNote = removeEditedMessageSuffix(lineWithMarks).replace(
+    TRAILING_MARKS_AND_WHITE_SPACE_PATTERN,
+    '',
+  );
+  const lastMarkIndex = lineWithoutEditedNote.lastIndexOf(LEFT_TO_RIGHT_MARK);
+  if (lastMarkIndex === -1) {
+    return null;
+  }
+
+  const textAfterLastMark = lineWithoutEditedNote.slice(lastMarkIndex + 1).trim();
+  if (!IPHONE_OMITTED_MEDIA_PATTERN.test(textAfterLastMark)) {
+    return null;
+  }
+  return textAfterLastMark;
 }
 
 /**

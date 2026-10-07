@@ -57,6 +57,7 @@ export type {
   LongestSilence,
   LongestStreak,
   MediaMessage,
+  MediaType,
   MessageKind,
   ParsedChat,
   ParseReport,
