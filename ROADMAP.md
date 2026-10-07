@@ -47,7 +47,7 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - **Same behaviour.** The old implementation was kept as the specification while porting. Parsing and analysis were compared on tens of thousands of generated chats, and the rendered report was compared string for string. The README screenshots were retaken from the built page and came out pixel for pixel the same, so they were left as they were.
 - **Tooling.** Vite builds the page, Vitest runs the tests, ESLint (typescript-eslint, strict type-checked) and Prettier keep the style. `npm run check` runs all of it and is what CI runs. The page now has a build step: it is no longer a folder that can be served as it is.
 - **JSZip from npm.** It is bundled into the page's own script at build time; the vendored copy is gone. Fonts moved to `public/fonts/`. The built page still requests nothing from another server.
-- **Tests for the page.** Section renderers, charts, file loading, the worker client and the real `index.html` are tested in a simulated browser, including a chat made of markup. The suite went from one file of parser tests to 1,673 tests in 54 files, with coverage thresholds of 90% for the core and 85% each for the page and the worker code.
+- **Tests for the page.** Section renderers, charts, file loading, the worker client and the real `index.html` are tested in a simulated browser, including a chat made of markup. The suite went from one file of parser tests to 1,809 tests in 59 files, with coverage thresholds of 90% for the core and 85% each for the page and the worker code.
 - **Known limits are pinned.** `tests/core/known-limits.test.ts` has tests for the parser limits listed below, so fixing one means changing a test on purpose.
 - **Escaping checked by the compiler.** Markup has its own type, `SafeHtml`. Only `escapeHtml` and the `` html`...` `` tag produce it, and the tag does not accept plain strings, so chat text that was never escaped cannot reach `innerHTML`.
 - **Whole words in the markup.** Element ids, CSS classes and `data-` attributes were renamed from the old abbreviations (`.c`, `.sw`, `#tip`, `data-v`) to names that say what they are. The stylesheet's declarations did not change, and the rendered report was compared with the old one again after the renaming.
@@ -64,7 +64,11 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - A typed message that contains "security code", "missed video call", "end-to-end encrypted" or the Spanish equivalents is dropped as a system notice.
 - A contact whose name has a group verb in the middle, such as "Uncle Left Shark", is dropped as a system notice. "Left Shark" is kept.
 - "This message was deleted by admin Bob" counts as typed text, because the deleted-message marker must match the whole line.
-- The caption of a photo, video or GIF is not counted as typed words. The message counts as media only.
+- The words of a caption are counted only when the caption stands in front of the placeholder, as iPhone writes it. A caption on the lines after an attached file is not counted. A caption never counts as a typed message, a question or a laugh.
+- Mentions are read from iPhone exports only. Android writes a mention as `@` and a phone number, which cannot be matched to a name. A mention is matched to a participant by name, so two participants saved under the same name are counted as one.
+- Catchphrases are runs of two or three neighbouring words. A phrase that several people share is nobody's catchphrase, however typical of the chat it is.
+- "Then and now" compares message counts only, and needs a chat of at least sixty days.
+- "Hide names" replaces names and hides message text, and takes the words of the names out of the word lists. Nicknames, the remaining words and the dates are still shown, so a screenshot can still give a chat away to somebody who knows it.
 - A typed continuation line that itself starts like a timestamp (`01/01/24 10:00 - breakfast with Bob: yes`) becomes a message from an invented sender.
 - A participant whose only messages are dated more than ten minutes before the message above them is folded away as pasted text. A line pasted after a media message is counted as folded but its text is not kept.
 - Media is split by type only when the placeholder names it. An Android export made without media writes the same `<Media omitted>` for everything, so its media stays one number. An attached document whose file name contains a word such as "video" is counted under that word.
@@ -89,7 +93,7 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - **The promise is now enforced for the page, with gaps.** See the policy notes under Known limits.
 - **Future additions can break it by accident.** Analytics, error reporters such as Sentry, session replay, and "AI summary" features all tend to capture page content. Each would ship private messages to a third party.
 - **Other people's data.** A chat contains messages from people who did not agree to analysis. With no server you are not processing it, and that must stay true.
-- **Screenshots.** The page shows real names and two full messages (first and longest). Users will share screenshots. There is no way to hide names or message text.
+- **Screenshots.** The page shows real names and two full messages (first and longest), and users will share screenshots. The "Hide names" switch replaces the names with neutral labels and hides message text; it is off by default, and its gaps are listed under Known limits.
 - **Hosting account is the trust root.** A compromised GitHub account or an expired custom domain lets an attacker serve a version that exfiltrates chats. Use 2FA, and keep the domain on auto-renew.
 
 ### Legal

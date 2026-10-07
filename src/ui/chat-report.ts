@@ -17,11 +17,13 @@ import { renderConversationEndingsSection } from './sections/conversation-ending
 import { renderHeatmapSection } from './sections/heatmap';
 import { renderInsightsSection } from './sections/insights';
 import { renderMediaTypesSection } from './sections/media-types';
+import { renderMentionsSection } from './sections/mentions';
 import { renderPeopleSection } from './sections/people';
 import { renderRecordsSection } from './sections/records';
 import { renderRepliesSection } from './sections/replies';
 import { renderReplyPairsSection } from './sections/reply-pairs';
 import { renderSummarySection } from './sections/summary';
+import { renderThenAndNowSection } from './sections/then-and-now';
 import { renderTimelineSection } from './sections/timeline';
 import { renderWordsAndEmojisSection } from './sections/words-and-emojis';
 
@@ -50,9 +52,11 @@ export function renderChatReport(analysis: ChatAnalysis, title: string): Rendere
     renderPeopleSection(analysis, personColours),
     renderMediaTypesSection(analysis, personColours),
     renderTimelineSection(timeline.granularity),
+    renderThenAndNowSection(analysis, personColours),
     renderHeatmapSection(analysis),
     renderRepliesSection(analysis, personColours),
     renderReplyPairsSection(analysis, personColours),
+    renderMentionsSection(analysis, personColours),
     renderConversationEndingsSection(analysis, personColours),
     renderWordsAndEmojisSection(analysis, personColours),
     renderRecordsSection(analysis, personColours),

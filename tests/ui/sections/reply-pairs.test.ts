@@ -19,7 +19,7 @@ function renderSection(analysis: ChatAnalysis): HTMLDivElement {
  * Reads the grid as rows of cell texts, the row heading first.
  */
 function readGridRows(section: ParentNode): string[][] {
-  return Array.from(section.querySelectorAll('.reply-grid tbody tr'), (row) =>
+  return Array.from(section.querySelectorAll('.person-grid tbody tr'), (row) =>
     textsOfElements(row, 'th, td'),
   );
 }
@@ -28,7 +28,7 @@ function readGridRows(section: ParentNode): string[][] {
  * Reads the inline style of every cell of one row of the grid, in column order.
  */
 function cellStylesOfRow(section: ParentNode, rowIndex: number): (string | null)[] {
-  const row = section.querySelectorAll('.reply-grid tbody tr')[rowIndex];
+  const row = section.querySelectorAll('.person-grid tbody tr')[rowIndex];
   if (row === undefined) {
     throw new Error(`The grid has no row ${rowIndex}`);
   }
@@ -115,7 +115,7 @@ describe('renderReplyPairsSection', () => {
     it('has a column for each person, most active first', () => {
       const section = renderSection(threeFriends);
 
-      expect(textsOfElements(section, '.reply-grid thead th')).toEqual(['Ana', 'Bob', 'Carla']);
+      expect(textsOfElements(section, '.person-grid thead th')).toEqual(['Ana', 'Bob', 'Carla']);
     });
 
     it('has a row for each person with their replies to each of the others', () => {
@@ -131,8 +131,8 @@ describe('renderReplyPairsSection', () => {
       const scopesOf = (selector: string): (string | null)[] =>
         Array.from(section.querySelectorAll(selector), (heading) => heading.getAttribute('scope'));
 
-      expect(scopesOf('.reply-grid thead th')).toEqual(['col', 'col', 'col']);
-      expect(scopesOf('.reply-grid tbody th')).toEqual(['row', 'row', 'row']);
+      expect(scopesOf('.person-grid thead th')).toEqual(['col', 'col', 'col']);
+      expect(scopesOf('.person-grid tbody th')).toEqual(['row', 'row', 'row']);
     });
 
     it('repeats the full name of every heading in its title, because long names are cut short', () => {
@@ -140,20 +140,20 @@ describe('renderReplyPairsSection', () => {
       const titlesOf = (selector: string): (string | null)[] =>
         Array.from(section.querySelectorAll(selector), (heading) => heading.getAttribute('title'));
 
-      expect(titlesOf('.reply-grid thead th')).toEqual(['Ana', 'Bob', 'Carla']);
-      expect(titlesOf('.reply-grid tbody th')).toEqual(['Ana', 'Bob', 'Carla']);
+      expect(titlesOf('.person-grid thead th')).toEqual(['Ana', 'Bob', 'Carla']);
+      expect(titlesOf('.person-grid tbody th')).toEqual(['Ana', 'Bob', 'Carla']);
     });
 
     it('puts the colour of each person before their name in the row heading', () => {
       const section = renderSection(threeFriends);
 
-      expect(section.querySelectorAll('.reply-grid tbody th .colour-swatch')).toHaveLength(3);
+      expect(section.querySelectorAll('.person-grid tbody th .colour-swatch')).toHaveLength(3);
     });
 
     it('scrolls sideways on a narrow screen instead of widening the page', () => {
       const section = renderSection(threeFriends);
 
-      expect(findElement(section, '.reply-grid').parentElement?.className).toBe('table-wrapper');
+      expect(findElement(section, '.person-grid').parentElement?.className).toBe('table-wrapper');
     });
   });
 
@@ -198,8 +198,8 @@ describe('renderReplyPairsSection', () => {
     it('shows the eight most active people and leaves the rest out', () => {
       const section = renderSection(largeGroup);
 
-      expect(textsOfElements(section, '.reply-grid thead th')).toEqual(names.slice(0, 8));
-      expect(section.querySelectorAll('.reply-grid tbody tr')).toHaveLength(8);
+      expect(textsOfElements(section, '.person-grid thead th')).toEqual(names.slice(0, 8));
+      expect(section.querySelectorAll('.person-grid tbody tr')).toHaveLength(8);
     });
 
     it('is left out when the only replies went to people who are not shown', () => {
@@ -242,7 +242,7 @@ describe('renderReplyPairsSection', () => {
       const section = renderSection(hostileGroup);
 
       expect(tagNamesIn(section)).not.toContain('img');
-      expect(textsOfElements(section, '.reply-grid thead th')).toEqual([
+      expect(textsOfElements(section, '.person-grid thead th')).toEqual([
         hostileName,
         quoteBreakingName,
         'Carla',
@@ -251,9 +251,9 @@ describe('renderReplyPairsSection', () => {
 
     it('cannot break out of the title attribute', () => {
       const section = renderSection(hostileGroup);
-      const secondHeading = section.querySelectorAll('.reply-grid thead th')[1];
+      const secondHeading = section.querySelectorAll('.person-grid thead th')[1];
 
-      const secondRowHeading = section.querySelectorAll('.reply-grid tbody th')[1];
+      const secondRowHeading = section.querySelectorAll('.person-grid tbody th')[1];
 
       expect(secondHeading?.getAttribute('title')).toBe(quoteBreakingName);
       expect(secondHeading?.hasAttribute('onmouseover')).toBe(false);

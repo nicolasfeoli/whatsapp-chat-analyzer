@@ -239,6 +239,39 @@ describe('renderChatReport', () => {
       expect([...withStickers.wordCounts.keys()]).toEqual(['pizza', 'tonight']);
     });
 
+    it('adds then and now and who mentions whom for a long group chat with mentions', () => {
+      const group = analyseExport(
+        exportText([
+          iphoneLine({ date: '13/01/2022', time: '10:00:00', sender: 'Ana', text: 'dinner?' }),
+          iphoneLine({
+            date: '13/01/2022',
+            time: '10:01:00',
+            sender: 'Bob',
+            text: '@\u2068Carla\u2069 are you coming?',
+          }),
+          iphoneLine({ date: '13/01/2022', time: '10:02:00', sender: 'Carla', text: 'yes' }),
+          iphoneLine({ date: '14/06/2024', time: '10:00:00', sender: 'Ana', text: 'morning' }),
+        ]),
+      );
+
+      const headings = textsOfElements(parseMarkup(renderChatReport(group, 'Group').html), 'h2');
+
+      expect(headings).toEqual([
+        'Group',
+        'What stands out',
+        'Who says what',
+        'Activity over time',
+        'Then and now',
+        'When the chat is alive',
+        'Replies and openings',
+        'Who answers whom',
+        'Who mentions whom',
+        'How conversations end',
+        'Words and emojis',
+        'From the record',
+      ]);
+    });
+
     it('leaves out who answers whom for a chat of two', () => {
       const page = parseMarkup(renderChatReport(analysis, 'Ana and Bob').html);
 
@@ -306,13 +339,13 @@ describe('renderChatReport', () => {
     });
 
     it('still lists all eight in the table of people', () => {
-      expect(page.querySelectorAll('table:not(.reply-grid) tbody tr')).toHaveLength(8);
+      expect(page.querySelectorAll('table:not(.person-grid) tbody tr')).toHaveLength(8);
     });
 
     it('gives all eight a row and a column in the grid of who answers whom', () => {
       expect(textsOfElements(page, 'h2')).toContain('Who answers whom');
-      expect(page.querySelectorAll('.reply-grid tbody tr')).toHaveLength(8);
-      expect(page.querySelectorAll('.reply-grid thead th')).toHaveLength(8);
+      expect(page.querySelectorAll('.person-grid tbody tr')).toHaveLength(8);
+      expect(page.querySelectorAll('.person-grid thead th')).toHaveLength(8);
     });
   });
 

@@ -54,6 +54,7 @@ describe('findPageElements', () => {
     expect(pageElements.dateOrderRow.id).toBe('date-order-row');
     expect(pageElements.dateOrderMessage.id).toBe('date-order-message');
     expect(pageElements.switchDateOrderButton.id).toBe('switch-date-order-button');
+    expect(pageElements.hideNamesCheckbox.type).toBe('checkbox');
     expect(pageElements.reportContainer.id).toBe('report');
     expect(pageElements.tooltip.id).toBe('tooltip');
   });

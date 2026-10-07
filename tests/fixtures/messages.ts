@@ -13,6 +13,8 @@ export interface MessageParts {
   readonly sentAt?: string;
   /** The message body. */
   readonly text?: string;
+  /** For a media message, what was typed in front of the placeholder. */
+  readonly caption?: string;
 }
 
 /**
@@ -88,6 +90,7 @@ export function mediaMessage(parts: MessageParts = {}): MediaMessage {
     timestamp: localTime(parts.sentAt ?? DEFAULT_SENT_AT),
     sender: parts.sender ?? DEFAULT_SENDER,
     text: parts.text ?? '<Media omitted>',
+    caption: parts.caption ?? '',
   };
 }
 

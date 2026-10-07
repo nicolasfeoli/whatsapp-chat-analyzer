@@ -11,7 +11,13 @@
  * real browser.
  */
 
-import type { AmbiguousDateOrder, AnalysedChatExportResult, DateOrder } from '../core/index';
+import type {
+  AmbiguousDateOrder,
+  AnalysedChatExportResult,
+  ChatAnalysis,
+  DateOrder,
+} from '../core/index';
+import { ANONYMOUS_CHAT_TITLE, anonymiseAnalysis } from './anonymise';
 import type { AnalysisClient, AnalysisOutcome, MainThreadAnalysis } from './analysis-client';
 import { attachHeatmapTooltips } from './charts/heatmap';
 import { drawTimeline } from './charts/timeline';
@@ -89,6 +95,8 @@ export interface PageDependencies {
 interface DisplayedChat {
   /** The title above the report, reused when the date order is switched. */
   readonly title: string;
+  /** The analysis the report was drawn from, kept so it can be redrawn with or without names. */
+  readonly analysis: ChatAnalysis;
   /** The order the dates were read in, so the switch knows which one is "the other". */
   readonly dateOrder: DateOrder;
 }
@@ -134,6 +142,7 @@ class PageController {
     this.connectFilePicker();
     this.connectDragAndDrop();
     this.connectDateOrderSwitch();
+    this.connectHideNamesSwitch();
     this.connectWindowEvents();
     this.showSampleChat();
   }
@@ -180,10 +189,15 @@ class PageController {
   }
 
   /**
-   * Renders the report into the page and connects its interactive parts.
+   * Renders the report into the page and connects its interactive parts. While
+   * "hide names" is ticked, the report is drawn from a copy of the analysis
+   * without names or message text, under a neutral title.
    */
-  private showChatReport(result: AnalysedChatExportResult, title: string): void {
-    const renderedReport = renderChatReport(result.analysis, title);
+  private showChatReport(analysis: ChatAnalysis, title: string): void {
+    const isHidingNames = this.pageElements.hideNamesCheckbox.checked;
+    const renderedReport = isHidingNames
+      ? renderChatReport(anonymiseAnalysis(analysis), ANONYMOUS_CHAT_TITLE)
+      : renderChatReport(analysis, title);
     this.displayedTimeline = renderedReport.timeline;
     setInnerHtml(this.pageElements.reportContainer, renderedReport.html);
 
@@ -210,7 +224,7 @@ class PageController {
     title: string,
     origin: ChatOrigin,
   ): void {
-    this.displayedChat = { title, dateOrder: result.dateOrder };
+    this.displayedChat = { title, dateOrder: result.dateOrder, analysis: result.analysis };
     this.showStatus('', false);
 
     const isSample = origin === 'sample';
@@ -223,7 +237,7 @@ class PageController {
     } else {
       this.showParseReport(result);
     }
-    this.showChatReport(result, title);
+    this.showChatReport(result.analysis, title);
   }
 
   /**
@@ -346,6 +360,18 @@ class PageController {
   private connectDateOrderSwitch(): void {
     this.pageElements.switchDateOrderButton.addEventListener('click', (): void => {
       void this.switchDateOrder();
+    });
+  }
+
+  /**
+   * Redraws the report when "hide names" is ticked or unticked. The chat is
+   * not read again: the analysis on display is drawn a second time.
+   */
+  private connectHideNamesSwitch(): void {
+    this.pageElements.hideNamesCheckbox.addEventListener('change', (): void => {
+      if (this.displayedChat !== null) {
+        this.showChatReport(this.displayedChat.analysis, this.displayedChat.title);
+      }
     });
   }
 

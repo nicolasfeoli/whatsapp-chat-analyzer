@@ -35,6 +35,11 @@ export interface ExportEntry extends TimestampParts {
   readonly text: string;
   /** What kind of message this is. */
   readonly kind: MessageKind;
+  /**
+   * For a media message, what was typed in front of its placeholder; empty for
+   * media without a caption and for every other kind of message.
+   */
+  readonly caption: string;
 }
 
 /** Everything the first pass learns about a file. */
@@ -104,8 +109,8 @@ function isBodyMarkedAsNotTyped(originalLine: string, sender: string): boolean {
  * that follows a caption (`Sender: happy birthday <mark>image omitted`).
  * Android does not use the mark, so its lines are never searched.
  *
- * @returns The placeholder without the caption, or `null` when the line does
- *   not end in a marked placeholder.
+ * @returns The placeholder alone, or `null` when the line does not end in a
+ *   marked placeholder.
  */
 function findCaptionedPlaceholder(originalLine: string, cleanedLine: string): string | null {
   if (!isBracketedLine(cleanedLine)) {
@@ -114,6 +119,20 @@ function findCaptionedPlaceholder(originalLine: string, cleanedLine: string): st
   return findTrailingMarkedPlaceholder(
     removeInvisibleCharactersExceptLeftToRightMark(originalLine),
   );
+}
+
+/**
+ * Cuts the caption out of the visible text that ends in a placeholder.
+ *
+ * @param visibleText - The text of a line, or of the body of an entry, without
+ *   invisible characters: the caption, the placeholder and possibly the note
+ *   of an edited message.
+ * @param placeholder - The placeholder found after the last mark of that line.
+ * @returns What stands before the placeholder, trimmed; empty when nothing does.
+ */
+function cutCaptionBeforePlaceholder(visibleText: string, placeholder: string): string {
+  const placeholderIndex = visibleText.lastIndexOf(placeholder);
+  return visibleText.slice(0, Math.max(placeholderIndex, 0)).trim();
 }
 
 /**
@@ -146,12 +165,12 @@ function createEntryFromLine(
 
   const captionedPlaceholder = findCaptionedPlaceholder(originalLine, cleanedLine);
   if (captionedPlaceholder !== null) {
-    /* The caption is left out, as it is when it follows on a line of its own. */
     return {
       ...timestampParts,
       sender: senderAndText.sender,
       text: captionedPlaceholder,
       kind: 'media',
+      caption: cutCaptionBeforePlaceholder(senderAndText.text, captionedPlaceholder),
     };
   }
 
@@ -168,6 +187,7 @@ function createEntryFromLine(
     sender: senderAndText.sender,
     text: senderAndText.text,
     kind: classification,
+    caption: '',
   };
 }
 
@@ -195,8 +215,8 @@ function createReadingProgress(): ReadingProgress {
  * On iPhone the line can also reveal that the entry was never typed text. A
  * caption of several lines is exported with the placeholder after its last
  * line (`...and many more <mark>image omitted`), so everything collected so
- * far was the caption of a photo: the entry becomes media and keeps only the
- * placeholder, as a caption on a single line does.
+ * far was the caption of a photo: the entry becomes media, its text becomes
+ * the placeholder and what was collected becomes its caption.
  */
 function appendContinuationLine(
   progress: ReadingProgress,
@@ -213,6 +233,8 @@ function appendContinuationLine(
       ? findTrailingMarkedPlaceholder(removeInvisibleCharactersExceptLeftToRightMark(originalLine))
       : null;
   if (captionedPlaceholder !== null) {
+    const lastCaptionLine = cutCaptionBeforePlaceholder(cleanedLine, captionedPlaceholder);
+    continuedEntry.caption = `${continuedEntry.text}\n${lastCaptionLine}`.trim();
     continuedEntry.kind = 'media';
     continuedEntry.text = captionedPlaceholder;
     return;

@@ -4,9 +4,12 @@ import {
   analyseMessageText,
   countLinks,
   extractEmojis,
+  extractMentionedNames,
+  extractPhrases,
   extractWords,
   isLaugh,
   removeLinks,
+  removeMentions,
 } from '../../../src/core/analysis/text-statistics';
 import {
   BLACK_FLAG,
@@ -24,6 +27,95 @@ import {
   THUMBS_UP_MEDIUM_SKIN_TONE,
   WOMAN_TECHNOLOGIST_MEDIUM_SKIN_TONE,
 } from '../../fixtures/emojis';
+
+/** Writes a mention the way an iPhone export does: `@`, then the name between isolate marks. */
+function mentionOf(name: string): string {
+  return `@⁨${name}⁩`;
+}
+
+describe('extractMentionedNames', () => {
+  it('lists the names mentioned with @, in order, repeats included', () => {
+    const text = `${mentionOf('Carla')} and ${mentionOf('Bob')}, or ${mentionOf('Carla')} alone?`;
+
+    expect(extractMentionedNames(text)).toEqual(['Carla', 'Bob', 'Carla']);
+  });
+
+  it('keeps a name of several words whole', () => {
+    expect(extractMentionedNames(`ask ${mentionOf('Carla de la Vega')}`)).toEqual([
+      'Carla de la Vega',
+    ]);
+  });
+
+  it('trims the white space inside the marks', () => {
+    expect(extractMentionedNames(`ask ${mentionOf(' Carla ')}`)).toEqual(['Carla']);
+  });
+
+  it.each([
+    { description: 'an @ without the marks, as Android writes it', text: 'ask @50655550100' },
+    { description: 'an e-mail address', text: 'write to ana@example.com' },
+    { description: 'marks with nothing between them', text: 'ask @⁨⁩' },
+    { description: 'marks around white space only', text: 'ask @⁨ ⁩' },
+    { description: 'an opening mark that is never closed', text: 'ask @⁨Carla' },
+    { description: 'no mention at all', text: 'see you tomorrow' },
+  ])('finds nothing in $description', ({ text }) => {
+    expect(extractMentionedNames(text)).toEqual([]);
+  });
+
+  it('gives the same answer every time, because the pattern keeps no state between calls', () => {
+    const text = `ask ${mentionOf('Carla')}`;
+
+    expect(extractMentionedNames(text)).toEqual(extractMentionedNames(text));
+  });
+});
+
+describe('removeMentions', () => {
+  it('replaces a mention with a space, so the words around it stay apart', () => {
+    expect(removeMentions(`hey${mentionOf('Carla')}come`)).toBe('hey come');
+  });
+
+  it('leaves a text without mentions as it is', () => {
+    expect(removeMentions('write to ana@example.com')).toBe('write to ana@example.com');
+  });
+});
+
+describe('extractPhrases', () => {
+  it('lists every run of two and of three neighbouring words', () => {
+    expect(extractPhrases('bring fresh bread tonight')).toEqual([
+      'bring fresh',
+      'fresh bread',
+      'bread tonight',
+      'bring fresh bread',
+      'fresh bread tonight',
+    ]);
+  });
+
+  it('lower-cases the phrases', () => {
+    expect(extractPhrases('Buenos Días')).toEqual(['buenos días']);
+  });
+
+  it('never runs a phrase across a line break', () => {
+    expect(extractPhrases('good morning\neverybody here')).toEqual([
+      'good morning',
+      'everybody here',
+    ]);
+  });
+
+  it('skips a run made only of filler words', () => {
+    expect(extractPhrases('of the')).toEqual([]);
+  });
+
+  it('keeps a run in which one word is significant', () => {
+    expect(extractPhrases('of the dinner')).toEqual(['the dinner', 'of the dinner']);
+  });
+
+  it('skips every run that holds a laugh', () => {
+    expect(extractPhrases('haha good morning')).toEqual(['good morning']);
+  });
+
+  it.each(['', 'hello', '   '])('finds no phrase in "%s"', (text) => {
+    expect(extractPhrases(text)).toEqual([]);
+  });
+});
 
 describe('countLinks', () => {
   it.each([
@@ -360,6 +452,43 @@ describe('analyseMessageText', () => {
     });
   });
 
+  describe('mentions', () => {
+    it('lists the people mentioned', () => {
+      expect(analyseMessageText(`${mentionOf('Carla')} are you coming?`).mentionedNames).toEqual([
+        'Carla',
+      ]);
+    });
+
+    it('does not count the name of the person mentioned as a word', () => {
+      const statistics = analyseMessageText(`${mentionOf('Carla Vega')} dinner tonight`);
+
+      expect(statistics.wordCount).toBe(2);
+      expect(statistics.significantWords).toEqual(['dinner', 'tonight']);
+    });
+
+    it('does not build phrases out of the name of the person mentioned', () => {
+      expect(analyseMessageText(`${mentionOf('Carla Vega')} dinner tonight`).phrases).toEqual([
+        'dinner tonight',
+      ]);
+    });
+  });
+
+  describe('phrases', () => {
+    it('lists the phrases of the message', () => {
+      expect(analyseMessageText('bring fresh bread').phrases).toEqual([
+        'bring fresh',
+        'fresh bread',
+        'bring fresh bread',
+      ]);
+    });
+
+    it('does not build phrases out of a link', () => {
+      expect(analyseMessageText('look https://example.com/good-morning-everybody').phrases).toEqual(
+        [],
+      );
+    });
+  });
+
   describe('an empty message', () => {
     it('counts nothing', () => {
       expect(analyseMessageText('')).toEqual({
@@ -369,6 +498,8 @@ describe('analyseMessageText', () => {
         wordCount: 0,
         significantWords: [],
         containsLaugh: false,
+        mentionedNames: [],
+        phrases: [],
       });
     });
   });

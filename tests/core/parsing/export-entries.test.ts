@@ -44,6 +44,7 @@ describe('readExportEntries', () => {
           sender: 'Ana',
           text: 'happy new year',
           kind: 'text',
+          caption: '',
         },
       ]);
     });
@@ -233,8 +234,25 @@ describe('readExportEntries', () => {
         expect(readExportEntries(captionedLine).entries[0]?.kind).toBe('media');
       });
 
-      it('keeps the placeholder as the text and leaves the caption out', () => {
-        expect(readExportEntries(captionedLine).entries[0]?.text).toBe('image omitted');
+      it('keeps the placeholder as the text and the words before it as the caption', () => {
+        expect(readExportEntries(captionedLine).entries[0]).toMatchObject({
+          text: 'image omitted',
+          caption: 'happy birthday Ana',
+        });
+      });
+
+      it('gives media without a caption an empty one', () => {
+        const rawText = iphoneNotTypedLine({ text: 'image omitted' });
+
+        expect(readExportEntries(rawText).entries[0]?.caption).toBe('');
+      });
+
+      it('keeps the caption free of the note of an edited message', () => {
+        const rawText = iphoneLine({
+          text: `happy birthday ${LEFT_TO_RIGHT_MARK}image omitted ${LEFT_TO_RIGHT_MARK}<This message was edited>`,
+        });
+
+        expect(readExportEntries(rawText).entries[0]?.caption).toBe('happy birthday');
       });
 
       it('keeps the sender', () => {
@@ -291,6 +309,12 @@ describe('readExportEntries', () => {
           });
         });
 
+        it('keeps every line of the caption', () => {
+          expect(readExportEntries(rawText).entries[0]?.caption).toBe(
+            'happy birthday Ana\nhope you have a great day\nand many more',
+          );
+        });
+
         it('leaves the message after it alone', () => {
           expect(readExportEntries(rawText).entries[1]).toMatchObject({
             sender: 'Ana',
@@ -309,7 +333,10 @@ describe('readExportEntries', () => {
             `${LEFT_TO_RIGHT_MARK}image omitted`,
           ]);
 
-          expect(readExportEntries(captionThenPlaceholder).entries[0]?.kind).toBe('media');
+          expect(readExportEntries(captionThenPlaceholder).entries[0]).toMatchObject({
+            kind: 'media',
+            caption: 'happy birthday Ana',
+          });
         });
 
         it('keeps a typed last line that merely ends in the words as text', () => {

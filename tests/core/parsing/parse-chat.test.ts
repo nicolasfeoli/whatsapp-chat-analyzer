@@ -114,6 +114,30 @@ describe('parseChat', () => {
     });
   });
 
+  describe('captions of media', () => {
+    it('keeps what was typed in front of an iPhone placeholder as the caption of a media message', () => {
+      const rawText = iphoneLine({ text: `happy birthday ${LEFT_TO_RIGHT_MARK}image omitted` });
+
+      expect(parseChat(rawText).messages[0]).toMatchObject({
+        kind: 'media',
+        text: 'image omitted',
+        caption: 'happy birthday',
+      });
+    });
+
+    it('gives media without a caption an empty one', () => {
+      const rawText = androidLine({ text: '<Media omitted>' });
+
+      expect(parseChat(rawText).messages[0]).toMatchObject({ kind: 'media', caption: '' });
+    });
+
+    it('gives a typed message no caption at all', () => {
+      const rawText = androidLine({ text: 'hello' });
+
+      expect(parseChat(rawText).messages[0]).not.toHaveProperty('caption');
+    });
+  });
+
   describe('edited messages', () => {
     it('removes the note iPhone appends to an edited message, mark included', () => {
       const rawText = iphoneLine({

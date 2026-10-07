@@ -36,12 +36,15 @@ interface DatedMessages {
  * Builds the final message for an entry whose timestamp is known.
  */
 function createMessage(entry: ExportEntry, timestamp: Date): ChatMessage {
-  return {
+  const messageBase = {
     timestamp,
     sender: entry.sender,
     text: removeEditedMessageSuffix(entry.text),
-    kind: entry.kind,
   };
+  if (entry.kind === 'media') {
+    return { ...messageBase, kind: 'media', caption: entry.caption };
+  }
+  return { ...messageBase, kind: entry.kind };
 }
 
 /**
