@@ -2,8 +2,8 @@
  * What happens on the page, and when: connects the file picker, drag and
  * drop, the date-order switch, the display switches, the period row, the list
  * of people in "One person up close", the field of "Look up a word", the
- * buttons that save the summary image and print the report, and the window
- * events to the analysis and the report.
+ * buttons that save the summary image and print the report, the recap of a
+ * year, and the window events to the analysis and the report.
  *
  * The modules this file draws on are pure wherever possible; the DOM work is
  * gathered here so there is one place to look for "what happens when".
@@ -48,6 +48,16 @@ import {
   showDisplayedPeriod,
   showPeriodInDateFields,
 } from './period-control';
+import { buildRecapCards } from './recap/cards';
+import { createRecapDialog } from './recap/recap-dialog';
+import type { RecapDialog } from './recap/recap-dialog';
+import {
+  chooseDefaultRecapYear,
+  findYearSummary,
+  selectRecapYears,
+  summariseYears,
+} from './recap/years';
+import type { YearSummary } from './recap/years';
 import { SAMPLE_CHAT_TITLE, generateSampleChatText } from './sample-chat';
 import type { PeopleShown } from './sections/featured-people';
 import { collectSummaryCardContent } from './summary-card/content';
@@ -79,6 +89,9 @@ export const READING_MESSAGES_STATUS = 'Reading messages …';
 
 /** Shown while the messages of a chosen period are counted again. */
 export const ANALYSING_PERIOD_STATUS = 'Counting the messages of that period …';
+
+/** Shown while the messages of the year of a recap are counted. */
+export const PREPARING_RECAP_STATUS = 'Counting the messages of that year …';
 
 /**
  * How long the page waits before it analyses a chosen period. The analysis
@@ -177,6 +190,8 @@ interface DisplayedChat {
   readonly wholeChat: Period;
   /** The ready-made periods the period list offers for this chat. */
   readonly periodPresets: readonly PeriodPreset[];
+  /** What the whole chat says about each of its calendar years, for the recap. */
+  readonly yearSummaries: readonly YearSummary[];
   /** The period the report on display is drawn for. */
   readonly period: Period;
   /**
@@ -234,6 +249,19 @@ class PageController {
   /** The timer of a search that waits for the reader to stop typing. */
   private wordSearchTimer: number | undefined = undefined;
 
+  /** The row that offers the recap of a year, and its dialog. */
+  private readonly recapDialog: RecapDialog;
+
+  /**
+   * The analysis of each year a recap was opened for, by year and with the
+   * real names, so a year is counted once however often its recap is opened.
+   * Emptied when another chat is shown.
+   */
+  private readonly recapYearAnalyses = new Map<number, ChatAnalysis>();
+
+  /** The timer of a recap that was asked for but whose year is not analysed yet. */
+  private recapTimer: number | undefined = undefined;
+
   public constructor(dependencies: PageDependencies) {
     this.pageElements = dependencies.pageElements;
     this.tooltip = dependencies.tooltip;
@@ -241,6 +269,7 @@ class PageController {
     this.getLocale = dependencies.getLocale;
     this.analyseOnMainThread = dependencies.analyseOnMainThread;
     this.summaryImageServices = dependencies.summaryImageServices;
+    this.recapDialog = createRecapDialog(dependencies.pageElements);
     this.analysisClient = dependencies.createAnalysisClient((statusMessage: string): void => {
       this.showStatus(statusMessage, true);
     });
@@ -257,6 +286,7 @@ class PageController {
     this.connectPeriodControl();
     this.connectSummaryImageButton();
     this.connectPrintButton();
+    this.connectRecap();
     this.connectWindowEvents();
     this.showSampleChat();
   }
@@ -490,6 +520,18 @@ class PageController {
     /* What was looked up in the previous chat is not asked of this one. */
     this.wordSearchQuery = '';
 
+    /* A recap is about the chat it was opened for; another chat closes it and has years of its own. */
+    this.browserWindow.clearTimeout(this.recapTimer);
+    this.recapTimer = undefined;
+    this.recapYearAnalyses.clear();
+    this.recapDialog.close('unchanged');
+    const yearSummaries = summariseYears(result.analysis);
+    const recapYears = selectRecapYears(yearSummaries);
+    this.recapDialog.offerYears(
+      recapYears,
+      chooseDefaultRecapYear(recapYears, result.analysis.lastMessageTimestamp),
+    );
+
     const wholeChat = wholeChatPeriod(result.analysis);
     const periodPresets = listPeriodPresets(result.analysis);
     /* Another file, or the same one read with the other date order, starts at the whole chat again. */
@@ -499,6 +541,7 @@ class PageController {
       analysis: result.analysis,
       wholeChat,
       periodPresets,
+      yearSummaries,
       period: wholeChat,
       periodAnalysis: result.analysis,
     };
@@ -587,6 +630,9 @@ class PageController {
   private forgetPendingPeriod(): void {
     this.browserWindow.clearTimeout(this.periodAnalysisTimer);
     this.periodAnalysisTimer = undefined;
+    /* A recap that was still waiting would take the status line back from the file being read. */
+    this.browserWindow.clearTimeout(this.recapTimer);
+    this.recapTimer = undefined;
     if (this.displayedChat !== null) {
       const { periodPresets, period, wholeChat } = this.displayedChat;
       showDisplayedPeriod(this.pageElements, periodPresets, period, wholeChat);
@@ -814,6 +860,77 @@ class PageController {
   private connectPrintButton(): void {
     this.pageElements.printButton.addEventListener('click', (): void => {
       this.browserWindow.print();
+    });
+  }
+
+  /**
+   * Shows the recap of a year from its analysis. The cards say what the
+   * report would say: they are written from the copy without names while
+   * "hide names" is ticked, and the titles go to the people "show everyone"
+   * lets compete. The period on display plays no part; a recap always covers
+   * its calendar year.
+   */
+  private showRecap(
+    displayedChat: DisplayedChat,
+    yearSummary: YearSummary,
+    yearAnalysis: ChatAnalysis,
+  ): void {
+    const drawnYear = this.chooseWhatIsDrawn(yearAnalysis, displayedChat.title);
+    const drawnWholeChat = this.chooseWhatIsDrawn(displayedChat.analysis, displayedChat.title);
+    const cards = buildRecapCards(drawnYear.analysis, {
+      yearSummary,
+      previousYearSummary: findYearSummary(displayedChat.yearSummaries, yearSummary.year - 1),
+      wholeChatAnalysis: drawnWholeChat.analysis,
+      peopleShown: drawnYear.peopleShown,
+    });
+    this.recapDialog.open(yearSummary.year, cards);
+  }
+
+  /**
+   * Opens the recap of the year the reader chose. The messages of the year
+   * are counted the first time its recap is opened, on the main thread like
+   * a period, so the status line is shown first and the work starts after
+   * the browser had time to paint it; from then on the year opens at once.
+   */
+  private openRecap(): void {
+    const displayedChat = this.displayedChat;
+    const year = this.recapDialog.readChosenYear();
+    if (displayedChat === null || year === null) {
+      return;
+    }
+    const yearSummary = findYearSummary(displayedChat.yearSummaries, year);
+    if (yearSummary === null) {
+      return;
+    }
+    this.browserWindow.clearTimeout(this.recapTimer);
+    this.recapTimer = undefined;
+
+    const knownYearAnalysis = this.recapYearAnalyses.get(year);
+    if (knownYearAnalysis !== undefined) {
+      this.showRecap(displayedChat, yearSummary, knownYearAnalysis);
+      return;
+    }
+
+    this.showStatus(PREPARING_RECAP_STATUS, true);
+    this.recapTimer = this.browserWindow.setTimeout((): void => {
+      this.recapTimer = undefined;
+      const yearAnalysis = analysePeriod(displayedChat.analysis, yearSummary.period);
+      this.showStatus('', false);
+      if (yearAnalysis === null) {
+        return;
+      }
+      this.recapYearAnalyses.set(year, yearAnalysis);
+      this.showRecap(displayedChat, yearSummary, yearAnalysis);
+    }, PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS);
+  }
+
+  /**
+   * Connects the button that opens the recap. Its dialog looks after its own
+   * buttons and keys.
+   */
+  private connectRecap(): void {
+    this.pageElements.openRecapButton.addEventListener('click', (): void => {
+      this.openRecap();
     });
   }
 

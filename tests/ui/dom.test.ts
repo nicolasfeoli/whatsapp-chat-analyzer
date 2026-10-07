@@ -64,6 +64,18 @@ describe('findPageElements', () => {
     expect(pageElements.periodNote.id).toBe('period-note');
     expect(pageElements.saveSummaryImageButton.id).toBe('save-summary-image-button');
     expect(pageElements.printButton.id).toBe('print-button');
+    expect(pageElements.recapEntry.id).toBe('recap-entry');
+    expect(pageElements.recapYearChoice.id).toBe('recap-year-choice');
+    expect(pageElements.recapYearSelect.id).toBe('recap-year-select');
+    expect(pageElements.openRecapButton.id).toBe('open-recap-button');
+    expect(pageElements.recapOverlay.id).toBe('recap-overlay');
+    expect(pageElements.recapPanel.id).toBe('recap-panel');
+    expect(pageElements.recapTitle.id).toBe('recap-title');
+    expect(pageElements.recapCard.id).toBe('recap-card');
+    expect(pageElements.recapPosition.id).toBe('recap-position');
+    expect(pageElements.recapBackButton.id).toBe('recap-back-button');
+    expect(pageElements.recapNextButton.id).toBe('recap-next-button');
+    expect(pageElements.recapCloseButton.id).toBe('recap-close-button');
     expect(pageElements.reportContainer.id).toBe('report');
     expect(pageElements.tooltip.id).toBe('tooltip');
   });
@@ -120,5 +132,10 @@ describe('index.html', () => {
     expect(parsedPage.getElementById('parse-report')?.hidden).toBe(true);
     expect(parsedPage.getElementById('date-order-row')?.hidden).toBe(true);
     expect(parsedPage.getElementById('tooltip')?.hidden).toBe(true);
+  });
+
+  it('starts with the recap closed and not yet on offer', () => {
+    expect(parsedPage.getElementById('recap-entry')?.hidden).toBe(true);
+    expect(parsedPage.getElementById('recap-overlay')?.hidden).toBe(true);
   });
 });

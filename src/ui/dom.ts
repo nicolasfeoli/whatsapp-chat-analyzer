@@ -49,6 +49,30 @@ export interface PageElements {
   readonly saveSummaryImageButton: HTMLButtonElement;
   /** The button that opens the browser's print dialog, from which the report can be saved as a PDF. */
   readonly printButton: HTMLButtonElement;
+  /** The row that offers the recap of a year; hidden for a chat in which no year has enough messages. */
+  readonly recapEntry: HTMLElement;
+  /** The label and the list of years together; hidden when a single year is on offer. */
+  readonly recapYearChoice: HTMLElement;
+  /** The list of the years a recap can be opened for. */
+  readonly recapYearSelect: HTMLSelectElement;
+  /** The button that opens the recap of the chosen year. */
+  readonly openRecapButton: HTMLButtonElement;
+  /** The dimmed layer over the page that holds the recap; hidden while the recap is closed. */
+  readonly recapOverlay: HTMLElement;
+  /** The dialog of the recap, which takes the focus and the keys while it is open. */
+  readonly recapPanel: HTMLElement;
+  /** The title of the recap, which names the year. */
+  readonly recapTitle: HTMLElement;
+  /** The element the card on display is drawn into. */
+  readonly recapCard: HTMLElement;
+  /** The line that says which card of how many is on display. */
+  readonly recapPosition: HTMLElement;
+  /** The button that goes to the card before. */
+  readonly recapBackButton: HTMLButtonElement;
+  /** The button that goes to the next card. */
+  readonly recapNextButton: HTMLButtonElement;
+  /** The button that closes the recap. */
+  readonly recapCloseButton: HTMLButtonElement;
   /** The container the report is rendered into. */
   readonly reportContainer: HTMLElement;
   /** The floating tooltip shared by the charts. */
@@ -103,6 +127,18 @@ export function findPageElements(): PageElements {
     periodNote: getRequiredElement('period-note', HTMLElement),
     saveSummaryImageButton: getRequiredElement('save-summary-image-button', HTMLButtonElement),
     printButton: getRequiredElement('print-button', HTMLButtonElement),
+    recapEntry: getRequiredElement('recap-entry', HTMLElement),
+    recapYearChoice: getRequiredElement('recap-year-choice', HTMLElement),
+    recapYearSelect: getRequiredElement('recap-year-select', HTMLSelectElement),
+    openRecapButton: getRequiredElement('open-recap-button', HTMLButtonElement),
+    recapOverlay: getRequiredElement('recap-overlay', HTMLElement),
+    recapPanel: getRequiredElement('recap-panel', HTMLElement),
+    recapTitle: getRequiredElement('recap-title', HTMLElement),
+    recapCard: getRequiredElement('recap-card', HTMLElement),
+    recapPosition: getRequiredElement('recap-position', HTMLElement),
+    recapBackButton: getRequiredElement('recap-back-button', HTMLButtonElement),
+    recapNextButton: getRequiredElement('recap-next-button', HTMLButtonElement),
+    recapCloseButton: getRequiredElement('recap-close-button', HTMLButtonElement),
     reportContainer: getRequiredElement('report', HTMLElement),
     tooltip: getRequiredElement('tooltip', HTMLElement),
   };

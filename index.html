@@ -27,6 +27,28 @@
     <link rel="stylesheet" href="/src/styles/main.css" />
   </head>
   <body>
+    <div class="recap-overlay" id="recap-overlay" hidden>
+      <div
+        class="recap-panel"
+        id="recap-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recap-title"
+        tabindex="-1"
+      >
+        <div class="recap-top">
+          <h2 id="recap-title"></h2>
+          <button class="link-button" id="recap-close-button" type="button">Close</button>
+        </div>
+        <div class="recap-card" id="recap-card" aria-live="polite"></div>
+        <div class="recap-controls">
+          <button class="button" id="recap-back-button" type="button">Back</button>
+          <span class="recap-position" id="recap-position"></span>
+          <button class="button" id="recap-next-button" type="button">Next</button>
+        </div>
+        <p class="hint recap-keys">The arrow keys move between cards. Escape closes.</p>
+      </div>
+    </div>
     <div class="page-wrapper">
       <header class="page-header">
         <h1>WhatsApp Chat Analyzer</h1>
@@ -112,6 +134,22 @@
             </li>
           </ol>
         </details>
+      </div>
+
+      <div class="recap-entry" id="recap-entry" hidden>
+        <div class="recap-entry-text">
+          <strong>The year in review</strong>
+          <span class="hint"
+            >One year of this chat in a handful of big numbers, one card at a time.</span
+          >
+        </div>
+        <span class="recap-year-choice hint" id="recap-year-choice">
+          <label for="recap-year-select">Year</label>
+          <select id="recap-year-select"></select>
+        </span>
+        <button class="button" id="open-recap-button" type="button" aria-haspopup="dialog">
+          See the year in this chat
+        </button>
       </div>
 
       <div id="report"></div>

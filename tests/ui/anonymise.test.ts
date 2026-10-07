@@ -9,6 +9,7 @@ import {
 } from '../../src/ui/anonymise';
 import type { ChatAnalysis } from '../../src/core/types';
 import { assignPersonColours } from '../../src/ui/person-colours';
+import { buildRecapCards } from '../../src/ui/recap/cards';
 import { renderAwardsSection } from '../../src/ui/sections/awards';
 import { renderGroupHistorySection } from '../../src/ui/sections/group-history';
 import { renderMilestonesSection } from '../../src/ui/sections/milestones';
@@ -628,6 +629,90 @@ describe('anonymiseAnalysis', () => {
     expect(namedChat.people[0]?.name).toBe('Ana');
     expect(namedChat.messages[0]?.text).toBe('hello Bob');
     expect(namedChat.wordCounts.has('bob')).toBe(true);
+  });
+});
+
+describe('anonymiseAnalysis, the recap of a year', () => {
+  /** The year 2024 of a chat in which Bob is talked about more than anything else. */
+  const yearOfNamedChat: ChatAnalysis = chatAnalysis({
+    wordCounts: new Map([
+      ['bob', 40],
+      ['dinner', 9],
+    ]),
+    people: [
+      personStatistics({ name: 'Ana', messageCount: 60, nightMessageCount: 30 }),
+      personStatistics({ name: 'Bob Vega', messageCount: 40 }),
+    ],
+  });
+
+  /** The whole chat around that year, in which Carla also writes. */
+  const wholeNamedChat: ChatAnalysis = chatAnalysis({
+    wordCounts: new Map([
+      ['bob', 50],
+      ['carla', 30],
+      ['dinner', 12],
+    ]),
+    people: [
+      personStatistics({ name: 'Ana', messageCount: 90 }),
+      personStatistics({ name: 'Bob Vega', messageCount: 60 }),
+      personStatistics({ name: 'Carla', messageCount: 50 }),
+    ],
+  });
+
+  /** Writes the cards of that year from the analyses given, and joins every text on them. */
+  function recapTextOf(yearAnalysis: ChatAnalysis, wholeChatAnalysis: ChatAnalysis): string {
+    const cards = buildRecapCards(yearAnalysis, {
+      yearSummary: {
+        year: 2024,
+        messageCount: 100,
+        period: { firstDayKey: 20240101, lastDayKey: 20241231 },
+        coveredDayCount: 366,
+      },
+      previousYearSummary: null,
+      wholeChatAnalysis,
+      peopleShown: 'most-active',
+    });
+    return cards.map((card) => [card.label, card.headline, ...card.lines].join('\n')).join('\n');
+  }
+
+  it('names people and their word of the year while names are shown', () => {
+    const recapText = recapTextOf(yearOfNamedChat, wholeNamedChat);
+
+    expect(recapText).toContain('Ana wrote the most');
+    expect(recapText).toContain('“bob”');
+  });
+
+  it('writes labels on the cards and takes a name out of the running for word of the year', () => {
+    const recapText = recapTextOf(
+      anonymiseAnalysis(yearOfNamedChat),
+      anonymiseAnalysis(wholeNamedChat),
+    );
+
+    expect(recapText).toContain('Person A wrote the most');
+    expect(recapText).toContain('The night owl: Person A');
+    expect(recapText).toContain('“dinner”');
+    for (const name of ['Ana', 'Bob', 'Vega', 'bob']) {
+      expect(recapText).not.toContain(name);
+    }
+  });
+
+  it('keeps out the name of somebody who wrote in other years only, which the year alone does not know', () => {
+    const yearThatTalksAboutCarla: ChatAnalysis = {
+      ...yearOfNamedChat,
+      wordCounts: new Map([
+        ['carla', 25],
+        ['dinner', 9],
+      ]),
+    };
+
+    const recapText = recapTextOf(
+      anonymiseAnalysis(yearThatTalksAboutCarla),
+      anonymiseAnalysis(wholeNamedChat),
+    );
+
+    expect(anonymiseAnalysis(yearThatTalksAboutCarla).wordCounts.has('carla')).toBe(true);
+    expect(recapText).toContain('“dinner”');
+    expect(recapText.toLowerCase()).not.toContain('carla');
   });
 });
 
