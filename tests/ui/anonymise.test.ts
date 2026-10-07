@@ -9,6 +9,7 @@ import {
 import type { ChatAnalysis } from '../../src/core/types';
 import { assignPersonColours } from '../../src/ui/person-colours';
 import { renderMilestonesSection } from '../../src/ui/sections/milestones';
+import { renderPeakTimesSection } from '../../src/ui/sections/peak-times';
 import { renderPersonProfileSection } from '../../src/ui/sections/person-profile';
 import { renderWhoIsStillHereSection } from '../../src/ui/sections/who-is-still-here';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
@@ -282,6 +283,40 @@ describe('anonymiseAnalysis', () => {
       expect(sectionHtml).toContain('Gone quiet');
       expect(sectionHtml).not.toContain('Ana');
       expect(sectionHtml).not.toContain('Carla');
+    });
+  });
+
+  describe('"When each person writes"', () => {
+    /** Ana and Bob Vega each wrote 200 messages, hers on Saturday nights and his on Monday mornings. */
+    const chatWithPeakTimes = chatAnalysis({
+      people: [
+        personStatistics({
+          name: 'Ana',
+          messageCount: 200,
+          messageCountsByHour: [...new Array<number>(23).fill(0), 200],
+          messageCountsByWeekday: [0, 0, 0, 0, 0, 200, 0],
+        }),
+        personStatistics({
+          name: 'Bob Vega',
+          messageCount: 200,
+          messageCountsByHour: [0, 0, 0, 0, 0, 0, 0, 0, 200, ...new Array<number>(15).fill(0)],
+          messageCountsByWeekday: [200, 0, 0, 0, 0, 0, 0],
+        }),
+      ],
+    });
+
+    it('lists labels instead of names, with the same weekdays and hours', () => {
+      const hiddenChatWithPeakTimes = anonymiseAnalysis(chatWithPeakTimes);
+      const sectionHtml = renderPeakTimesSection(
+        hiddenChatWithPeakTimes,
+        assignPersonColours(hiddenChatWithPeakTimes.people),
+      );
+
+      expect(sectionHtml).toContain('Person A</td><td>Mostly on Saturdays, around 23:00</td>');
+      expect(sectionHtml).toContain('Person B</td><td>Mostly on Mondays, around 08:00</td>');
+      expect(sectionHtml).not.toContain('Ana');
+      expect(sectionHtml).not.toContain('Bob');
+      expect(sectionHtml).not.toContain('Vega');
     });
   });
 

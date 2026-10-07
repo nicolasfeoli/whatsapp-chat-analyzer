@@ -21,6 +21,7 @@ import { renderInsightsSection } from './sections/insights';
 import { renderMediaTypesSection } from './sections/media-types';
 import { renderMentionsSection } from './sections/mentions';
 import { renderMilestonesSection } from './sections/milestones';
+import { renderPeakTimesSection } from './sections/peak-times';
 import { renderPeopleSection } from './sections/people';
 import {
   DEFAULT_PROFILED_PERSON_INDEX,
@@ -71,6 +72,7 @@ export function renderChatReport(
     renderThenAndNowSection(analysis, personColours, peopleShown),
     renderWhoIsStillHereSection(analysis, personColours, peopleShown),
     renderHeatmapSection(analysis),
+    renderPeakTimesSection(analysis, personColours, peopleShown),
     renderRepliesSection(analysis, personColours, peopleShown),
     renderReplyPairsSection(analysis, personColours, peopleShown),
     renderMentionsSection(analysis, personColours, peopleShown),
