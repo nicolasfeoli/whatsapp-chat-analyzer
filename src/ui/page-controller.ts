@@ -25,6 +25,7 @@ import type { AnalysisClient, AnalysisOutcome, MainThreadAnalysis } from './anal
 import { attachCalendarTooltips } from './charts/calendar';
 import { attachHeatmapTooltips } from './charts/heatmap';
 import { drawTimeline } from './charts/timeline';
+import { attachTrendChartTooltips } from './charts/trend-chart';
 import type { TimelineData } from './charts/timeline-buckets';
 import { renderChatReport } from './chat-report';
 import type { PageElements } from './dom';
@@ -376,6 +377,7 @@ class PageController {
     this.drawDisplayedTimeline();
     attachHeatmapTooltips(this.pageElements.reportContainer, this.tooltip);
     attachCalendarTooltips(this.pageElements.reportContainer, this.tooltip);
+    attachTrendChartTooltips(this.pageElements.reportContainer, this.tooltip);
     this.connectPersonProfileChooser(analysis, drawnAnalysis);
     this.connectWordSearch(analysis, drawnAnalysis, peopleShown);
   }

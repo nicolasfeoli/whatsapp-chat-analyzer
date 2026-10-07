@@ -988,6 +988,124 @@ footer a {
 @page {
   margin: 14mm;
 }
+/* how things changed: small line charts side by side, and a strip per word and emoji */
+.trend-charts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
+  gap: 24px 28px;
+  margin-bottom: 12px;
+}
+.trend-chart {
+  margin: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.trend-chart h3 {
+  margin: 0;
+}
+.trend-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.trend-plot {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  column-gap: 6px;
+}
+.trend-scale {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.trend-svg {
+  display: block;
+  width: 100%;
+  height: 120px;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.trend-line,
+.trend-dots {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  vector-effect: non-scaling-stroke;
+}
+.trend-line {
+  stroke-width: 2;
+}
+.trend-dots {
+  stroke-width: 5;
+}
+.trend-band {
+  fill: transparent;
+  pointer-events: all;
+}
+.trend-band:hover {
+  fill: var(--surface-2);
+  fill-opacity: 0.6;
+}
+.trend-axis {
+  grid-column: 2;
+  display: flex;
+  justify-content: space-between;
+  padding-top: 3px;
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+.trend-reading {
+  margin: 2px 0 0;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+.term-trends {
+  min-width: 0;
+}
+.term-trend {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.term-trend-name {
+  flex: 0 0 84px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+}
+.term-trend .bar-strip {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: none;
+  gap: 1px;
+}
+.term-trend .bar-strip-track {
+  height: 28px;
+}
+.term-trend .bar-strip-label {
+  display: none;
+}
+
 /* the recap of a year: the row that offers it, and the dialog that shows one card at a time */
 .recap-entry {
   display: flex;
@@ -1217,6 +1335,8 @@ footer a {
   .chat-heading,
   .headline-statistics,
   .calendar-year,
+  .trend-chart,
+  .term-trend,
   .bubble,
   .signature-row,
   .profile-fact,

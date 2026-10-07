@@ -22,11 +22,14 @@ import type {
   ChatAnalysis,
   ChatMessage,
   ChatMilestone,
+  ChatTrends,
   GroupChange,
   GroupEvent,
   GroupMember,
   PersonStatistics,
   SignaturePhrase,
+  TermTrend,
+  TrendBucket,
 } from '../core/index';
 import { normaliseMentionedName } from './sections/mentions';
 
@@ -380,6 +383,27 @@ function anonymiseGroupEvents(
 }
 
 /**
+ * Copies the trends over time with the people of every bucket relabelled and
+ * without the words that are part of a name. The emojis stay, like the
+ * numbers.
+ */
+function anonymiseTrends(trends: ChatTrends, replacement: NameReplacement): ChatTrends {
+  const labelOfSender = (name: string): string =>
+    replacement.labelsByName.get(name) ?? SOMEBODY_ELSE_LABEL;
+  return {
+    ...trends,
+    buckets: trends.buckets.map((bucket: TrendBucket): TrendBucket => ({
+      ...bucket,
+      messageCountsByName: relabelCounts(bucket.messageCountsByName, labelOfSender),
+      typicalReplyDelaysByName: relabelCounts(bucket.typicalReplyDelaysByName, labelOfSender),
+    })),
+    wordTrends: trends.wordTrends.filter(
+      (wordTrend: TermTrend): boolean => !replacement.nameWords.has(wordTrend.term),
+    ),
+  };
+}
+
+/**
  * Makes a copy of an analysis in which nobody can be recognised by name and
  * no message can be read.
  *
@@ -389,7 +413,7 @@ function anonymiseGroupEvents(
  *   the words of the names (those of the people the group history names
  *   included), site lists without the sites named after one of them, and a
  *   group history with labels for everybody it names and without the names
- *   of the group.
+ *   of the group, and trends over time with labels and without those words.
  */
 export function anonymiseAnalysis(analysis: ChatAnalysis): ChatAnalysis {
   const replacement = buildNameReplacement(analysis.people, analysis.groupEvents);
@@ -413,5 +437,6 @@ export function anonymiseAnalysis(analysis: ChatAnalysis): ChatAnalysis {
       anonymiseMilestone(milestone, replacement),
     ),
     groupEvents: anonymiseGroupEvents(analysis.groupEvents, replacement),
+    trends: anonymiseTrends(analysis.trends, replacement),
   };
 }

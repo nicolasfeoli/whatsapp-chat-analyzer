@@ -159,6 +159,7 @@ export function chatAnalysis(parts: Partial<ChatAnalysis> = {}): ChatAnalysis {
     totalMessageCount: totalMessageCountOf(people),
     milestones: [{ kind: 'first-message', timestamp: firstMessage.timestamp, sender: 'Ana' }],
     groupEvents: [],
+    trends: { granularity: 'month', buckets: [], wordTrends: [], emojiTrends: [] },
     comparisonPeriodInDays: 0,
     timestampResolution: 'second',
     ...parts,
