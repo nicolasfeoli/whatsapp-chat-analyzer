@@ -18,11 +18,13 @@ import { renderPersonProfileSection } from '../../src/ui/sections/person-profile
 import { renderReplySpeedPairsSection } from '../../src/ui/sections/reply-speed-pairs';
 import { renderSharedSitesSection } from '../../src/ui/sections/shared-sites';
 import { renderTextingStyleSection } from '../../src/ui/sections/texting-style';
+import { renderTrendsSection } from '../../src/ui/sections/trends';
 import { renderWhoIsStillHereSection } from '../../src/ui/sections/who-is-still-here';
 import { renderWordSearchOutcome } from '../../src/ui/sections/word-search';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
 import { THE_EXPORTER, groupEvent, namedMember } from '../fixtures/group-events';
 import { localMidnight, localTime, mediaMessage, textMessage } from '../fixtures/messages';
+import { trendBucket } from '../fixtures/trends';
 
 const longestMessage = textMessage({
   sender: 'Bob Vega',
@@ -629,6 +631,83 @@ describe('anonymiseAnalysis', () => {
     expect(namedChat.people[0]?.name).toBe('Ana');
     expect(namedChat.messages[0]?.text).toBe('hello Bob');
     expect(namedChat.wordCounts.has('bob')).toBe(true);
+  });
+});
+
+describe('anonymiseAnalysis, the trends over time', () => {
+  /** Six months in which Ana and Bob Vega swap places, and the chat talks about Bob and about dinner. */
+  const chatWithTrends: ChatAnalysis = chatAnalysis({
+    people: [
+      personStatistics({ name: 'Ana', messageCount: 300 }),
+      personStatistics({ name: 'Bob Vega', messageCount: 300 }),
+    ],
+    trends: {
+      granularity: 'month',
+      buckets: [80, 80, 70, 30, 20, 20].map((anaCount, index) =>
+        trendBucket(`2024-0${String(index + 1)}-01`, {
+          messageCount: 100,
+          messageCountsByName: new Map([
+            ['Ana', anaCount],
+            ['Bob Vega', 100 - anaCount],
+          ]),
+          typicalReplyDelaysByName: new Map([['Bob Vega', 60_000 * (index + 1)]]),
+        }),
+      ),
+      wordTrends: [
+        { term: 'bob', messageCountsByBucket: [9, 9, 9, 9, 9, 9] },
+        { term: 'dinner', messageCountsByBucket: [1, 2, 3, 4, 5, 6] },
+        { term: 'vega', messageCountsByBucket: [1, 0, 0, 0, 0, 0] },
+      ],
+      emojiTrends: [{ term: '🎉', messageCountsByBucket: [1, 0, 0, 0, 0, 2] }],
+    },
+  });
+
+  const hiddenTrends = anonymiseAnalysis(chatWithTrends).trends;
+
+  it('relabels the people of every bucket and keeps their numbers', () => {
+    expect(hiddenTrends.buckets[0]?.messageCountsByName).toEqual(
+      new Map([
+        ['Person A', 80],
+        ['Person B', 20],
+      ]),
+    );
+    expect(hiddenTrends.buckets[5]?.typicalReplyDelaysByName).toEqual(
+      new Map([['Person B', 360_000]]),
+    );
+  });
+
+  it('takes the words of the names out of the words that are followed, and keeps the emojis', () => {
+    expect(hiddenTrends.wordTrends).toEqual([
+      { term: 'dinner', messageCountsByBucket: [1, 2, 3, 4, 5, 6] },
+    ]);
+    expect(hiddenTrends.emojiTrends).toEqual(chatWithTrends.trends.emojiTrends);
+  });
+
+  it('does not change the trends of the analysis it was given', () => {
+    expect(chatWithTrends.trends.wordTrends.map((wordTrend) => wordTrend.term)).toEqual([
+      'bob',
+      'dinner',
+      'vega',
+    ]);
+    expect([...(chatWithTrends.trends.buckets[0]?.messageCountsByName.keys() ?? [])]).toEqual([
+      'Ana',
+      'Bob Vega',
+    ]);
+  });
+
+  it('draws "How things changed" with labels in the legend, the sentences and the tooltips, and without a name', () => {
+    const hiddenChat = anonymiseAnalysis(chatWithTrends);
+    const sectionHtml = renderTrendsSection(hiddenChat, assignPersonColours(hiddenChat.people));
+
+    expect(sectionHtml).toContain('</i>Person A</span>');
+    expect(sectionHtml).toContain(
+      'Person A&#39;s share of the messages went from about 80% in Jan–Feb 2024 to about 20% in May–Jun 2024.',
+    );
+    expect(sectionHtml).toContain('&quot;label&quot;:&quot;Person B&quot;');
+    expect(sectionHtml).toContain('<span class="term-trend-name">dinner</span>');
+    for (const name of ['Ana', 'Bob', 'Vega', 'bob', 'vega']) {
+      expect(sectionHtml).not.toContain(name);
+    }
   });
 });
 

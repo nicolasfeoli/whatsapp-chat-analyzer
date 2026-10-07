@@ -29,6 +29,7 @@ export {
 } from './analysis/word-search';
 export type { WordSearchResult } from './analysis/word-search';
 export { isStopWord } from './analysis/stop-words';
+export { MINIMUM_REPLIES_FOR_TYPICAL_DELAY } from './analysis/trends';
 export { describeThrownValue } from './errors';
 export {
   calendarDaysBetween,
@@ -62,6 +63,7 @@ export type {
   ChatExportAnalysisResult,
   ChatMessage,
   ChatMilestone,
+  ChatTrends,
   DateOrder,
   DeletedMessage,
   EmptyChatExportResult,
@@ -90,8 +92,11 @@ export type {
   ParsedChat,
   PersonStatistics,
   SignaturePhrase,
+  TermTrend,
   TextMessage,
   TimestampResolution,
+  TrendBucket,
+  TrendGranularity,
   WeekdayHourHeatmap,
 } from './types';
 

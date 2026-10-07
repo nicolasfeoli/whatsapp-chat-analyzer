@@ -2,7 +2,12 @@
  * Helpers shared by the sections that compare people with each other.
  */
 
-import { formatDuration, median, MILLISECONDS_PER_MINUTE } from '../../core/index';
+import {
+  formatDuration,
+  median,
+  MILLISECONDS_PER_MINUTE,
+  MINIMUM_REPLIES_FOR_TYPICAL_DELAY,
+} from '../../core/index';
 import type { PersonStatistics, TimestampResolution } from '../../core/index';
 import { EMPTY_HTML, escapeHtml, html } from '../html';
 import type { SafeHtml } from '../html';
@@ -14,11 +19,8 @@ import type { SafeHtml } from '../html';
  */
 export const FEATURED_PEOPLE_LIMIT = 8;
 
-/**
- * A person needs at least this many measured replies before a typical reply
- * time is shown for them; the median of fewer values is mostly chance.
- */
-export const MINIMUM_REPLIES_FOR_TYPICAL_DELAY = 5;
+/* The minimum of replies behind a typical reply time is the core's, which also applies it to each bucket of the trends. */
+export { MINIMUM_REPLIES_FOR_TYPICAL_DELAY };
 
 /** The wording used when a reply came within the same minute of a minute-resolution export. */
 const UNDER_ONE_MINUTE_LABEL = 'under 1 min';

@@ -2911,3 +2911,148 @@ describe('the recap of a year', () => {
     });
   });
 });
+
+describe('how things changed', () => {
+  /**
+   * A file of eight months of 2024 with thirty messages each. In the first
+   * four months Ana writes twenty-four of them and Bob six; in the last four
+   * it is the other way round. Bob adds a party emoji from May on.
+   */
+  function fileOfEightMonths(): File {
+    const lines: string[] = [];
+    for (let month = 1; month <= 8; month += 1) {
+      const isEarly = month <= 4;
+      for (let index = 0; index < 30; index += 1) {
+        const isFromMajority = index % 5 !== 0;
+        const sender = isFromMajority === isEarly ? 'Ana' : 'Bob';
+        const date = `${String(index + 1).padStart(2, '0')}/${String(month).padStart(2, '0')}/2024`;
+        const text = sender === 'Bob' && !isEarly ? 'see you saturday 🎉' : 'see you saturday';
+        lines.push(iphoneLine({ date, time: '12:00:00', sender, text }));
+      }
+    }
+    return new File([exportText(lines)], 'WhatsApp Chat with Saturdays.txt');
+  }
+
+  /** Finds the section by its heading; `null` when the report has none. */
+  function trendsSectionOf(page: TestPage): Element | null {
+    const heading = Array.from(page.elements.reportContainer.querySelectorAll('h2')).find(
+      (candidate) => candidate.textContent === 'How things changed',
+    );
+    return heading?.closest('section') ?? null;
+  }
+
+  /** The sentences under the charts of the section. */
+  function readingsOf(page: TestPage): string[] {
+    const section = trendsSectionOf(page);
+    return section === null ? [] : textsOfElements(section, '.trend-reading');
+  }
+
+  it('is part of the report of the example chat, which spans ten months', () => {
+    const page = startTestPage();
+    const section = trendsSectionOf(page);
+
+    expect(section).not.toBeNull();
+    expect(section?.querySelector('.section-heading p')?.textContent).toContain(
+      'month by month, from Jan 2026 to Oct 2026',
+    );
+    expect(section?.querySelectorAll('.trend-chart').length).toBeGreaterThanOrEqual(3);
+  });
+
+  it('is left out of a chat of a single evening', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfAna(), 'Ana');
+
+    expect(trendsSectionOf(page)).toBeNull();
+  });
+
+  it('puts the change of a loaded chat into words', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfEightMonths(), 'Saturdays');
+
+    /* 24 of 30 messages are 80%, 6 of 30 are 20%. Both wrote 120 in all; Bob wrote first and is listed first. */
+    expect(readingsOf(page)).toEqual([
+      "Bob's share of the messages went from about 20% in Jan–Feb 2024 to about 80% in Jul–Aug 2024.",
+    ]);
+  });
+
+  it('follows the most used words and emojis month by month', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfEightMonths(), 'Saturdays');
+
+    const section = trendsSectionOf(page);
+    expect(section === null ? [] : textsOfElements(section, '.term-trend-name')).toEqual([
+      'saturday',
+      '🎉',
+    ]);
+    const emojiStrip = section?.querySelectorAll('.term-trend .bar-strip')[1];
+    expect(emojiStrip?.querySelector('.bar-strip-column')?.getAttribute('title')).toBe(
+      'Jan 2024: 0 messages',
+    );
+    expect(emojiStrip?.querySelector('.bar-strip-column:last-child')?.getAttribute('title')).toBe(
+      'Aug 2024: 24 messages',
+    );
+  });
+
+  it('shows the numbers of a month in the shared tooltip while the pointer is over it', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfEightMonths(), 'Saturdays');
+    const bands = trendsSectionOf(page)?.querySelectorAll(
+      '[data-trend-chart="message-share"] .trend-band',
+    );
+
+    bands?.[7]?.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
+
+    expect(page.elements.tooltip.hidden).toBe(false);
+    expect(textsOfElements(page.elements.tooltip, '.tooltip-title')).toEqual(['Aug 2024']);
+    expect(textsOfElements(page.elements.tooltip, '.tooltip-row')).toEqual(['Bob80%', 'Ana20%']);
+
+    trendsSectionOf(page)
+      ?.querySelector('.trend-chart')
+      ?.dispatchEvent(new MouseEvent('pointerleave'));
+    expect(page.elements.tooltip.hidden).toBe(true);
+  });
+
+  it('writes labels instead of names while names are hidden', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfEightMonths(), 'Saturdays');
+
+    page.elements.hideNamesCheckbox.checked = true;
+    page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+
+    /* Bob, who is listed first, is Person A. */
+    expect(readingsOf(page)).toEqual([
+      "Person A's share of the messages went from about 20% in Jan–Feb 2024 to about 80% in Jul–Aug 2024.",
+    ]);
+    expect(trendsSectionOf(page)?.textContent).not.toContain('Ana');
+    expect(trendsSectionOf(page)?.textContent).not.toContain('Bob');
+  });
+
+  it('covers the chosen period only, and goes when the period is too short for it', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfEightMonths(), 'Saturdays');
+    const { periodFromInput, periodToInput } = page.elements;
+
+    periodFromInput.value = '2024-03-01';
+    periodFromInput.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      expect(reportPeriod(page)).toContain('1 Mar 2024 to 30 Aug 2024');
+    });
+    /* Six months are left: March and April at 80%, July and August at 20%. */
+    expect(trendsSectionOf(page)?.querySelector('.section-heading p')?.textContent).toContain(
+      'from Mar 2024 to Aug 2024',
+    );
+    expect(readingsOf(page)).toEqual([
+      "Bob's share of the messages went from about 20% in Mar–Apr 2024 to about 80% in Jul–Aug 2024.",
+    ]);
+
+    periodToInput.value = '2024-07-31';
+    periodToInput.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      expect(reportPeriod(page)).toContain('1 Mar 2024 to 30 Jul 2024');
+    });
+    expect(trendsSectionOf(page)).toBeNull();
+  });
+});

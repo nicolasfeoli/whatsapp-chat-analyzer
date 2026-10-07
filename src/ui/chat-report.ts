@@ -39,6 +39,7 @@ import { renderSummarySection } from './sections/summary';
 import { renderTextingStyleSection } from './sections/texting-style';
 import { renderThenAndNowSection } from './sections/then-and-now';
 import { renderTimelineSection } from './sections/timeline';
+import { renderTrendsSection } from './sections/trends';
 import { renderWhoIsStillHereSection } from './sections/who-is-still-here';
 import { renderWordSearchSection } from './sections/word-search';
 import { renderWordsAndEmojisSection } from './sections/words-and-emojis';
@@ -79,6 +80,7 @@ export function renderChatReport(
     renderTimelineSection(timeline.granularity),
     renderCalendarSection(analysis),
     renderThenAndNowSection(analysis, personColours, peopleShown),
+    renderTrendsSection(analysis, personColours),
     renderWhoIsStillHereSection(analysis, personColours, peopleShown),
     renderGroupHistorySection(analysis, personColours),
     renderHeatmapSection(analysis),

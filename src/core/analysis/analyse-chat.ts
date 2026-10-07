@@ -1,6 +1,8 @@
 /**
  * Computes everything the page draws from the messages of one chat, in a
- * single walk over the messages from oldest to newest.
+ * single walk over the messages from oldest to newest. The one thing that
+ * takes a second look at the messages is the use of the most common words
+ * and emojis over time; `trends.ts` says why.
  */
 
 import {
@@ -42,6 +44,15 @@ import type { PersonStatisticsAccumulator } from './person-statistics';
 import { findSignaturePhrases } from './signature-phrases';
 import { analyseMessageText } from './text-statistics';
 import type { MessageTextStatistics } from './text-statistics';
+import {
+  completeTrends,
+  countMessageInTrends,
+  countNightMessageInTrends,
+  countTypedMessageInTrends,
+  createTrendsAccumulator,
+  recordReplyInTrends,
+} from './trends';
+import type { TrendsAccumulator } from './trends';
 
 /**
  * A message that arrives after this much silence opens a new conversation.
@@ -118,6 +129,8 @@ interface ChatTotals {
    * as unanswered when the conversation ends before anybody else writes.
    */
   questionCountInOpenTurn: number;
+  /** What is counted bucket by bucket for the trends over time. */
+  readonly trends: TrendsAccumulator;
 }
 
 /** A message that has been counted, together with the totals of its sender. */
@@ -135,8 +148,11 @@ function createEmptyWeekdayHourHeatmap(): number[][] {
 
 /**
  * Creates the totals of a chat nobody has spoken in yet.
+ *
+ * @param firstTimestamp - When the oldest message was sent.
+ * @param lastTimestamp - When the newest message was sent.
  */
-function createChatTotals(): ChatTotals {
+function createChatTotals(firstTimestamp: Date, lastTimestamp: Date): ChatTotals {
   return {
     peopleByName: new Map<string, PersonStatisticsAccumulator>(),
     weekdayHourHeatmap: createEmptyWeekdayHourHeatmap(),
@@ -153,6 +169,7 @@ function createChatTotals(): ChatTotals {
     replyDelaysByReplierName: new Map<string, Map<string, number[]>>(),
     milestones: [],
     questionCountInOpenTurn: 0,
+    trends: createTrendsAccumulator(firstTimestamp, lastTimestamp),
   };
 }
 
@@ -296,6 +313,7 @@ function recordWhenMessageWasSent(
   recordHourAndWeekday(person, hour, weekdayIndex);
   if (hour < NIGHT_END_HOUR) {
     person.nightMessageCount += 1;
+    countNightMessageInTrends(totals.trends);
   }
   incrementCount(totals.messageCountsByDayKey, dayKeyFromDate(timestamp));
 }
@@ -348,6 +366,7 @@ function recordReply(
 ): void {
   replier.replyDelaysInMilliseconds.push(delayInMilliseconds);
   incrementCount(replier.replyCountsByRecipient, recipientName);
+  recordReplyInTrends(totals.trends, replier.name, delayInMilliseconds);
 
   const delaysByRecipient = getOrCreateReplyDelaysByRecipient(totals, replier);
   const delaysToRecipient = delaysByRecipient.get(recipientName);
@@ -430,6 +449,7 @@ function recordMessageContent(
 
   const textStatistics = analyseMessageText(message.text);
   recordTextMessage(person, textStatistics);
+  countTypedMessageInTrends(totals.trends, textStatistics.wordCount);
   if (textStatistics.containsQuestion) {
     totals.questionCountInOpenTurn += 1;
   }
@@ -446,14 +466,18 @@ function recordMessageContent(
  * the chat and of its sender, noting the milestones passed on the way.
  *
  * @param chronologicalMessages - The messages, oldest first.
+ * @param firstMessage - The oldest message.
+ * @param lastMessage - The newest message.
  * @param comparisonPeriods - The two periods compared in "then and now".
  * @returns The totals after the last message.
  */
 function accumulateChatTotals(
   chronologicalMessages: readonly ChatMessage[],
+  firstMessage: ChatMessage,
+  lastMessage: ChatMessage,
   comparisonPeriods: ComparisonPeriods,
 ): ChatTotals {
-  const totals = createChatTotals();
+  const totals = createChatTotals(firstMessage.timestamp, lastMessage.timestamp);
   const halfwayMessageNumber = findHalfwayMessageNumber(chronologicalMessages.length);
   let previous: CountedMessage | null = null;
 
@@ -463,6 +487,8 @@ function accumulateChatTotals(
     /* The messages are walked oldest first, so the latest one seen is the newest so far. */
     person.lastMessageTimestamp = message.timestamp;
 
+    /* First of all, so that everything below is counted in the bucket of this message. */
+    countMessageInTrends(totals.trends, message);
     recordWhenMessageWasSent(totals, person, message.timestamp);
     recordComparisonPeriod(person, message.timestamp, comparisonPeriods);
     recordConversationFlow(totals, person, message, previous);
@@ -551,6 +577,12 @@ function buildChatAnalysis(
       lastMessage.timestamp,
     ),
     groupEvents,
+    trends: completeTrends(
+      totals.trends,
+      chronologicalMessages,
+      totals.wordCounts,
+      totals.emojiCounts,
+    ),
     comparisonPeriodInDays,
     timestampResolution,
   };
@@ -588,7 +620,12 @@ export function analyseChat(
   }
 
   const comparisonPeriods = findComparisonPeriods(firstMessage.timestamp, lastMessage.timestamp);
-  const totals = accumulateChatTotals(chronologicalMessages, comparisonPeriods);
+  const totals = accumulateChatTotals(
+    chronologicalMessages,
+    firstMessage,
+    lastMessage,
+    comparisonPeriods,
+  );
   assignSignaturePhrases(totals);
   return buildChatAnalysis(
     totals,

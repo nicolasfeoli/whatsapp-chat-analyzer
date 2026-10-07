@@ -491,6 +491,7 @@ describe('public API', () => {
       'MILLISECONDS_PER_HOUR',
       'MILLISECONDS_PER_MINUTE',
       'MILLISECONDS_PER_SECOND',
+      'MINIMUM_REPLIES_FOR_TYPICAL_DELAY',
       'MINUTES_PER_HOUR',
       'SECONDS_PER_MINUTE',
       'analyseChat',

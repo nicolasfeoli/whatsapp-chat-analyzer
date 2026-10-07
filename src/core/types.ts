@@ -502,6 +502,63 @@ export interface AnniversaryMilestone {
 export type ChatMilestone =
   FirstMessageMilestone | MessageCountMilestone | HalfOfMessagesMilestone | AnniversaryMilestone;
 
+/**
+ * The length of time one bucket of the trends covers: a calendar month, a
+ * quarter of a year (January to March and so on) or a calendar year.
+ */
+export type TrendGranularity = 'month' | 'quarter' | 'year';
+
+/** What was counted for one bucket of the trends. */
+export interface TrendBucket {
+  /** Local midnight of the first day of the month, the quarter or the year. */
+  readonly start: Date;
+  /** Every message sent in the bucket: text, media and deleted together. */
+  readonly messageCount: number;
+  /** The messages of the bucket that are typed text. */
+  readonly textMessageCount: number;
+  /** The words of those typed messages, links and mentions excluded; captions are not counted. */
+  readonly wordCount: number;
+  /** The media placeholders sent in the bucket. */
+  readonly mediaCount: number;
+  /** The messages of the bucket sent between midnight and 04:59. */
+  readonly nightMessageCount: number;
+  /** The messages of each person who wrote in the bucket, by name, in order of first message. */
+  readonly messageCountsByName: ReadonlyMap<string, number>;
+  /**
+   * The median reply delay in milliseconds of each person who replied at
+   * least five times in the bucket, by name. Somebody with fewer replies has
+   * no entry.
+   */
+  readonly typicalReplyDelaysByName: ReadonlyMap<string, number>;
+}
+
+/** How the use of one word or one emoji moved over time. */
+export interface TermTrend {
+  /** The word, lower-cased as in the word lists, or the emoji. */
+  readonly term: string;
+  /**
+   * The messages of each bucket that contain it at least once, typed messages
+   * and captions alike; one entry per bucket of {@link ChatTrends.buckets}.
+   */
+  readonly messageCountsByBucket: readonly number[];
+}
+
+/** How the habits of the chat moved over time. */
+export interface ChatTrends {
+  /** The length of time each bucket covers. */
+  readonly granularity: TrendGranularity;
+  /**
+   * The buckets from the one of the first message to the one of the last,
+   * oldest first and without gaps: a stretch nobody wrote in is a bucket of
+   * zeros. At most forty.
+   */
+  readonly buckets: readonly TrendBucket[];
+  /** The eight most used significant words of the whole chat, the most used first, each over time. */
+  readonly wordTrends: readonly TermTrend[];
+  /** The eight most used emojis of the whole chat, the most used first, each over time. */
+  readonly emojiTrends: readonly TermTrend[];
+}
+
 /** Everything the page draws, computed from the messages of one chat. */
 export interface ChatAnalysis {
   /** All messages sorted by timestamp, oldest first. Never empty. */
@@ -561,6 +618,8 @@ export interface ChatAnalysis {
    * after the last. Empty for a chat of two.
    */
   readonly groupEvents: readonly GroupEvent[];
+  /** How the habits of the chat moved month by month, or by quarter or year for a long chat. */
+  readonly trends: ChatTrends;
   /**
    * The length in days of the two periods compared in "then and now": the
    * first so many days of the chat and the last so many. It is one year for a
