@@ -27,6 +27,7 @@ import {
   DRAWING_SUMMARY_IMAGE_STATUS,
   NO_MESSAGES_FOUND_STATUS,
   PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS,
+  PREPARING_RECAP_STATUS,
   READING_MESSAGES_STATUS,
   SUMMARY_IMAGE_FAILED_STATUS,
   TIMELINE_REDRAW_DELAY_IN_MILLISECONDS,
@@ -2458,5 +2459,455 @@ describe('the history of a group', () => {
     for (const name of ['Ana', 'Bob', 'Dani', 'Lake']) {
       expect(page.elements.reportContainer.textContent).not.toContain(name);
     }
+  });
+});
+
+describe('the recap of a year', () => {
+  /** How many messages each of the two full years of the invented group holds. */
+  const MESSAGES_PER_FULL_YEAR = 120;
+
+  /**
+   * Writes the lines of the first months of one year of an invented group:
+   * one message at noon on each of the first ten days of a month, three of
+   * them from Bob, one from Carla and six from Ana. Twelve months make 120
+   * messages: Ana 72, Bob 36, Carla 12.
+   */
+  function linesOfYear(year: number, monthCount: number): string[] {
+    const sendersOfTenDays = [
+      'Bob',
+      'Bob',
+      'Bob',
+      'Ana',
+      'Ana',
+      'Ana',
+      'Ana',
+      'Ana',
+      'Ana',
+      'Carla',
+    ];
+    const lines: string[] = [];
+    for (let month = 1; month <= monthCount; month += 1) {
+      for (const [dayIndex, sender] of sendersOfTenDays.entries()) {
+        const day = String(dayIndex + 1).padStart(2, '0');
+        const date = `${day}/${String(month).padStart(2, '0')}/${String(year)}`;
+        lines.push(iphoneLine({ date, time: '12:00:00', sender, text: 'lunch' }));
+      }
+    }
+    return lines;
+  }
+
+  /**
+   * A file of a group over three years: all of 2023 and 2024 with 120
+   * messages each (Ana 72, Bob 36, Carla 12), and two months of 2025 with 20.
+   */
+  function fileOfThreeYears(): File {
+    const lines = [...linesOfYear(2023, 12), ...linesOfYear(2024, 12), ...linesOfYear(2025, 2)];
+    return new File([exportText(lines)], 'WhatsApp Chat with Lunch club.txt');
+  }
+
+  /** Presses the button that opens the recap and waits until its dialog is on display. */
+  async function openRecap(page: TestPage): Promise<void> {
+    page.elements.openRecapButton.click();
+    await vi.waitFor(() => {
+      expect(page.elements.recapOverlay.hidden).toBe(false);
+    });
+  }
+
+  /** Loads the group over three years and opens the recap of the proposed year. */
+  async function openRecapOfThreeYearFile(page: TestPage): Promise<void> {
+    await loadFile(page, fileOfThreeYears(), 'Lunch club');
+    await openRecap(page);
+  }
+
+  /** Presses a key inside the dialog and returns the event, to see whether it was taken. */
+  function pressKey(page: TestPage, key: string, shiftKey = false): KeyboardEvent {
+    const event = new KeyboardEvent('keydown', { key, shiftKey, bubbles: true, cancelable: true });
+    (document.activeElement ?? page.elements.recapPanel).dispatchEvent(event);
+    return event;
+  }
+
+  /** The headline of the card on display. */
+  function cardHeadline(page: TestPage): string | undefined {
+    return textsOfElements(page.elements.recapCard, '.recap-card-headline')[0];
+  }
+
+  /** What the card on display is about. */
+  function cardKind(page: TestPage): string | null {
+    return findElement(page.elements.recapCard, '[data-recap-card]').getAttribute(
+      'data-recap-card',
+    );
+  }
+
+  /** Presses Next until the last card is on display. */
+  function goToLastCard(page: TestPage): void {
+    while (!page.elements.recapNextButton.disabled) {
+      page.elements.recapNextButton.click();
+    }
+  }
+
+  describe('what is offered', () => {
+    it('offers the one year of the example chat on a button, without a choice of year', () => {
+      const page = startTestPage();
+      const { recapEntry, recapYearChoice, openRecapButton, recapOverlay } = page.elements;
+
+      expect(recapEntry.hidden).toBe(false);
+      expect(recapYearChoice.hidden).toBe(true);
+      expect(openRecapButton.textContent).toBe('See 2026 in this chat');
+      expect(recapOverlay.hidden).toBe(true);
+    });
+
+    it('is not offered for a chat of two messages', async () => {
+      const page = startTestPage();
+
+      await loadFile(page, fileOfAna(), 'Ana');
+
+      expect(page.elements.recapEntry.hidden).toBe(true);
+    });
+
+    it('lists the years with enough messages, newest first, and proposes the latest complete one', async () => {
+      const page = startTestPage();
+
+      await loadFile(page, fileOfThreeYears(), 'Lunch club');
+
+      /* 2025 has 20 messages, which is not enough; 2024 is the latest year that is over. */
+      const { recapYearChoice, recapYearSelect, openRecapButton } = page.elements;
+      expect(recapYearChoice.hidden).toBe(false);
+      expect(textsOfElements(recapYearSelect, 'option')).toEqual(['2024', '2023']);
+      expect(recapYearSelect.value).toBe('2024');
+      expect(openRecapButton.textContent).toBe('See 2024 in this chat');
+    });
+
+    it('writes the chosen year on the button', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOfThreeYears(), 'Lunch club');
+
+      page.elements.recapYearSelect.value = '2023';
+      page.elements.recapYearSelect.dispatchEvent(new Event('change'));
+
+      expect(page.elements.openRecapButton.textContent).toBe('See 2023 in this chat');
+    });
+  });
+
+  describe('opening it', () => {
+    it('shows that work is under way before the year is counted', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOfThreeYears(), 'Lunch club');
+
+      page.elements.openRecapButton.click();
+
+      expect(page.elements.statusLine.textContent).toBe(PREPARING_RECAP_STATUS);
+      expect(page.elements.statusLine.classList.contains('busy')).toBe(true);
+      expect(page.elements.recapOverlay.hidden).toBe(true);
+    });
+
+    it('counts the year 30 milliseconds later, then clears the status and opens the dialog', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOfThreeYears(), 'Lunch club');
+      vi.useFakeTimers();
+      page.elements.openRecapButton.click();
+
+      vi.advanceTimersByTime(PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS - 1);
+      expect(page.elements.recapOverlay.hidden).toBe(true);
+
+      vi.advanceTimersByTime(1);
+      expect(page.elements.recapOverlay.hidden).toBe(false);
+      expect(page.elements.statusLine.hidden).toBe(true);
+    });
+
+    it('starts on the first card of the year, titled by the year', async () => {
+      const page = startTestPage();
+
+      await openRecapOfThreeYearFile(page);
+
+      expect(page.elements.recapTitle.textContent).toBe('2024 in this chat');
+      expect(cardHeadline(page)).toBe(`${String(MESSAGES_PER_FULL_YEAR)} messages in 2024`);
+      expect(page.elements.recapPosition.textContent).toBe('Card 1 of 8');
+    });
+
+    it('is a labelled modal dialog that takes the focus', async () => {
+      const page = startTestPage();
+
+      await openRecapOfThreeYearFile(page);
+
+      const { recapPanel } = page.elements;
+      expect(recapPanel.getAttribute('role')).toBe('dialog');
+      expect(recapPanel.getAttribute('aria-modal')).toBe('true');
+      expect(recapPanel.getAttribute('aria-labelledby')).toBe(page.elements.recapTitle.id);
+      expect(document.activeElement).toBe(recapPanel);
+    });
+
+    it('opens a year a second time at once, without counting it again', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+      page.elements.recapCloseButton.click();
+
+      page.elements.openRecapButton.click();
+
+      expect(page.elements.recapOverlay.hidden).toBe(false);
+      expect(page.elements.statusLine.hidden).toBe(true);
+      expect(page.elements.recapPosition.textContent).toBe('Card 1 of 8');
+    });
+
+    it('opens the year chosen from the list', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOfThreeYears(), 'Lunch club');
+      page.elements.recapYearSelect.value = '2023';
+      page.elements.recapYearSelect.dispatchEvent(new Event('change'));
+
+      await openRecap(page);
+
+      expect(page.elements.recapTitle.textContent).toBe('2023 in this chat');
+      expect(cardHeadline(page)).toBe('120 messages in 2023');
+    });
+
+    it('never reads the file again', async () => {
+      const page = startTestPage();
+
+      await openRecapOfThreeYearFile(page);
+
+      expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('moving between the cards', () => {
+    it('goes forward and back with the buttons, and says where it is', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+
+      page.elements.recapNextButton.click();
+      expect(cardKind(page)).toBe('busiest');
+      expect(page.elements.recapPosition.textContent).toBe('Card 2 of 8');
+
+      page.elements.recapBackButton.click();
+      expect(cardKind(page)).toBe('messages');
+      expect(page.elements.recapPosition.textContent).toBe('Card 1 of 8');
+    });
+
+    it('goes forward and back with the arrow keys', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+
+      pressKey(page, 'ArrowRight');
+      pressKey(page, 'ArrowRight');
+      expect(cardKind(page)).toBe('people');
+
+      pressKey(page, 'ArrowLeft');
+      expect(cardKind(page)).toBe('busiest');
+    });
+
+    it('has nowhere to go back to on the first card', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+
+      pressKey(page, 'ArrowLeft');
+
+      expect(page.elements.recapBackButton.disabled).toBe(true);
+      expect(page.elements.recapNextButton.disabled).toBe(false);
+      expect(cardKind(page)).toBe('messages');
+    });
+
+    it('ends on the closing card, where Next is switched off and the focus moves to the dialog', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+      page.elements.recapNextButton.focus();
+
+      goToLastCard(page);
+      pressKey(page, 'ArrowRight');
+
+      expect(cardKind(page)).toBe('closing');
+      expect(page.elements.recapPosition.textContent).toBe('Card 8 of 8');
+      expect(page.elements.recapNextButton.disabled).toBe(true);
+      expect(page.elements.recapBackButton.disabled).toBe(false);
+      expect(document.activeElement).toBe(page.elements.recapPanel);
+    });
+
+    it('leaves other keys alone', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+
+      const event = pressKey(page, 'a');
+
+      expect(event.defaultPrevented).toBe(false);
+      expect(cardKind(page)).toBe('messages');
+    });
+
+    it('keeps the Tab key inside the dialog, in both directions', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+      const { recapCloseButton, recapNextButton } = page.elements;
+
+      /* On the first card Back is switched off: Close is the first control and Next the last. */
+      const backwardsFromDialog = pressKey(page, 'Tab', true);
+      expect(backwardsFromDialog.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(recapNextButton);
+
+      const forwardsFromLast = pressKey(page, 'Tab');
+      expect(forwardsFromLast.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(recapCloseButton);
+
+      const forwardsFromFirst = pressKey(page, 'Tab');
+      expect(forwardsFromFirst.defaultPrevented).toBe(false);
+
+      const backwardsFromFirst = pressKey(page, 'Tab', true);
+      expect(backwardsFromFirst.defaultPrevented).toBe(true);
+      expect(document.activeElement).toBe(recapNextButton);
+    });
+  });
+
+  describe('closing it', () => {
+    it('closes on Escape and gives the focus back to the button that opened it', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+
+      pressKey(page, 'Escape');
+
+      expect(page.elements.recapOverlay.hidden).toBe(true);
+      expect(document.activeElement).toBe(page.elements.openRecapButton);
+    });
+
+    it('closes on the Close button', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+
+      page.elements.recapCloseButton.click();
+
+      expect(page.elements.recapOverlay.hidden).toBe(true);
+      expect(document.activeElement).toBe(page.elements.openRecapButton);
+    });
+
+    it('closes on a press beside the panel, but not on one inside it', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+
+      page.elements.recapCard.click();
+      expect(page.elements.recapOverlay.hidden).toBe(false);
+
+      page.elements.recapOverlay.click();
+      expect(page.elements.recapOverlay.hidden).toBe(true);
+    });
+
+    it('starts at the first card again when it is opened anew', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+      page.elements.recapNextButton.click();
+      page.elements.recapCloseButton.click();
+
+      await openRecap(page);
+
+      expect(cardKind(page)).toBe('messages');
+    });
+  });
+
+  describe('together with the other switches', () => {
+    it('names people while names are shown', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+
+      pressKey(page, 'ArrowRight');
+      pressKey(page, 'ArrowRight');
+
+      expect(cardHeadline(page)).toBe('Ana wrote the most');
+      expect(textsOfElements(page.elements.recapCard, 'li')).toEqual([
+        '1. Ana: 72 messages, 60%',
+        '2. Bob: 36 messages, 30%',
+        '3. Carla: 12 messages, 10%',
+      ]);
+    });
+
+    it('writes labels and no name on any card while names are hidden', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOfThreeYears(), 'Lunch club');
+      page.elements.hideNamesCheckbox.checked = true;
+      page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+
+      await openRecap(page);
+
+      const cardTexts: string[] = [page.elements.recapCard.textContent];
+      while (!page.elements.recapNextButton.disabled) {
+        page.elements.recapNextButton.click();
+        cardTexts.push(page.elements.recapCard.textContent);
+      }
+      const everything = `${page.elements.recapTitle.textContent}\n${cardTexts.join('\n')}`;
+      expect(everything).toContain('Person A wrote the most');
+      for (const name of ['Ana', 'Bob', 'Carla', 'Lunch club']) {
+        expect(everything).not.toContain(name);
+      }
+    });
+
+    it('covers its calendar year whatever period the report shows', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOfThreeYears(), 'Lunch club');
+      page.elements.periodSelect.value = 'year-2023';
+      page.elements.periodSelect.dispatchEvent(new Event('change'));
+      await vi.waitFor(() => {
+        expect(reportPeriod(page)).toContain('1 Jan 2023 to 10 Dec 2023');
+      });
+
+      await openRecap(page);
+
+      expect(page.elements.recapTitle.textContent).toBe('2024 in this chat');
+      expect(cardHeadline(page)).toBe('120 messages in 2024');
+      expect(reportPeriod(page)).toContain('1 Jan 2023 to 10 Dec 2023');
+    });
+
+    it('writes nothing to the storage of the browser', async () => {
+      const page = startTestPage();
+
+      await openRecapOfThreeYearFile(page);
+
+      expect(window.localStorage).toHaveLength(0);
+      expect(window.sessionStorage).toHaveLength(0);
+    });
+  });
+
+  describe('when the chat on display changes', () => {
+    it('closes when another file is dropped on the page, and offers the years of that file', async () => {
+      const page = startTestPage();
+      await openRecapOfThreeYearFile(page);
+
+      dropFiles(page, [fileOfAna()]);
+      await waitForReportTitled(page, 'Ana');
+
+      expect(page.elements.recapOverlay.hidden).toBe(true);
+      expect(page.elements.recapEntry.hidden).toBe(true);
+    });
+
+    it('gives up a recap that was still being prepared when another file is chosen', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOfThreeYears(), 'Lunch club');
+      page.elements.openRecapButton.click();
+
+      await loadFile(page, fileOfAna(), 'Ana');
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS * 2);
+      });
+
+      expect(page.elements.recapOverlay.hidden).toBe(true);
+    });
+
+    it('closes and starts over when the date order is switched', async () => {
+      const lines = [
+        ...Array.from({ length: 60 }, () =>
+          androidLine({ date: '1/2/23', time: '10:00', sender: 'Carla', text: 'are we still on?' }),
+        ),
+        ...Array.from({ length: 60 }, () =>
+          androidLine({ date: '5/6/23', time: '10:01', sender: 'Dani', text: 'yes' }),
+        ),
+      ];
+      const page = startTestPage();
+      await loadFile(page, new File([exportText(lines)], 'WhatsApp Chat with Carla.txt'), 'Carla');
+      await openRecap(page);
+      expect(cardHeadline(page)).toBe('120 messages in 2023');
+
+      page.elements.switchDateOrderButton.click();
+      await vi.waitFor(() => {
+        expect(page.elements.dateOrderMessage.textContent).toContain(
+          'Reading them as month/day/year.',
+        );
+      });
+
+      expect(page.elements.recapOverlay.hidden).toBe(true);
+      expect(page.elements.recapEntry.hidden).toBe(false);
+    });
   });
 });

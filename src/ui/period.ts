@@ -131,7 +131,7 @@ export function isSamePeriod(firstPeriod: Period, secondPeriod: Period): boolean
  * @param wholeChat - The period of the whole chat.
  * @returns The days both have in common, or `null` when they have none.
  */
-function limitPeriodToChat(period: Period, wholeChat: Period): Period | null {
+export function limitPeriodToChat(period: Period, wholeChat: Period): Period | null {
   const firstDayKey = Math.max(period.firstDayKey, wholeChat.firstDayKey);
   const lastDayKey = Math.min(period.lastDayKey, wholeChat.lastDayKey);
   return firstDayKey > lastDayKey ? null : { firstDayKey, lastDayKey };
@@ -172,8 +172,11 @@ function listYearsWithMessages(analysis: ChatAnalysis): number[] {
 
 /**
  * The period of one calendar year: 1 January to 31 December.
+ *
+ * @param year - The year, with its century.
+ * @returns The 365 or 366 days of that year.
  */
-function calendarYearPeriod(year: number): Period {
+export function calendarYearPeriod(year: number): Period {
   return {
     firstDayKey: sortableDayNumber(year, FIRST_MONTH_NUMBER, 1),
     lastDayKey: sortableDayNumber(year, LAST_MONTH_NUMBER, LAST_DAY_OF_DECEMBER),

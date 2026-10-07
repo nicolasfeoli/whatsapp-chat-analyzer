@@ -91,6 +91,32 @@ describe('the print styles', () => {
     expect(report.querySelector('.word-search-field')).not.toBeNull();
   });
 
+  it.each(['.recap-entry', '.recap-top button', '.recap-controls', '.recap-keys'])(
+    'leave %s of the recap out, which is for opening and steering it',
+    (selector) => {
+      expect(printDeclarationsFor(selector)).toContain('display: none');
+      expect(parseIndexHtml().querySelector(selector)).not.toBeNull();
+    },
+  );
+
+  it('print an open recap in the flow of the page, as the card on display, in front of the report', () => {
+    const page = parseIndexHtml();
+    const overlay = page.querySelector('.recap-overlay');
+    const wrapper = page.querySelector('.page-wrapper');
+
+    expect(printDeclarationsFor('.recap-overlay')).toContain('position: static');
+    expect(printDeclarationsFor('.recap-overlay')).toContain('background: none');
+    expect(printDeclarationsFor('.recap-panel')).toContain('max-height: none');
+    /* A closed recap carries the `hidden` attribute, which hides it on paper as on screen. */
+    expect(STYLESHEET).toContain('[hidden] {\n  display: none !important;');
+    expect(overlay?.hasAttribute('hidden')).toBe(true);
+    expect(
+      overlay !== null &&
+        wrapper !== null &&
+        (overlay.compareDocumentPosition(wrapper) & Node.DOCUMENT_POSITION_FOLLOWING) !== 0,
+    ).toBe(true);
+  });
+
   it('keep the loader, with both buttons in it, off the printout', () => {
     const loader = parseIndexHtml().querySelector('.loader');
 

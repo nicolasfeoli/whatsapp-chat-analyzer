@@ -47,7 +47,7 @@ export const MINIMUM_NIGHT_SHARE_FOR_NIGHT_OWL = 0.03;
 const MINIMUM_TURNS_FOR_MESSAGES_IN_A_ROW = 5;
 
 /** A streak of a single day is not worth mentioning. */
-const SHORTEST_STREAK_WORTH_MENTIONING_IN_DAYS = 2;
+export const SHORTEST_STREAK_WORTH_MENTIONING_IN_DAYS = 2;
 
 /**
  * A person needs this many messages before their silence is put into a
