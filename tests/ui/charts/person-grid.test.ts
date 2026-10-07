@@ -2,8 +2,12 @@
 
 import { describe, expect, it } from 'vitest';
 
-import { hasAnyCountBetweenPeople, renderPersonGrid } from '../../../src/ui/charts/person-grid';
-import type { CountBetweenPeople } from '../../../src/ui/charts/person-grid';
+import {
+  hasAnyCountBetweenPeople,
+  renderPersonGrid,
+  renderPersonGridOfCells,
+} from '../../../src/ui/charts/person-grid';
+import type { CellBetweenPeople, CountBetweenPeople } from '../../../src/ui/charts/person-grid';
 import { assignPersonColours } from '../../../src/ui/person-colours';
 import { personStatistics } from '../../fixtures/analysis-builders';
 import { findElement, parseMarkup, textsOfElements } from '../../fixtures/markup';
@@ -134,5 +138,68 @@ describe('renderPersonGrid', () => {
       '·',
     ]);
     expect(grid.querySelectorAll('td[style]')).toHaveLength(0);
+  });
+});
+
+describe('renderPersonGridOfCells', () => {
+  /** Ana's cells carry a text that is not their weight; everybody else's are empty. */
+  const cellBetween: CellBetweenPeople = (rowPerson, columnPerson) => {
+    if (rowPerson !== ana) {
+      return { text: '–', weight: 0 };
+    }
+    if (columnPerson === bob) {
+      return { text: '45 s', weight: 4, title: 'Median of 12 replies' };
+    }
+    return { text: '2 h <b>', weight: 1, title: 'Median of "5" replies' };
+  };
+
+  /**
+   * Renders the grid of the three friends with those cells and parses it.
+   */
+  function renderGridOfCells(): HTMLDivElement {
+    return parseMarkup(renderPersonGridOfCells(people, cellBetween, assignPersonColours(people)));
+  }
+
+  it('writes the text of each cell as it is given, and a dot on the diagonal', () => {
+    const rows = Array.from(renderGridOfCells().querySelectorAll('tbody tr'), (row) =>
+      textsOfElements(row, 'td'),
+    );
+
+    expect(rows).toEqual([
+      ['·', '45 s', '2 h <b>'],
+      ['–', '·', '–'],
+      ['–', '–', '·'],
+    ]);
+  });
+
+  it('tints each cell by its weight against the largest weight of the row', () => {
+    /* 6 + 34 × 4/4 = 40 for the heaviest cell, and 6 + 34 × 1/4 = 14.5, written as 15. */
+    expect(cellStylesOfRow(renderGridOfCells(), 0)).toEqual([
+      null,
+      'background:color-mix(in oklab,var(--accent) 40%,transparent)',
+      'background:color-mix(in oklab,var(--accent) 15%,transparent)',
+    ]);
+  });
+
+  it('leaves a cell without weight untinted', () => {
+    expect(cellStylesOfRow(renderGridOfCells(), 1)).toEqual([null, null, null]);
+  });
+
+  it('gives a cell its title, and none to a cell that has none', () => {
+    const grid = renderGridOfCells();
+    const titles = Array.from(grid.querySelectorAll('tbody td'), (cell) =>
+      cell.getAttribute('title'),
+    );
+
+    expect(titles.slice(0, 3)).toEqual([null, 'Median of 12 replies', 'Median of "5" replies']);
+    expect(titles.slice(3)).toEqual([null, null, null, null, null, null]);
+  });
+
+  it('has the same headings as the grid of counts', () => {
+    const grid = renderGridOfCells();
+
+    expect(textsOfElements(grid, 'thead th')).toEqual(['Ana', 'Bob', 'Carla']);
+    expect(textsOfElements(grid, 'tbody th')).toEqual(['Ana', 'Bob', 'Carla']);
+    expect(grid.querySelectorAll('b')).toHaveLength(0);
   });
 });

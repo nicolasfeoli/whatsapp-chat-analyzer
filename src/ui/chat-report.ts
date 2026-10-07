@@ -30,6 +30,7 @@ import {
 import { renderRecordsSection } from './sections/records';
 import { renderRepliesSection } from './sections/replies';
 import { renderReplyPairsSection } from './sections/reply-pairs';
+import { renderReplySpeedPairsSection } from './sections/reply-speed-pairs';
 import { renderSharedSitesSection } from './sections/shared-sites';
 import { renderSummarySection } from './sections/summary';
 import { renderThenAndNowSection } from './sections/then-and-now';
@@ -76,6 +77,7 @@ export function renderChatReport(
     renderPeakTimesSection(analysis, personColours, peopleShown),
     renderRepliesSection(analysis, personColours, peopleShown),
     renderReplyPairsSection(analysis, personColours, peopleShown),
+    renderReplySpeedPairsSection(analysis, personColours, peopleShown),
     renderMentionsSection(analysis, personColours, peopleShown),
     renderConversationEndingsSection(analysis, personColours, peopleShown),
     renderWordsAndEmojisSection(analysis, personColours, peopleShown),

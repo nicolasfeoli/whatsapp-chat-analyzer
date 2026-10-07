@@ -276,6 +276,15 @@ export interface PersonStatistics {
    * is credited to whoever wrote the message just before it.
    */
   readonly replyCountsByRecipient: ReadonlyMap<string, number>;
+  /**
+   * The delays of this person's replies split by whose message they answered:
+   * keyed by that participant's name, in order of first reply, each list in
+   * the order the replies were written. Together the lists hold the entries of
+   * {@link PersonStatistics.replyDelaysInMilliseconds}, and each is as long as
+   * the count in {@link PersonStatistics.replyCountsByRecipient}. Feed a list
+   * to `median` for how fast this person typically answers that participant.
+   */
+  readonly replyDelaysByRecipient: ReadonlyMap<string, readonly number[]>;
   /** Runs of consecutive messages from this person. `messageCount / turnCount` is messages per turn. */
   readonly turnCount: number;
   /** How often this person used each emoji, in order of first use. */

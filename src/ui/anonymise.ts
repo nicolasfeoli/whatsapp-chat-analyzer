@@ -110,6 +110,22 @@ function relabelCounts(
 }
 
 /**
+ * Copies a table of reply delays kept by the name of the recipient, with every
+ * name replaced. Lists whose names get the same label are joined.
+ */
+function relabelDelays(
+  delaysByName: ReadonlyMap<string, readonly number[]>,
+  labelOf: (name: string) => string,
+): Map<string, readonly number[]> {
+  const delaysByLabel = new Map<string, readonly number[]>();
+  for (const [name, delays] of delaysByName) {
+    const label = labelOf(name);
+    delaysByLabel.set(label, [...(delaysByLabel.get(label) ?? []), ...delays]);
+  }
+  return delaysByLabel;
+}
+
+/**
  * Copies a table of word counts without the words that are part of a name.
  */
 function removeNameWords(
@@ -178,6 +194,7 @@ function anonymisePerson(person: PersonStatistics, replacement: NameReplacement)
     ...person,
     name: labelOfSender(person.name),
     replyCountsByRecipient: relabelCounts(person.replyCountsByRecipient, labelOfSender),
+    replyDelaysByRecipient: relabelDelays(person.replyDelaysByRecipient, labelOfSender),
     mentionCountsByName: relabelCounts(person.mentionCountsByName, labelOfMentionedName),
     wordCounts: removeNameWords(person.wordCounts, replacement.nameWords),
     linkSiteCounts: removeSitesNamedAfterPeople(person.linkSiteCounts, replacement.nameWords),

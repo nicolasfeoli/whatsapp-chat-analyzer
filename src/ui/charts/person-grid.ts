@@ -1,9 +1,9 @@
 /**
  * A grid of people by people: a row for each person, a column for each person,
- * and in every cell how often the person of the row did something towards the
- * person of the column (replied to them, mentioned them). Cells are tinted
- * within their row, so each row shows at a glance whom that person turns to
- * most. Plain HTML table, no SVG.
+ * and in every cell what the person of the row did towards the person of the
+ * column: how often they replied to them or mentioned them, or how fast they
+ * typically answer them. Cells are tinted within their row, so each row shows
+ * at a glance whom that person turns to most. Plain HTML table, no SVG.
  */
 
 import type { PersonStatistics } from '../../core/index';
@@ -41,9 +41,32 @@ const OWN_CELL: SafeHtml = html`<td class="person-grid-own" aria-hidden="true">&
 /** The empty cell above the row headings and to the left of the column headings. */
 const CORNER_CELL: SafeHtml = html`<td></td>`;
 
+/** What one cell of the grid shows. */
+export interface PersonGridCell {
+  /** What is written in the cell, such as `"1,200"` or `"4 min"`. */
+  readonly text: string;
+  /**
+   * What the tint of the cell is driven by: the cell with the largest weight
+   * of its row gets the strongest tint and the others a share of it. A cell
+   * with a weight of zero or less is not tinted.
+   */
+  readonly weight: number;
+  /** What the cell says when it is pointed at; left out for a cell that needs no explanation. */
+  readonly title?: string;
+}
+
 /**
- * Finds the highest count in the row of one person, which is what the tints of
- * that row are scaled against. The cell on the diagonal is left out.
+ * Returns what the cell of a row's person towards a column's person shows.
+ * Called once per cell that is not on the diagonal.
+ */
+export type CellBetweenPeople = (
+  rowPerson: PersonStatistics,
+  columnPerson: PersonStatistics,
+) => PersonGridCell;
+
+/**
+ * Finds the highest count in the row of one person. The cell on the diagonal
+ * is left out.
  */
 function findLargestCountInRow(
   rowPerson: PersonStatistics,
@@ -79,36 +102,56 @@ export function hasAnyCountBetweenPeople(
 
 /**
  * Writes the `style` attribute that tints a cell, with its leading space. A
- * cell with a count of zero gets no attribute and keeps its plain background.
+ * cell with a weight of zero gets no attribute and keeps its plain background.
  */
-function renderTintAttribute(count: number, largestCountInRow: number): SafeHtml {
-  if (count <= 0) {
+function renderTintAttribute(weight: number, largestWeightInRow: number): SafeHtml {
+  if (weight <= 0) {
     return EMPTY_HTML;
   }
-  const tintPercent = FAINTEST_TINT_PERCENT + (TINT_RANGE_PERCENT * count) / largestCountInRow;
+  const tintPercent = FAINTEST_TINT_PERCENT + (TINT_RANGE_PERCENT * weight) / largestWeightInRow;
   const roundedTintPercent = escapeHtml(tintPercent.toFixed(0));
   return html` style="background:color-mix(in oklab,var(--accent) ${roundedTintPercent}%,transparent)"`;
 }
 
 /**
- * Draws the row of one person: their name, then a cell per column. The full
- * name is repeated in a `title`, because a long name is cut short.
+ * Writes the `title` attribute of a cell, with its leading space, or nothing
+ * for a cell without a title.
+ */
+function renderTitleAttribute(cell: PersonGridCell): SafeHtml {
+  if (cell.title === undefined) {
+    return EMPTY_HTML;
+  }
+  return html` title="${escapeHtml(cell.title)}"`;
+}
+
+/**
+ * Draws the row of one person: their name, then a cell per column, tinted
+ * against the largest weight of the row. The full name is repeated in a
+ * `title`, because a long name is cut short.
  */
 function renderRow(
   rowPerson: PersonStatistics,
   people: readonly PersonStatistics[],
-  countBetween: CountBetweenPeople,
+  cellBetween: CellBetweenPeople,
   personColours: PersonColours,
 ): SafeHtml {
-  const largestCountInRow = findLargestCountInRow(rowPerson, people, countBetween);
+  /* One entry per column; `null` stands for the cell on the diagonal. */
+  const cells = people.map((columnPerson: PersonStatistics): PersonGridCell | null =>
+    columnPerson === rowPerson ? null : cellBetween(rowPerson, columnPerson),
+  );
+  let largestWeightInRow = 0;
+  for (const cell of cells) {
+    largestWeightInRow = Math.max(largestWeightInRow, cell?.weight ?? 0);
+  }
+
   const cellsHtml = joinHtml(
-    people.map((columnPerson: PersonStatistics): SafeHtml => {
-      if (columnPerson === rowPerson) {
+    cells.map((cell: PersonGridCell | null): SafeHtml => {
+      if (cell === null) {
         return OWN_CELL;
       }
-      const count = countBetween(rowPerson, columnPerson);
-      const tintAttribute = renderTintAttribute(count, largestCountInRow);
-      return html`<td${tintAttribute}>${escapeHtml(formatWholeNumber(count))}</td>`;
+      const titleAttribute = renderTitleAttribute(cell);
+      const tintAttribute = renderTintAttribute(cell.weight, largestWeightInRow);
+      return html`<td${titleAttribute}${tintAttribute}>${escapeHtml(cell.text)}</td>`;
     }),
   );
   const nameHtml = renderSwatchAndName(personColours, rowPerson.name);
@@ -126,7 +169,32 @@ function renderColumnHeading(columnPerson: PersonStatistics): SafeHtml {
 }
 
 /**
- * Draws a grid of people by people.
+ * Draws a grid of people by people whose cells hold any text, such as a
+ * duration, each tinted by its weight within its row.
+ *
+ * @param people - The people of the rows and the columns, in the order they should appear.
+ * @param cellBetween - Returns the text, the weight and the title of a cell.
+ * @param personColours - The colour assignment shared by all charts.
+ * @returns A `<div class="table-wrapper">` holding a `<table class="person-grid">`, as markup.
+ */
+export function renderPersonGridOfCells(
+  people: readonly PersonStatistics[],
+  cellBetween: CellBetweenPeople,
+  personColours: PersonColours,
+): SafeHtml {
+  const columnHeadingsHtml = joinHtml(people.map(renderColumnHeading));
+  const rowsHtml = joinHtml(
+    people.map((rowPerson: PersonStatistics): SafeHtml =>
+      renderRow(rowPerson, people, cellBetween, personColours),
+    ),
+  );
+  const tableHtml = html`<table class="person-grid"><thead><tr>${CORNER_CELL}${columnHeadingsHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
+  return html`<div class="table-wrapper">${tableHtml}</div>`;
+}
+
+/**
+ * Draws a grid of people by people whose cells hold a count: the count is
+ * written as a whole number and is also what the cell is tinted by.
  *
  * @param people - The people of the rows and the columns, in the order they should appear.
  * @param countBetween - Returns the count of a cell.
@@ -138,12 +206,9 @@ export function renderPersonGrid(
   countBetween: CountBetweenPeople,
   personColours: PersonColours,
 ): SafeHtml {
-  const columnHeadingsHtml = joinHtml(people.map(renderColumnHeading));
-  const rowsHtml = joinHtml(
-    people.map((rowPerson: PersonStatistics): SafeHtml =>
-      renderRow(rowPerson, people, countBetween, personColours),
-    ),
-  );
-  const tableHtml = html`<table class="person-grid"><thead><tr>${CORNER_CELL}${columnHeadingsHtml}</tr></thead><tbody>${rowsHtml}</tbody></table>`;
-  return html`<div class="table-wrapper">${tableHtml}</div>`;
+  const cellBetween: CellBetweenPeople = (rowPerson, columnPerson) => {
+    const count = countBetween(rowPerson, columnPerson);
+    return { text: formatWholeNumber(count), weight: count };
+  };
+  return renderPersonGridOfCells(people, cellBetween, personColours);
 }
