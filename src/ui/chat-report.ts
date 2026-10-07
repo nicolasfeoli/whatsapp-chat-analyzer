@@ -13,11 +13,13 @@ import type { TimelineData } from './charts/timeline-buckets';
 import { joinHtml } from './html';
 import type { SafeHtml } from './html';
 import { assignPersonColours } from './person-colours';
+import { renderConversationEndingsSection } from './sections/conversation-endings';
 import { renderHeatmapSection } from './sections/heatmap';
 import { renderInsightsSection } from './sections/insights';
 import { renderPeopleSection } from './sections/people';
 import { renderRecordsSection } from './sections/records';
 import { renderRepliesSection } from './sections/replies';
+import { renderReplyPairsSection } from './sections/reply-pairs';
 import { renderSummarySection } from './sections/summary';
 import { renderTimelineSection } from './sections/timeline';
 import { renderWordsAndEmojisSection } from './sections/words-and-emojis';
@@ -48,6 +50,8 @@ export function renderChatReport(analysis: ChatAnalysis, title: string): Rendere
     renderTimelineSection(timeline.granularity),
     renderHeatmapSection(analysis),
     renderRepliesSection(analysis, personColours),
+    renderReplyPairsSection(analysis, personColours),
+    renderConversationEndingsSection(analysis, personColours),
     renderWordsAndEmojisSection(analysis, personColours),
     renderRecordsSection(analysis, personColours),
   ];

@@ -162,6 +162,26 @@ export interface PersonStatistics {
   readonly replyDelaysInMilliseconds: readonly number[];
   /** Conversations this person opened (the first message, or the first after a long silence). */
   readonly conversationsStartedCount: number;
+  /**
+   * Conversations in which this person wrote the last message before a long
+   * silence. The conversation still open at the end of the export is not
+   * counted, because nobody knows yet how it ends.
+   */
+  readonly conversationsEndedCount: number;
+  /**
+   * Questions this person asked in the closing turn of a conversation: nobody
+   * else wrote after them before the long silence. Compare it with
+   * {@link PersonStatistics.questionCount} for the share left unanswered.
+   */
+  readonly unansweredQuestionCount: number;
+  /**
+   * How often this person replied to each other participant, keyed by that
+   * participant's name, in order of first reply. One entry of
+   * {@link PersonStatistics.replyDelaysInMilliseconds} corresponds to one count
+   * here. An export does not record which message a reply quotes, so a reply
+   * is credited to whoever wrote the message just before it.
+   */
+  readonly replyCountsByRecipient: ReadonlyMap<string, number>;
   /** Runs of consecutive messages from this person. `messageCount / turnCount` is messages per turn. */
   readonly turnCount: number;
   /** How often this person used each emoji, in order of first use. */

@@ -426,6 +426,48 @@ td:first-child {
   gap: 8px;
 }
 
+/* reply grid */
+.reply-grid {
+  width: auto;
+  border-collapse: separate;
+  border-spacing: 2px;
+}
+.reply-grid th,
+.reply-grid td {
+  border-bottom: 0;
+}
+.reply-grid tbody td {
+  min-width: 56px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.reply-grid tbody .reply-grid-own {
+  background: none;
+  color: var(--muted);
+  text-align: center;
+}
+.reply-grid th {
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+.reply-grid .reply-grid-name {
+  display: block;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.reply-grid thead .reply-grid-name {
+  max-width: 84px;
+}
+.reply-grid .colour-swatch {
+  display: inline-block;
+  margin-right: 8px;
+}
+
 /* timeline */
 #timeline {
   width: 100%;

@@ -47,7 +47,7 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - **Same behaviour.** The old implementation was kept as the specification while porting. Parsing and analysis were compared on tens of thousands of generated chats, and the rendered report was compared string for string. The README screenshots were retaken from the built page and came out pixel for pixel the same, so they were left as they were.
 - **Tooling.** Vite builds the page, Vitest runs the tests, ESLint (typescript-eslint, strict type-checked) and Prettier keep the style. `npm run check` runs all of it and is what CI runs. The page now has a build step: it is no longer a folder that can be served as it is.
 - **JSZip from npm.** It is bundled into the page's own script at build time; the vendored copy is gone. Fonts moved to `public/fonts/`. The built page still requests nothing from another server.
-- **Tests for the page.** Section renderers, charts, file loading, the worker client and the real `index.html` are tested in a simulated browser, including a chat made of markup. The suite went from one file of parser tests to 1,520 tests in 50 files, with coverage thresholds of 90% for the core and 85% each for the page and the worker code.
+- **Tests for the page.** Section renderers, charts, file loading, the worker client and the real `index.html` are tested in a simulated browser, including a chat made of markup. The suite went from one file of parser tests to 1,575 tests in 52 files, with coverage thresholds of 90% for the core and 85% each for the page and the worker code.
 - **Known limits are pinned.** `tests/core/known-limits.test.ts` has tests for the parser limits listed below, so fixing one means changing a test on purpose.
 - **Escaping checked by the compiler.** Markup has its own type, `SafeHtml`. Only `escapeHtml` and the `` html`...` `` tag produce it, and the tag does not accept plain strings, so chat text that was never escaped cannot reach `innerHTML`.
 - **Whole words in the markup.** Element ids, CSS classes and `data-` attributes were renamed from the old abbreviations (`.c`, `.sw`, `#tip`, `data-v`) to names that say what they are. The stylesheet's declarations did not change, and the rendered report was compared with the old one again after the renaming.
@@ -67,6 +67,8 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - An iPhone placeholder after a sender written with a space before the colon (`Ana : image omitted`) counts as typed text.
 - A typed continuation line that itself starts like a timestamp (`01/01/24 10:00 - breakfast with Bob: yes`) becomes a message from an invented sender.
 - A participant whose only messages are dated more than ten minutes before the message above them is folded away as pasted text. A line pasted after a media message is counted as folded but its text is not kept.
+- A reply is credited to whoever wrote the message just before it, because an export does not record which message a reply quotes. In a busy group, "who answers whom" therefore also counts people who merely wrote next.
+- A question counts as unanswered only when its sender's turn closed the conversation. A question the group talked past is not detected, and any message from somebody else counts as an answer.
 - Seconds above 59 roll over into the next minute, and "13:00 AM" is read as 01:00, instead of being rejected.
 - Year-first dates with a two-digit year are misread: `24/12/31` as 24 December 2031, `45/12/31` as 31 December 1945.
 - Forcing a date order that the file contradicts rejects every date and reports "no messages" instead of ignoring the forced order.
@@ -96,7 +98,7 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 ### Product
 
 - **Wrong numbers look authoritative.** The parse report now says what was read and skipped, but a user can still ignore it.
-- **Interpersonal harm.** "Who replies slower" and "who starts conversations" are rough heuristics that will be used in arguments. State the method next to the number and keep the tone light.
+- **Interpersonal harm.** "Who replies slower", "who starts conversations", "who answers whom" and "whose questions go unanswered" are rough heuristics that will be used in arguments. State the method next to the number and keep the tone light.
 - **Self-inflicted denial of service.** Size caps and the worker limit this; a chat just under the caps can still exhaust memory on a phone. Only the user is affected.
 - **Cost and abuse.** None. Static hosting, no backend, no accounts, nothing to scrape or spam.
 
