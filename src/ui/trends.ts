@@ -181,7 +181,8 @@ export function formatTrendBucketLabel(bucketStart: Date, granularity: TrendGran
  * @param lastStart - When the last bucket starts.
  * @param granularity - The length of time a bucket covers.
  * @returns `"Mar–May 2022"`, `"Nov 2022–Jan 2023"`, `"Q1–Q2 2022"`,
- *   `"2021–2022"`, or the name of the one bucket when both are the same.
+ *   `"2021–2022"`, the year alone when the run fills it (`"2022"`), or the
+ *   name of the one bucket when both are the same.
  */
 export function formatTrendBucketRange(
   firstStart: Date,
@@ -193,6 +194,18 @@ export function formatTrendBucketRange(
     return lastLabel;
   }
   const isWithinOneYear = firstStart.getFullYear() === lastStart.getFullYear();
+  /* A run of months or quarters that fills its calendar year reads better as that year. */
+  const lastBucketOfYear = formatBucketWithinYear(
+    new Date(lastStart.getFullYear(), 11, 1),
+    granularity,
+  );
+  const coversWholeYear =
+    isWithinOneYear &&
+    firstStart.getMonth() === 0 &&
+    formatBucketWithinYear(lastStart, granularity) === lastBucketOfYear;
+  if (granularity !== 'year' && coversWholeYear) {
+    return String(lastStart.getFullYear());
+  }
   if (granularity !== 'year' && isWithinOneYear) {
     return `${formatBucketWithinYear(firstStart, granularity)}${RANGE_DASH}${lastLabel}`;
   }

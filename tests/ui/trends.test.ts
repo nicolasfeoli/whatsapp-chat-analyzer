@@ -351,6 +351,15 @@ describe('the names of buckets', () => {
     ).toBe('2021–2022');
   });
 
+  it('names a run that fills a calendar year by that year', () => {
+    expect(
+      formatTrendBucketRange(localMidnight('2022-01-01'), localMidnight('2022-10-01'), 'quarter'),
+    ).toBe('2022');
+    expect(
+      formatTrendBucketRange(localMidnight('2022-01-01'), localMidnight('2022-12-01'), 'month'),
+    ).toBe('2022');
+  });
+
   it('names a run of one bucket by that bucket', () => {
     expect(
       formatTrendBucketRange(localMidnight('2022-03-01'), localMidnight('2022-03-01'), 'month'),

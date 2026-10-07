@@ -109,7 +109,7 @@ describe('renderTrendsSection', () => {
     const section = renderSection(chatWith(trendsOfMonths(6)));
 
     expect(textsOfElements(section, '.trend-charts + .hint')).toEqual([
-      'A month has a point when it holds at least 20 messages, and a person a reply time when they replied at least 5 times in it. Reply times are drawn on a scale that grows in steps of times ten. The sentence under a chart compares its first fourth with its last fourth and is left out when the change is small.',
+      'A month has a point when it holds at least 20 messages, and a person a reply time when they replied at least 5 times in it. Reply times are drawn on a scale that grows in steps of times ten. The sentence under a chart compares the average over the first 25% of the chart with the average over the last 25%, and is left out when the change is small.',
     ]);
   });
 

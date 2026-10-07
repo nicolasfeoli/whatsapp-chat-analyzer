@@ -146,7 +146,7 @@ export function renderTrendsSection(
   const chartsHtml = joinHtml(
     charts.map((chart: TrendChartData): SafeHtml => renderTrendChart(chart)),
   );
-  const chartsHint = `A ${granularity} has a point when it holds at least ${String(MINIMUM_MESSAGES_FOR_TREND_POINT)} messages, and a person a reply time when they replied at least ${String(MINIMUM_REPLIES_FOR_TYPICAL_DELAY)} times in it. Reply times are drawn on a scale that grows in steps of times ten. The sentence under a chart compares its first fourth with its last fourth and is left out when the change is small.`;
+  const chartsHint = `A ${granularity} has a point when it holds at least ${String(MINIMUM_MESSAGES_FOR_TREND_POINT)} messages, and a person a reply time when they replied at least ${String(MINIMUM_REPLIES_FOR_TYPICAL_DELAY)} times in it. Reply times are drawn on a scale that grows in steps of times ten. The sentence under a chart compares the average over the first 25% of the chart with the average over the last 25%, and is left out when the change is small.`;
   const chartsBlockHtml = html`<div class="trend-charts">${chartsHtml}</div><p class="hint">${escapeHtml(chartsHint)}</p>${renderTrendPeopleNote(analysis.people.length)}`;
 
   const termsHint = `One bar per ${granularity}, for the messages that contain the word or the emoji. Each strip is scaled to its own tallest bar, and a busy ${granularity} has more of everything.`;
