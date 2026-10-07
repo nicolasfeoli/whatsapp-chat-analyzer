@@ -26,7 +26,7 @@ WhatsApp can export a chat as a text file, but the file is thousands of lines wi
 
 - **Answers to the arguments.** Who writes most, who starts the conversations, who replies fastest, who answers whom, whose questions are left hanging, and who sends five messages in a row before anyone answers.
 - **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence.
-- **Its personality.** The words and emojis each person uses far more than everyone else, and who laughs the most in writing.
+- **Its personality.** The words and emojis each person uses far more than everyone else, who laughs the most in writing, and who sends the stickers, the photos and the voice notes.
 
 A chat is also other people's messages, and they never agreed to have them analysed by a stranger's server. So the page is built so that you do not have to trust it: the file is read inside your browser tab and nothing is uploaded.
 
@@ -93,7 +93,7 @@ The dev server relaxes `connect-src` to its own WebSocket so hot reload works. `
 ## Tests
 
 ```sh
-npm test               # Vitest, 1,575 tests in 52 files
+npm test               # Vitest, 1,673 tests in 54 files
 npm run test:coverage  # the same, with a coverage report in coverage/
 npm run check          # type check, lint, formatting, tests with coverage, build
 ```

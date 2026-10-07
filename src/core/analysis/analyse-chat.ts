@@ -12,6 +12,7 @@ import {
 import { DAYS_PER_WEEK, HOURS_PER_DAY, MILLISECONDS_PER_HOUR } from '../time-constants';
 import type { ChatAnalysis, ChatMessage, LongestSilence, TimestampResolution } from '../types';
 import { findBusiestDay, findLongestStreak, keepLongerSilence } from './activity-records';
+import { identifyMediaType } from './media-type';
 import {
   createPersonStatisticsAccumulator,
   incrementCount,
@@ -199,6 +200,7 @@ function recordMessageContent(
 ): void {
   if (message.kind === 'media') {
     person.mediaCount += 1;
+    incrementCount(person.mediaCountsByType, identifyMediaType(message.text));
     return;
   }
   if (message.kind === 'deleted') {

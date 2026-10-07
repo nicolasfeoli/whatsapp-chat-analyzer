@@ -223,6 +223,138 @@ describe('readExportEntries', () => {
       expect(readExportEntries(rawText).entries[0]?.kind).toBe('media');
     });
 
+    describe('a photo sent with a caption, which iPhone writes on one line', () => {
+      const captionedLine = iphoneLine({
+        sender: 'Bob',
+        text: `happy birthday Ana ${LEFT_TO_RIGHT_MARK}image omitted`,
+      });
+
+      it('is marked as media although the mark does not stand in front of the body', () => {
+        expect(readExportEntries(captionedLine).entries[0]?.kind).toBe('media');
+      });
+
+      it('keeps the placeholder as the text and leaves the caption out', () => {
+        expect(readExportEntries(captionedLine).entries[0]?.text).toBe('image omitted');
+      });
+
+      it('keeps the sender', () => {
+        expect(readExportEntries(captionedLine).entries[0]?.sender).toBe('Bob');
+      });
+
+      it('is recognised when the line itself also starts with the mark', () => {
+        const rawText = `${LEFT_TO_RIGHT_MARK}${captionedLine}`;
+
+        expect(readExportEntries(rawText).entries[0]?.kind).toBe('media');
+      });
+
+      it('is recognised in a caption that mentions somebody between isolate marks', () => {
+        const rawText = iphoneLine({
+          text: `look @\u2068Carla\u2069 ${LEFT_TO_RIGHT_MARK}video omitted`,
+        });
+
+        expect(readExportEntries(rawText).entries[0]).toMatchObject({
+          kind: 'media',
+          text: 'video omitted',
+        });
+      });
+
+      it('is recognised when the caption was edited afterwards', () => {
+        const rawText = iphoneLine({
+          text: `happy birthday ${LEFT_TO_RIGHT_MARK}image omitted ${LEFT_TO_RIGHT_MARK}<This message was edited>`,
+        });
+
+        expect(readExportEntries(rawText).entries[0]).toMatchObject({
+          kind: 'media',
+          text: 'image omitted',
+        });
+      });
+
+      it('does not let the lines after it be counted either', () => {
+        const rawText = exportText([captionedLine, 'and many more']);
+
+        expect(readExportEntries(rawText).entries[0]?.text).toBe('image omitted');
+      });
+
+      describe('with a caption of several lines, which ends in the placeholder', () => {
+        const rawText = exportText([
+          iphoneLine({ sender: 'Bob', text: 'happy birthday Ana' }),
+          'hope you have a great day',
+          `and many more ${LEFT_TO_RIGHT_MARK}image omitted`,
+          iphoneLine({ sender: 'Ana', text: 'thank you' }),
+        ]);
+
+        it('turns the entry the caption started into media', () => {
+          expect(readExportEntries(rawText).entries[0]).toMatchObject({
+            sender: 'Bob',
+            kind: 'media',
+            text: 'image omitted',
+          });
+        });
+
+        it('leaves the message after it alone', () => {
+          expect(readExportEntries(rawText).entries[1]).toMatchObject({
+            sender: 'Ana',
+            kind: 'text',
+            text: 'thank you',
+          });
+        });
+
+        it('still counts every line of the caption as a non-empty line of the file', () => {
+          expect(readExportEntries(rawText).nonEmptyLineCount).toBe(4);
+        });
+
+        it('accepts a last line that is only the placeholder', () => {
+          const captionThenPlaceholder = exportText([
+            iphoneLine({ sender: 'Bob', text: 'happy birthday Ana' }),
+            `${LEFT_TO_RIGHT_MARK}image omitted`,
+          ]);
+
+          expect(readExportEntries(captionThenPlaceholder).entries[0]?.kind).toBe('media');
+        });
+
+        it('keeps a typed last line that merely ends in the words as text', () => {
+          const typedLines = exportText([
+            iphoneLine({ sender: 'Bob', text: 'the report says' }),
+            'image omitted',
+          ]);
+
+          expect(readExportEntries(typedLines).entries[0]).toMatchObject({
+            kind: 'text',
+            text: 'the report says\nimage omitted',
+          });
+        });
+
+        it('does not look for the mark in the continuation lines of an Android export', () => {
+          const androidLines = exportText([
+            androidLine({ sender: 'Bob', text: 'happy birthday Ana' }),
+            `and many more ${LEFT_TO_RIGHT_MARK}image omitted`,
+          ]);
+
+          expect(readExportEntries(androidLines).entries[0]?.kind).toBe('text');
+        });
+      });
+
+      it('is still typed text when no mark separates the words from "image omitted"', () => {
+        const rawText = iphoneLine({ text: 'happy birthday image omitted' });
+
+        expect(readExportEntries(rawText).entries[0]?.kind).toBe('text');
+      });
+
+      it('is still typed text when the mark is followed by something else', () => {
+        const rawText = iphoneLine({
+          text: `the part ${LEFT_TO_RIGHT_MARK}that was omitted today`,
+        });
+
+        expect(readExportEntries(rawText).entries[0]?.kind).toBe('text');
+      });
+
+      it('is not looked for on an Android line, which never carries the mark', () => {
+        const rawText = androidLine({ text: `happy birthday ${LEFT_TO_RIGHT_MARK}image omitted` });
+
+        expect(readExportEntries(rawText).entries[0]?.kind).toBe('text');
+      });
+    });
+
     it("marks an iPhone 'image omitted' line without the mark as text", () => {
       const rawText = iphoneLine({ text: 'image omitted' });
 

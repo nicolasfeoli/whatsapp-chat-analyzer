@@ -20,6 +20,23 @@
  */
 export type MessageKind = 'text' | 'media' | 'deleted';
 
+/**
+ * What a media placeholder stands for, when the export says. `unknown` covers
+ * the placeholders that do not: an Android export made without media writes
+ * the same `<Media omitted>` for a photo, a sticker and a voice note.
+ */
+export type MediaType =
+  | 'photo'
+  | 'video'
+  | 'audio'
+  | 'sticker'
+  | 'gif'
+  | 'document'
+  | 'contact'
+  | 'poll'
+  | 'location'
+  | 'unknown';
+
 /** The fields every message has, whatever its kind. */
 interface ChatMessageBase {
   /** When the message was sent, in the local time zone of the device running the analysis. */
@@ -140,6 +157,11 @@ export interface PersonStatistics {
   readonly textMessageCount: number;
   /** Media placeholders sent. */
   readonly mediaCount: number;
+  /**
+   * The media placeholders split by what they stand for, in order of first
+   * use. The counts add up to {@link PersonStatistics.mediaCount}.
+   */
+  readonly mediaCountsByType: ReadonlyMap<MediaType, number>;
   /** Deleted-message tombstones. */
   readonly deletedCount: number;
   /** Words typed across all text messages, links excluded. */

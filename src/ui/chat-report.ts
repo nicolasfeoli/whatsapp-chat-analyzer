@@ -16,6 +16,7 @@ import { assignPersonColours } from './person-colours';
 import { renderConversationEndingsSection } from './sections/conversation-endings';
 import { renderHeatmapSection } from './sections/heatmap';
 import { renderInsightsSection } from './sections/insights';
+import { renderMediaTypesSection } from './sections/media-types';
 import { renderPeopleSection } from './sections/people';
 import { renderRecordsSection } from './sections/records';
 import { renderRepliesSection } from './sections/replies';
@@ -47,6 +48,7 @@ export function renderChatReport(analysis: ChatAnalysis, title: string): Rendere
     renderSummarySection(analysis, title, personColours),
     renderInsightsSection(analysis),
     renderPeopleSection(analysis, personColours),
+    renderMediaTypesSection(analysis, personColours),
     renderTimelineSection(timeline.granularity),
     renderHeatmapSection(analysis),
     renderRepliesSection(analysis, personColours),

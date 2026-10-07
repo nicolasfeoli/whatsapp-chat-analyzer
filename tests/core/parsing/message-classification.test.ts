@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
+import { LEFT_TO_RIGHT_MARK } from '../../../src/core/parsing/invisible-characters';
 import {
   classifyMessageBody,
+  findTrailingMarkedPlaceholder,
   isSystemNoticeSender,
   removeEditedMessageSuffix,
   splitSenderAndText,
@@ -26,6 +28,52 @@ const LONGEST_OMITTED_MEDIA_NAME_LENGTH = 40;
 
 /** The longest text between angle brackets still taken for an Android media placeholder. */
 const LONGEST_ANDROID_PLACEHOLDER_INNER_LENGTH = 60;
+
+describe('findTrailingMarkedPlaceholder', () => {
+  it('returns the placeholder that follows a caption and the mark', () => {
+    const line = `[date] Bob: happy birthday ${LEFT_TO_RIGHT_MARK}image omitted`;
+
+    expect(findTrailingMarkedPlaceholder(line)).toBe('image omitted');
+  });
+
+  it('returns the placeholder of a line without a caption too', () => {
+    const line = `[date] Bob: ${LEFT_TO_RIGHT_MARK}Contact card omitted`;
+
+    expect(findTrailingMarkedPlaceholder(line)).toBe('Contact card omitted');
+  });
+
+  it('goes by the last mark of the line', () => {
+    const line = `${LEFT_TO_RIGHT_MARK}[date] Bob: look ${LEFT_TO_RIGHT_MARK}GIF omitido`;
+
+    expect(findTrailingMarkedPlaceholder(line)).toBe('GIF omitido');
+  });
+
+  it('looks past the note of an edited message and the mark in front of it', () => {
+    const line = `[date] Bob: look ${LEFT_TO_RIGHT_MARK}image omitted ${LEFT_TO_RIGHT_MARK}<This message was edited>`;
+
+    expect(findTrailingMarkedPlaceholder(line)).toBe('image omitted');
+  });
+
+  it('returns null for a line without a mark', () => {
+    expect(findTrailingMarkedPlaceholder('[date] Bob: happy birthday image omitted')).toBeNull();
+  });
+
+  it('returns null when the only mark stands at the start of the line', () => {
+    const line = `${LEFT_TO_RIGHT_MARK}[date] Bob: image omitted`;
+
+    expect(findTrailingMarkedPlaceholder(line)).toBeNull();
+  });
+
+  it('returns null when what follows the mark is not a placeholder', () => {
+    const line = `[date] Bob: fixed it ${LEFT_TO_RIGHT_MARK}<This message was edited>`;
+
+    expect(findTrailingMarkedPlaceholder(line)).toBeNull();
+  });
+
+  it('returns null for an empty line', () => {
+    expect(findTrailingMarkedPlaceholder('')).toBeNull();
+  });
+});
 
 describe('splitSenderAndText', () => {
   it('splits a message at the colon and space after the sender', () => {

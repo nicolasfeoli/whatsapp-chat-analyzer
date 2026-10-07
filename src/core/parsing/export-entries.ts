@@ -19,6 +19,7 @@ import { matchMessageLine } from './line-pattern';
 import type { MessageLineMatch } from './line-pattern';
 import {
   classifyMessageBody,
+  findTrailingMarkedPlaceholder,
   isSystemNoticeSender,
   splitSenderAndText,
 } from './message-classification';
@@ -99,6 +100,23 @@ function isBodyMarkedAsNotTyped(originalLine: string, sender: string): boolean {
 }
 
 /**
+ * Finds the media placeholder at the end of an iPhone line, after the mark
+ * that follows a caption (`Sender: happy birthday <mark>image omitted`).
+ * Android does not use the mark, so its lines are never searched.
+ *
+ * @returns The placeholder without the caption, or `null` when the line does
+ *   not end in a marked placeholder.
+ */
+function findCaptionedPlaceholder(originalLine: string, cleanedLine: string): string | null {
+  if (!isBracketedLine(cleanedLine)) {
+    return null;
+  }
+  return findTrailingMarkedPlaceholder(
+    removeInvisibleCharactersExceptLeftToRightMark(originalLine),
+  );
+}
+
+/**
  * Turns a matched line into an entry, or decides that it is a system notice.
  *
  * @returns The entry, or `null` for a system notice.
@@ -116,6 +134,27 @@ function createEntryFromLine(
     return null;
   }
 
+  const timestampParts: TimestampParts = {
+    firstDateNumber: lineMatch.firstDateNumber,
+    secondDateNumber: lineMatch.secondDateNumber,
+    thirdDateNumber: lineMatch.thirdDateNumber,
+    hour: lineMatch.hour,
+    minute: lineMatch.minute,
+    second: lineMatch.second ?? 0,
+    meridiem: lineMatch.meridiem,
+  };
+
+  const captionedPlaceholder = findCaptionedPlaceholder(originalLine, cleanedLine);
+  if (captionedPlaceholder !== null) {
+    /* The caption is left out, as it is when it follows on a line of its own. */
+    return {
+      ...timestampParts,
+      sender: senderAndText.sender,
+      text: captionedPlaceholder,
+      kind: 'media',
+    };
+  }
+
   const classification = classifyMessageBody(senderAndText.text, {
     isMarkedAsNotTyped: isBodyMarkedAsNotTyped(originalLine, senderAndText.sender),
     isBracketedLine: isBracketedLine(cleanedLine),
@@ -125,13 +164,7 @@ function createEntryFromLine(
   }
 
   return {
-    firstDateNumber: lineMatch.firstDateNumber,
-    secondDateNumber: lineMatch.secondDateNumber,
-    thirdDateNumber: lineMatch.thirdDateNumber,
-    hour: lineMatch.hour,
-    minute: lineMatch.minute,
-    second: lineMatch.second ?? 0,
-    meridiem: lineMatch.meridiem,
+    ...timestampParts,
     sender: senderAndText.sender,
     text: senderAndText.text,
     kind: classification,
@@ -158,10 +191,30 @@ function createReadingProgress(): ReadingProgress {
  * before it, provided that entry is typed text. The lines after a media
  * placeholder are a caption or poll options and are not counted as words, and
  * the lines after a system notice belong to the notice.
+ *
+ * On iPhone the line can also reveal that the entry was never typed text. A
+ * caption of several lines is exported with the placeholder after its last
+ * line (`...and many more <mark>image omitted`), so everything collected so
+ * far was the caption of a photo: the entry becomes media and keeps only the
+ * placeholder, as a caption on a single line does.
  */
-function appendContinuationLine(progress: ReadingProgress, cleanedLine: string): void {
+function appendContinuationLine(
+  progress: ReadingProgress,
+  originalLine: string,
+  cleanedLine: string,
+): void {
   const continuedEntry = progress.entryAcceptingContinuationLines;
   if (continuedEntry?.kind !== 'text') {
+    return;
+  }
+
+  const captionedPlaceholder =
+    progress.platform === 'iPhone'
+      ? findTrailingMarkedPlaceholder(removeInvisibleCharactersExceptLeftToRightMark(originalLine))
+      : null;
+  if (captionedPlaceholder !== null) {
+    continuedEntry.kind = 'media';
+    continuedEntry.text = captionedPlaceholder;
     return;
   }
   continuedEntry.text += `\n${cleanedLine}`;
@@ -205,7 +258,7 @@ function readLine(progress: ReadingProgress, originalLine: string): void {
 
   const lineMatch = matchMessageLine(cleanedLine);
   if (lineMatch === null) {
-    appendContinuationLine(progress, cleanedLine);
+    appendContinuationLine(progress, originalLine, cleanedLine);
     return;
   }
   recordEntryLine(progress, originalLine, cleanedLine, lineMatch);
