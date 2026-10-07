@@ -63,6 +63,7 @@ describe('findPageElements', () => {
     expect(pageElements.periodToInput.type).toBe('date');
     expect(pageElements.periodNote.id).toBe('period-note');
     expect(pageElements.saveSummaryImageButton.id).toBe('save-summary-image-button');
+    expect(pageElements.printButton.id).toBe('print-button');
     expect(pageElements.reportContainer.id).toBe('report');
     expect(pageElements.tooltip.id).toBe('tooltip');
   });

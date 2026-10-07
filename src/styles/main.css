@@ -983,3 +983,141 @@ footer p + p {
 footer a {
   color: inherit;
 }
+
+/* print: the report on paper or as a PDF. Everything that only works on a screen is left out, the colours are the light ones on white, and nothing is wider than the page. */
+@page {
+  margin: 14mm;
+}
+@media print {
+  /* The same three selectors as the colour schemes above, so that these win over a dark scheme by coming later. */
+  :root,
+  :root:not([data-theme='light']),
+  :root[data-theme='dark'] {
+    --bg: #ffffff;
+    --surface: #ffffff;
+    --surface-2: #e8edeb;
+    --ink: #111917;
+    --ink-2: #47534f;
+    --muted: #5f6b67;
+    --line: #c9d1ce;
+    --accent: #0f5f52;
+    --on-accent: #ffffff;
+    --bubble: #dcefe6;
+    --warn: #8a4b00;
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --s3: #1baf7a;
+    --s4: #eda100;
+    --s5: #e87ba4;
+    --s6: #008300;
+    --other: #9aa5a1;
+    --heat-lo: #d6e6fa;
+    --heat-hi: #0d366b;
+    --neutral-bar: #7f8c88;
+    color-scheme: light;
+    padding: 0;
+  }
+  /* Bars, swatches and the squares of the heatmap and calendar are backgrounds, which a browser leaves out of a printout unless told otherwise. */
+  body {
+    background: #ffffff;
+    font-size: 12px;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* What is for loading and steering the page, or needs a pointer or a keyboard. */
+  .page-header,
+  .loader,
+  #tooltip,
+  .profile-chooser,
+  .word-search-field,
+  .hover-band {
+    display: none !important;
+  }
+  /* "Look up a word" is printed only when a word was looked up; the outcome names the word. */
+  section:has(.word-search-result):not(:has(.word-search-summary)) {
+    display: none;
+  }
+  /* Blocks instead of flex columns, which browsers break across pages badly. */
+  .page-wrapper,
+  #report {
+    display: block;
+    max-width: none;
+    padding: 0;
+  }
+  #report > * + *,
+  footer {
+    margin-top: 24px;
+  }
+  /* A section, a row, a card or a quoted message stays in one piece when it fits on a page, and a heading stays with what it heads. */
+  section,
+  tr,
+  li,
+  .chat-heading,
+  .headline-statistics,
+  .calendar-year,
+  .bubble,
+  .signature-row,
+  .profile-fact,
+  .two-columns > div {
+    break-inside: avoid;
+  }
+  h2,
+  h3,
+  .section-heading {
+    break-after: avoid;
+  }
+  thead {
+    display: table-header-group;
+  }
+  /* Nothing scrolls on paper: what scrolled sideways is made to fit, and a long message is printed whole. */
+  .table-wrapper,
+  .calendar-scroll {
+    overflow: visible;
+  }
+  .bubble .bubble-text {
+    max-height: none;
+    overflow: visible;
+  }
+  table {
+    font-size: 11px;
+  }
+  th,
+  td {
+    padding: 4px 6px;
+    white-space: normal;
+  }
+  th {
+    font-size: 10px;
+    letter-spacing: 0;
+  }
+  .person-grid {
+    width: 100%;
+    table-layout: fixed;
+  }
+  .person-grid tbody td {
+    min-width: 0;
+    font-size: 10px;
+  }
+  .person-grid .person-grid-name,
+  .person-grid thead .person-grid-name {
+    max-width: 100%;
+  }
+  /* 53 weeks of 9 pixels and their gaps come to under 600 pixels, which fits an upright A4 or Letter page. */
+  .calendar-grid {
+    grid-template-rows: 12px repeat(7, 9px);
+    grid-auto-columns: 9px;
+  }
+  .heatmap,
+  .bar-strip,
+  .bubble {
+    max-width: 100%;
+  }
+  /* A link is printed as its words. The address behind it is never written out. */
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  a::after {
+    content: none !important;
+  }
+}

@@ -47,6 +47,8 @@ export interface PageElements {
   readonly periodNote: HTMLElement;
   /** The button that draws the headline numbers as one picture and saves it as a PNG file. */
   readonly saveSummaryImageButton: HTMLButtonElement;
+  /** The button that opens the browser's print dialog, from which the report can be saved as a PDF. */
+  readonly printButton: HTMLButtonElement;
   /** The container the report is rendered into. */
   readonly reportContainer: HTMLElement;
   /** The floating tooltip shared by the charts. */
@@ -100,6 +102,7 @@ export function findPageElements(): PageElements {
     periodToInput: getRequiredElement('period-to-input', HTMLInputElement),
     periodNote: getRequiredElement('period-note', HTMLElement),
     saveSummaryImageButton: getRequiredElement('save-summary-image-button', HTMLButtonElement),
+    printButton: getRequiredElement('print-button', HTMLButtonElement),
     reportContainer: getRequiredElement('report', HTMLElement),
     tooltip: getRequiredElement('tooltip', HTMLElement),
   };

@@ -2,8 +2,8 @@
  * What happens on the page, and when: connects the file picker, drag and
  * drop, the date-order switch, the display switches, the period row, the list
  * of people in "One person up close", the field of "Look up a word", the
- * button that saves the summary image and the window events to the analysis
- * and the report.
+ * buttons that save the summary image and print the report, and the window
+ * events to the analysis and the report.
  *
  * The modules this file draws on are pure wherever possible; the DOM work is
  * gathered here so there is one place to look for "what happens when".
@@ -116,7 +116,7 @@ const DRAGGING_LOADER_CLASS = 'dragging';
 
 /**
  * The parts of the browser's window the page uses: the events of dragging,
- * dropping, resizing and scrolling, and its timers. Naming them, instead of
+ * dropping, resizing and scrolling, its timers and its print dialog. Naming them, instead of
  * asking for a whole `Window`, says exactly what the page touches and lets a
  * test hand each page a window of its own.
  */
@@ -127,6 +127,8 @@ export interface PageWindow {
   setTimeout(task: () => void, delayInMilliseconds: number): number;
   /** Cancels a timer that has not run yet; does nothing for `undefined`. */
   clearTimeout(timerId: number | undefined): void;
+  /** Opens the browser's print dialog for the page, from which it can also be saved as a PDF. */
+  print(): void;
 }
 
 /** Receives the sentences the analysis reports while it works, for the status line. */
@@ -254,6 +256,7 @@ class PageController {
     this.connectDisplaySwitches();
     this.connectPeriodControl();
     this.connectSummaryImageButton();
+    this.connectPrintButton();
     this.connectWindowEvents();
     this.showSampleChat();
   }
@@ -800,6 +803,17 @@ class PageController {
   private connectSummaryImageButton(): void {
     this.pageElements.saveSummaryImageButton.addEventListener('click', (): void => {
       void this.saveDisplayedSummaryImage();
+    });
+  }
+
+  /**
+   * Connects the "Print or save as PDF" button to the print dialog of the
+   * window. The print styles of `main.css` decide what the printout shows:
+   * the report on display, without the loader and the controls.
+   */
+  private connectPrintButton(): void {
+    this.pageElements.printButton.addEventListener('click', (): void => {
+      this.browserWindow.print();
     });
   }
 

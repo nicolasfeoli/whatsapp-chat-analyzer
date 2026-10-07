@@ -82,7 +82,8 @@ function fileOfCarla(): File {
 
 /**
  * Stands in for the browser's window: it receives the events a test fires at
- * it, and its timers are the test runner's, so a test can control the clock.
+ * it, its timers are the test runner's, so a test can control the clock, and
+ * its print dialog only records that it was asked for.
  */
 class FakeWindow extends EventTarget implements PageWindow {
   public setTimeout(task: () => void, delayInMilliseconds: number): number {
@@ -92,6 +93,9 @@ class FakeWindow extends EventTarget implements PageWindow {
   public clearTimeout(timerId: number | undefined): void {
     window.clearTimeout(timerId);
   }
+
+  /** Stands in for the print dialog: it only counts how often it was opened. */
+  public readonly print = vi.fn<() => void>();
 }
 
 /** An analysis client whose answers the test decides. */
@@ -1677,6 +1681,53 @@ describe('saving a summary image', () => {
     await waitForStatus(page, SUMMARY_IMAGE_FAILED_STATUS);
 
     expect(reportTitle(page)).toBe('Ana');
+  });
+});
+
+describe('printing the report', () => {
+  it('does not open the print dialog until the button is pressed', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfAna(), 'Ana');
+
+    expect(page.browserWindow.print).not.toHaveBeenCalled();
+  });
+
+  it('opens the print dialog of the window when the button is pressed', () => {
+    const page = startTestPage();
+
+    page.elements.printButton.click();
+
+    expect(page.browserWindow.print).toHaveBeenCalledExactlyOnceWith();
+  });
+
+  it('opens it again for every press', () => {
+    const page = startTestPage();
+
+    page.elements.printButton.click();
+    page.elements.printButton.click();
+
+    expect(page.browserWindow.print).toHaveBeenCalledTimes(2);
+  });
+
+  it('prints the report as it is on display: nothing is redrawn or read again', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfAna(), 'Ana');
+    const reportBefore = page.elements.reportContainer.innerHTML;
+
+    page.elements.printButton.click();
+
+    expect(page.elements.reportContainer.innerHTML).toBe(reportBefore);
+    expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+    expect(page.elements.statusLine.hidden).toBe(true);
+  });
+
+  it('draws no summary image', () => {
+    const page = startTestPage();
+
+    page.elements.printButton.click();
+
+    expect(page.summaryImage.surfaceSizes).toEqual([]);
   });
 });
 
