@@ -3,7 +3,8 @@
  *
  * The work is done in four steps, each in its own module:
  *
- * 1. `export-entries` splits the text into entries and drops system notices.
+ * 1. `export-entries` splits the text into entries and drops system notices,
+ *    keeping those about the group (read by `group-notices`) on the side.
  * 2. `date-order` decides how to read the dates, from the file as a whole.
  * 3. `date-construction` builds a timestamp for every entry and rejects
  *    impossible ones.
@@ -15,6 +16,7 @@ import type {
   AmbiguousDateOrder,
   ChatMessage,
   DateOrder,
+  GroupEvent,
   ParsedChat,
   ParseReport,
   TimestampResolution,
@@ -22,7 +24,7 @@ import type {
 import { buildTimestamp } from './date-construction';
 import { detectDateOrder } from './date-order';
 import { readExportEntries } from './export-entries';
-import type { ExportEntriesReading, ExportEntry } from './export-entries';
+import type { ExportEntriesReading, ExportEntry, ExportGroupNotice } from './export-entries';
 import { removeEditedMessageSuffix } from './message-classification';
 import { foldPastedLines } from './pasted-lines';
 
@@ -70,6 +72,25 @@ function buildDatedMessages(entries: readonly ExportEntry[], dateOrder: DateOrde
 }
 
 /**
+ * Gives every group notice its timestamp, under the date order chosen from the
+ * messages. A notice whose date or time is impossible is left out; it remains
+ * counted as a system notice.
+ */
+function buildGroupEvents(
+  groupNotices: readonly ExportGroupNotice[],
+  dateOrder: DateOrder,
+): GroupEvent[] {
+  const groupEvents: GroupEvent[] = [];
+  for (const groupNotice of groupNotices) {
+    const timestamp = buildTimestamp(groupNotice, dateOrder);
+    if (timestamp !== null) {
+      groupEvents.push({ timestamp, change: groupNotice.change });
+    }
+  }
+  return groupEvents;
+}
+
+/**
  * Assembles the parse report from the counts of each step.
  */
 function createParseReport(
@@ -93,6 +114,7 @@ function createParseReport(
 function createEmptyParsedChat(reading: ExportEntriesReading): ParsedChat {
   return {
     messages: [],
+    groupEvents: [],
     dateOrder: null,
     isDateOrderAmbiguous: false,
     timestampResolution: 'second',
@@ -113,8 +135,9 @@ function createEmptyParsedChat(reading: ExportEntriesReading): ParsedChat {
  *   Ignored for year-first exports, which cannot be misread.
  * @param locale - The BCP 47 tag of the browser (`navigator.language`). Only
  *   used as the last tie-break between day/month and month/day.
- * @returns The messages in file order, how the dates were read and a report of
- *   what was skipped. `messages` is empty when the text is not a chat export.
+ * @returns The messages in file order, the notices about the group kept as
+ *   events, how the dates were read and a report of what was skipped.
+ *   `messages` is empty when the text is not a chat export.
  */
 export function parseChat(
   rawText: string,
@@ -136,6 +159,7 @@ export function parseChat(
 
   return {
     messages: folding.messages,
+    groupEvents: buildGroupEvents(reading.groupNotices, dateOrderDecision.dateOrder),
     dateOrder: dateOrderDecision.dateOrder,
     isDateOrderAmbiguous: dateOrderDecision.isAmbiguous,
     timestampResolution,

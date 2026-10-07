@@ -92,6 +92,111 @@ export interface DeletedMessage extends ChatMessageBase {
 export type ChatMessage = TextMessage | MediaMessage | DeletedMessage;
 
 /* -------------------------------------------------------------------------- */
+/* Group history                                                              */
+/* -------------------------------------------------------------------------- */
+
+/** Somebody a group notice names: a contact name or a phone number, as the notice wrote it. */
+export interface NamedGroupMember {
+  readonly kind: 'named';
+  /** The name exactly as the notice wrote it. They need not have written a message. */
+  readonly name: string;
+}
+
+/**
+ * Whoever made the export. Their own notices say "You" ("You added Bob",
+ * "Ana added you") and never give their name.
+ */
+export interface ExportingGroupMember {
+  readonly kind: 'exporter';
+}
+
+/** A person in a group notice, discriminated by `kind`. */
+export type GroupMember = NamedGroupMember | ExportingGroupMember;
+
+/** The group was created. */
+export interface GroupCreatedChange {
+  readonly kind: 'created';
+  /** Who created it. */
+  readonly creator: GroupMember;
+  /** The name it was given, or `null` when the notice does not state it. */
+  readonly groupName: string | null;
+}
+
+/** Somebody joined by themselves. */
+export interface MemberJoinedChange {
+  readonly kind: 'joined';
+  /** Who joined. */
+  readonly member: GroupMember;
+  /** Whether the notice says they used the invite link of the group. */
+  readonly isThroughInviteLink: boolean;
+}
+
+/** One or more people were added by somebody else. */
+export interface MembersAddedChange {
+  readonly kind: 'added';
+  /** Who was added; never empty. */
+  readonly members: readonly GroupMember[];
+  /** Who added them, or `null` when the notice does not say ("Bob was added"). */
+  readonly actor: GroupMember | null;
+}
+
+/** Somebody left by themselves. */
+export interface MemberLeftChange {
+  readonly kind: 'left';
+  /** Who left. */
+  readonly member: GroupMember;
+}
+
+/** One or more people were removed by somebody else. */
+export interface MembersRemovedChange {
+  readonly kind: 'removed';
+  /** Who was removed; never empty. */
+  readonly members: readonly GroupMember[];
+  /** Who removed them, or `null` when the notice does not say ("Bob was removed"). */
+  readonly actor: GroupMember | null;
+}
+
+/** The name of the group was changed. */
+export interface GroupRenamedChange {
+  readonly kind: 'renamed';
+  /** Who changed it. */
+  readonly actor: GroupMember;
+  /** The name before, or `null` when the notice does not state it. */
+  readonly previousName: string | null;
+  /** The name after, or `null` when the notice does not state it. */
+  readonly newName: string | null;
+}
+
+/** The picture of the group was changed. */
+export interface GroupIconChangedChange {
+  readonly kind: 'icon-changed';
+  /** Who changed it. */
+  readonly actor: GroupMember;
+}
+
+/** What a group notice says happened, discriminated by `kind`. */
+export type GroupChange =
+  | GroupCreatedChange
+  | MemberJoinedChange
+  | MembersAddedChange
+  | MemberLeftChange
+  | MembersRemovedChange
+  | GroupRenamedChange
+  | GroupIconChangedChange;
+
+/**
+ * One notice about who is in the group or what it is called, kept as an
+ * event. It is not a message: it is counted for nobody and creates no
+ * participant.
+ */
+export interface GroupEvent {
+  /** When the notice was written, in the local time zone of the device running the analysis. */
+  readonly timestamp: Date;
+  /** What happened. */
+  readonly change: GroupChange;
+}
+
+/* -------------------------------------------------------------------------- */
 /* Parsing                                                                    */
 /* -------------------------------------------------------------------------- */
 
@@ -128,7 +233,10 @@ export interface ParseReport {
   readonly nonEmptyLineCount: number;
   /** Lines that start with a timestamp, i.e. messages and system notices together. */
   readonly entryCount: number;
-  /** Entries dropped because they are system notices rather than messages. */
+  /**
+   * Entries that are system notices rather than messages. The notices kept as
+   * events ({@link ParsedChat.groupEvents}) are among them.
+   */
   readonly systemNoticeCount: number;
   /** Entries dropped because their date or time is impossible, such as 31/02. */
   readonly unreadableDateCount: number;
@@ -142,6 +250,12 @@ export interface ParseReport {
 export interface ParsedChat {
   /** The messages in the order they appear in the file. Empty when the text is not a chat export. */
   readonly messages: readonly ChatMessage[];
+  /**
+   * The system notices about who joined, left, was added or removed and what
+   * the group was called, in the order they appear in the file. Every other
+   * notice is dropped. Empty for a chat of two and when no message was found.
+   */
+  readonly groupEvents: readonly GroupEvent[];
   /** How the dates were read, or `null` when no message was found. */
   readonly dateOrder: DateOrder | null;
   /**
@@ -440,6 +554,13 @@ export interface ChatAnalysis {
    * year on).
    */
   readonly milestones: readonly ChatMilestone[];
+  /**
+   * The notices about who joined, left, was added or removed and what the
+   * group was called, oldest first. They are not messages and are part of no
+   * other number here; an event can be dated before the first message or
+   * after the last. Empty for a chat of two.
+   */
+  readonly groupEvents: readonly GroupEvent[];
   /**
    * The length in days of the two periods compared in "then and now": the
    * first so many days of the chat and the last so many. It is one year for a

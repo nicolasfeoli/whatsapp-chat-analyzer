@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest';
 import { extractWords } from '../../src/core/analysis/text-statistics';
 import { analyseChatExport } from '../../src/core/index';
 import { parseChat } from '../../src/core/parsing/parse-chat';
-import { androidLine, exportText, iphoneLine } from '../fixtures/export-lines';
+import { androidLine, androidNoticeLine, exportText, iphoneLine } from '../fixtures/export-lines';
 import { localTime, sendersOf, textsOf } from '../fixtures/messages';
 
 /** U+2019, the curly apostrophe an iPhone keyboard types by default. */
@@ -55,6 +55,51 @@ describe('known limits of the parser', () => {
       ]);
 
       expect(sendersOf(parseChat(rawText).messages)).toEqual(['Left Shark', 'Juan Added']);
+    });
+  });
+
+  describe('group notices', () => {
+    it('reads a contact saved as "Mum and Dad" as two people who were added', () => {
+      const rawText = exportText([
+        androidNoticeLine({ notice: 'Ana added Mum and Dad' }),
+        androidLine({ sender: 'Ana', text: 'welcome' }),
+      ]);
+
+      expect(parseChat(rawText).groupEvents[0]?.change).toMatchObject({
+        members: [
+          { kind: 'named', name: 'Mum' },
+          { kind: 'named', name: 'Dad' },
+        ],
+      });
+    });
+
+    it('drops a notice about somebody whose name holds the word "group"', () => {
+      const rawText = exportText([
+        androidNoticeLine({ notice: 'Book group Bob left' }),
+        androidLine({ sender: 'Ana', text: 'oh' }),
+      ]);
+
+      const parsedChat = parseChat(rawText);
+
+      expect(parsedChat.groupEvents).toEqual([]);
+      expect(parsedChat.report.systemNoticeCount).toBe(1);
+    });
+
+    it('drops a notice in a language other than English and Spanish', () => {
+      const rawText = exportText([
+        androidNoticeLine({ notice: 'Bob hat die Gruppe verlassen' }),
+        androidLine({ sender: 'Ana', text: 'oh' }),
+      ]);
+
+      expect(parseChat(rawText).groupEvents).toEqual([]);
+    });
+
+    it('drops an iPhone notice attributed to a sender when the export lost its mark', () => {
+      /* Without the left-to-right mark the words count as typed by Bob. */
+      const parsedChat = parseChat(iphoneLine({ sender: 'Bob', text: 'Bob left' }));
+
+      expect(parsedChat.groupEvents).toEqual([]);
+      expect(textsOf(parsedChat.messages)).toEqual(['Bob left']);
     });
   });
 

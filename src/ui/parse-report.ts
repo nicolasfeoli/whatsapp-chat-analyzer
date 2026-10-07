@@ -62,6 +62,9 @@ function describeUnreadableDates(unreadableDateCount: number, entryCount: number
 /**
  * Writes the parse report for a successfully analysed export.
  *
+ * The system notices are split in two: those kept as events of the group
+ * history and those skipped. Together they are the report's count of notices.
+ *
  * @param result - The analysis together with the parser's own bookkeeping.
  * @returns The text of the report line and whether it is a warning.
  */
@@ -74,12 +77,15 @@ export function summariseParseReport(result: AnalysedChatExportResult): ParseRep
 
   let text = `Read ${messages} from ${lines} of ${platform} export, dates as ${dateOrder}.`;
 
-  if (report.systemNoticeCount > 0) {
-    const notices = formatCountWithNoun(
-      report.systemNoticeCount,
-      'system notice',
-      'system notices',
-    );
+  const groupEventCount = result.analysis.groupEvents.length;
+  if (groupEventCount > 0) {
+    const groupEvents = formatCountWithNoun(groupEventCount, 'system notice', 'system notices');
+    text += ` Kept ${groupEvents} as group history.`;
+  }
+
+  const skippedNoticeCount = report.systemNoticeCount - groupEventCount;
+  if (skippedNoticeCount > 0) {
+    const notices = formatCountWithNoun(skippedNoticeCount, 'system notice', 'system notices');
     text += ` Skipped ${notices}.`;
   }
 

@@ -10,7 +10,7 @@
  */
 
 import { analyseChat, dateFromDayKey, dayKeyFromDate, sortableDayNumber } from '../core/index';
-import type { ChatAnalysis, ChatMessage } from '../core/index';
+import type { ChatAnalysis, ChatMessage, GroupEvent } from '../core/index';
 import { formatLongDate, padToTwoDigits } from './text-formatting';
 
 /** A stretch of local calendar days, both ends included. */
@@ -329,6 +329,23 @@ export function selectMessagesOfPeriod(
 }
 
 /**
+ * Picks the group events dated on the days of a period.
+ *
+ * @param groupEvents - Any group events.
+ * @param period - The days to keep, both ends included, in local time.
+ * @returns The events of those days, in the order they came in.
+ */
+export function selectGroupEventsOfPeriod(
+  groupEvents: readonly GroupEvent[],
+  period: Period,
+): GroupEvent[] {
+  return groupEvents.filter((groupEvent: GroupEvent): boolean => {
+    const dayKey = dayKeyFromDate(groupEvent.timestamp);
+    return dayKey >= period.firstDayKey && dayKey <= period.lastDayKey;
+  });
+}
+
+/**
  * Analyses the part of a chat that falls in a period, as if the export held
  * nothing else: every number, record and comparison is counted again from the
  * messages of those days.
@@ -346,7 +363,11 @@ export function analysePeriod(analysis: ChatAnalysis, period: Period): ChatAnaly
   if (messagesOfPeriod.length === 0) {
     return null;
   }
-  return analyseChat(messagesOfPeriod, analysis.timestampResolution);
+  return analyseChat(
+    messagesOfPeriod,
+    analysis.timestampResolution,
+    selectGroupEventsOfPeriod(analysis.groupEvents, period),
+  );
 }
 
 /**

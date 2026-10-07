@@ -522,3 +522,48 @@ describe('public API', () => {
     ]);
   });
 });
+
+describe('an invented group export with its history', () => {
+  const lines = [
+    androidNoticeLine({ date: '12/30/23', time: '9:00 PM', notice: 'Ana created group "Trip"' }),
+    androidNoticeLine({ date: '12/30/23', time: '9:01 PM', notice: 'Ana added Bob and Dani' }),
+    androidLine({ date: '12/31/23', time: '10:00 PM', sender: 'Ana', text: 'hi all' }),
+    androidNoticeLine({ date: '12/31/23', time: '10:01 PM', notice: 'Dani left' }),
+    androidLine({ date: '12/31/23', time: '10:02 PM', sender: 'Bob', text: 'hello' }),
+    androidNoticeLine({
+      date: '12/31/23',
+      time: '10:03 PM',
+      notice: 'Bob changed the group description',
+    }),
+  ];
+  const result = analyseExport(exportText(lines));
+  const withoutNotices = analyseExport(exportText(lines.filter((line) => line.includes(': '))));
+
+  it('hands the notices about the group to the analysis as events, oldest first', () => {
+    expect(result.analysis.groupEvents.map((groupEvent) => groupEvent.change.kind)).toEqual([
+      'created',
+      'added',
+      'left',
+    ]);
+  });
+
+  it('counts three of the four system notices as kept, in a report that still adds up', () => {
+    /* 6 entries: 2 messages and 4 notices; the change of description is not an event. */
+    expect(result.report.entryCount).toBe(6);
+    expect(result.report.systemNoticeCount).toBe(4);
+    expect(result.analysis.totalMessageCount).toBe(2);
+    expect(result.analysis.groupEvents).toHaveLength(3);
+  });
+
+  it('finds the two people who wrote, and not the one who was only added', () => {
+    expect(participantNames(result.analysis)).toEqual(['Ana', 'Bob']);
+  });
+
+  it('counts everything else exactly as for the same export without its notices', () => {
+    expect({ ...result.analysis, groupEvents: [] }).toEqual(withoutNotices.analysis);
+  });
+
+  it('returns events that survive the structured clone to and from the worker', () => {
+    expect(structuredClone(result.analysis.groupEvents)).toStrictEqual(result.analysis.groupEvents);
+  });
+});

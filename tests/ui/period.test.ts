@@ -14,13 +14,16 @@ import {
   isSamePeriod,
   listPeriodPresets,
   readPeriodFromDateFields,
+  selectGroupEventsOfPeriod,
   selectMessagesOfPeriod,
   wholeChatPeriod,
 } from '../../src/ui/period';
 import type { Period, PeriodPreset } from '../../src/ui/period';
 import type { ChatAnalysis } from '../../src/core/types';
 import { analyseMessages, findPerson, participantNames } from '../fixtures/analysis-readers';
+import { groupEvent, namedMember } from '../fixtures/group-events';
 import { textMessage, textsOf } from '../fixtures/messages';
+import { analyseChat } from '../../src/core/index';
 
 /**
  * Analyses a chat with one message from Ana at ten in the morning of each of the given days.
@@ -400,5 +403,71 @@ describe('describePeriod', () => {
     expect(describePeriod({ firstDayKey: 20230314, lastDayKey: 20230314 })).toBe(
       'Showing 14 Mar 2023 only, not the whole chat.',
     );
+  });
+});
+
+describe('the group history of a period', () => {
+  const bobJoined = groupEvent('2023-11-05 08:00', {
+    kind: 'joined',
+    member: namedMember('Bob'),
+    isThroughInviteLink: false,
+  });
+  const groupCreated = groupEvent('2023-10-01 12:00', {
+    kind: 'created',
+    creator: namedMember('Ana'),
+    groupName: null,
+  });
+  const anaLeft = groupEvent('2023-11-06 23:59', { kind: 'left', member: namedMember('Ana') });
+  const carlaAdded = groupEvent('2024-02-10 00:00', {
+    kind: 'added',
+    actor: namedMember('Bob'),
+    members: [namedMember('Carla')],
+  });
+  const groupEvents = [groupCreated, bobJoined, anaLeft, carlaAdded];
+
+  /** Ana and Bob wrote on 5 and 6 November 2023; Bob wrote alone on 10 February 2024. */
+  const chat = analyseChat(
+    [
+      textMessage({ sender: 'Ana', sentAt: '2023-11-05 09:00', text: 'breakfast tomorrow?' }),
+      textMessage({ sender: 'Bob', sentAt: '2023-11-06 08:00', text: 'on my way' }),
+      textMessage({ sender: 'Bob', sentAt: '2024-02-10 20:00', text: 'anybody there' }),
+    ],
+    'second',
+    groupEvents,
+  );
+
+  describe('selectGroupEventsOfPeriod', () => {
+    it('keeps the events of the first and the last day of the period, and none outside', () => {
+      const november = { firstDayKey: 20231105, lastDayKey: 20231106 };
+
+      expect(selectGroupEventsOfPeriod(groupEvents, november)).toEqual([bobJoined, anaLeft]);
+    });
+
+    it('keeps nothing when no event falls in the period', () => {
+      const december = { firstDayKey: 20231201, lastDayKey: 20231231 };
+
+      expect(selectGroupEventsOfPeriod(groupEvents, december)).toEqual([]);
+    });
+  });
+
+  describe('analysePeriod', () => {
+    it('keeps only the events of the period', () => {
+      const analysis = analysePeriod(chat, { firstDayKey: 20240101, lastDayKey: 20241231 });
+
+      expect(analysis?.groupEvents).toEqual([carlaAdded]);
+    });
+
+    it('keeps every event for the whole chat, also one from before the first message', () => {
+      const analysis = analysePeriod(chat, { firstDayKey: 20231105, lastDayKey: 20240210 });
+
+      expect(analysis?.groupEvents).toEqual([groupCreated, bobJoined, anaLeft, carlaAdded]);
+    });
+
+    it('goes by the days of the period, so an event after its last message is kept', () => {
+      /* Bob wrote at 08:00 on 6 November; Ana left at 23:59 that day. */
+      const analysis = analysePeriod(chat, { firstDayKey: 20231106, lastDayKey: 20231106 });
+
+      expect(analysis?.groupEvents).toEqual([anaLeft]);
+    });
   });
 });

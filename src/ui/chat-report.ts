@@ -18,6 +18,7 @@ import { renderCalendarSection } from './sections/calendar';
 import { DEFAULT_PEOPLE_SHOWN } from './sections/featured-people';
 import type { PeopleShown } from './sections/featured-people';
 import { renderConversationEndingsSection } from './sections/conversation-endings';
+import { renderGroupHistorySection } from './sections/group-history';
 import { renderHeatmapSection } from './sections/heatmap';
 import { renderInsightsSection } from './sections/insights';
 import { renderMediaTypesSection } from './sections/media-types';
@@ -79,6 +80,7 @@ export function renderChatReport(
     renderCalendarSection(analysis),
     renderThenAndNowSection(analysis, personColours, peopleShown),
     renderWhoIsStillHereSection(analysis, personColours, peopleShown),
+    renderGroupHistorySection(analysis, personColours),
     renderHeatmapSection(analysis),
     renderPeakTimesSection(analysis, personColours, peopleShown),
     renderRepliesSection(analysis, personColours, peopleShown),

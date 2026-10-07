@@ -11,6 +11,8 @@ import {
   parseReport,
   personStatistics,
 } from '../fixtures/analysis-builders';
+import { groupEvent, namedMember } from '../fixtures/group-events';
+import type { AnalysedChatExportResult } from '../../src/core/types';
 
 /**
  * Builds the analysis of a chat in which Ana sent the given number of messages.
@@ -188,5 +190,48 @@ describe('describeAmbiguousDateOrder', () => {
 
   it('names the other reading after a switch', () => {
     expect(describeAmbiguousDateOrder('mdy')).toContain('Reading them as month/day/year.');
+  });
+});
+
+describe('summariseParseReport, notices kept as group history', () => {
+  /**
+   * Builds the result of an export with so many system notices, of which so
+   * many were kept as events.
+   */
+  function resultWithNotices(
+    systemNoticeCount: number,
+    keptCount: number,
+  ): AnalysedChatExportResult {
+    const groupEvents = Array.from({ length: keptCount }, () =>
+      groupEvent('2024-01-13 10:00', { kind: 'left', member: namedMember('Bob') }),
+    );
+    return analysedResult({
+      analysis: chatAnalysis({ groupEvents }),
+      report: parseReport({ systemNoticeCount }),
+    });
+  }
+
+  it('says how many notices were kept and how many skipped, which add up to all of them', () => {
+    /* 12 notices, 5 of them events: 7 skipped. */
+    expect(summariseParseReport(resultWithNotices(12, 5)).text).toMatch(
+      / Kept 5 system notices as group history\. Skipped 7 system notices\.$/,
+    );
+  });
+
+  it('uses the singular for one notice kept and one skipped', () => {
+    expect(summariseParseReport(resultWithNotices(2, 1)).text).toMatch(
+      / Kept 1 system notice as group history\. Skipped 1 system notice\.$/,
+    );
+  });
+
+  it('says nothing about skipping when every notice was kept', () => {
+    const { text } = summariseParseReport(resultWithNotices(3, 3));
+
+    expect(text).toMatch(/ Kept 3 system notices as group history\.$/);
+    expect(text).not.toContain('Skipped');
+  });
+
+  it('does not make the report a warning', () => {
+    expect(summariseParseReport(resultWithNotices(3, 3)).isWarning).toBe(false);
   });
 });

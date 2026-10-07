@@ -19,6 +19,7 @@ import type {
   ChatAnalysis,
   ChatMessage,
   ChatMilestone,
+  GroupEvent,
   LongestSilence,
   TimestampResolution,
 } from '../types';
@@ -153,6 +154,16 @@ function createChatTotals(): ChatTotals {
     milestones: [],
     questionCountInOpenTurn: 0,
   };
+}
+
+/**
+ * Returns a copy of the group events sorted from oldest to newest. The sort is
+ * stable, so events of the same moment keep their order in the file.
+ */
+function sortGroupEventsChronologically(groupEvents: readonly GroupEvent[]): GroupEvent[] {
+  return [...groupEvents].sort(
+    (firstEvent, secondEvent) => firstEvent.timestamp.getTime() - secondEvent.timestamp.getTime(),
+  );
 }
 
 /**
@@ -493,6 +504,7 @@ function assignSignaturePhrases(totals: ChatTotals): void {
  * @param lastMessage - The newest message.
  * @param timestampResolution - Passed through to the result.
  * @param comparisonPeriodInDays - Passed through to the result.
+ * @param groupEvents - The group events, oldest first; passed through to the result.
  * @throws Error when the totals contradict themselves, which no input can cause.
  */
 function buildChatAnalysis(
@@ -502,6 +514,7 @@ function buildChatAnalysis(
   lastMessage: ChatMessage,
   timestampResolution: TimestampResolution,
   comparisonPeriodInDays: number,
+  groupEvents: readonly GroupEvent[],
 ): ChatAnalysis {
   const longestStreak = findLongestStreak(totals.messageCountsByDayKey);
   const busiestDay = findBusiestDay(totals.messageCountsByDayKey);
@@ -537,6 +550,7 @@ function buildChatAnalysis(
       firstMessage.timestamp,
       lastMessage.timestamp,
     ),
+    groupEvents,
     comparisonPeriodInDays,
     timestampResolution,
   };
@@ -554,6 +568,9 @@ function buildChatAnalysis(
  * @param timestampResolution - Whether the export records seconds or only
  *   minutes (from `ParsedChat.timestampResolution`); passed through to the
  *   result so the page can round reply times honestly.
+ * @param groupEvents - The notices about the group kept as events (from
+ *   `ParsedChat.groupEvents`), in any order. They are sorted and handed on;
+ *   they are not messages and change no number.
  * @returns Every number, ranking and record the page draws.
  * @throws RangeError when `messages` is empty, because a chat without messages
  *   has no first day, no busiest day and nothing else to report.
@@ -561,6 +578,7 @@ function buildChatAnalysis(
 export function analyseChat(
   messages: readonly ChatMessage[],
   timestampResolution: TimestampResolution,
+  groupEvents: readonly GroupEvent[] = [],
 ): ChatAnalysis {
   const chronologicalMessages = sortMessagesChronologically(messages);
   const firstMessage = chronologicalMessages[0];
@@ -579,5 +597,6 @@ export function analyseChat(
     lastMessage,
     timestampResolution,
     comparisonPeriods.lengthInDays,
+    sortGroupEventsChronologically(groupEvents),
   );
 }

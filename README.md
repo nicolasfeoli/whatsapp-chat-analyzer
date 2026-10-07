@@ -25,7 +25,7 @@ I wanted to know what one of my group chats looked like from the outside. After 
 WhatsApp can export a chat as a text file, but the file is thousands of lines with no summary. This page turns it into something you can read in a minute and share with the group:
 
 - **Answers to the arguments.** Who writes most, who starts the conversations, who replies fastest, who answers whom and how fast, who mentions whom, who edits their messages after sending them, on which weekday and at what hour each person mostly writes, whose questions are left hanging, and who sends five messages in a row before anyone answers.
-- **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence, who took over the chat since it began, who has not written in a long time, and the milestones on the way: the 10,000th message and who sent it, the day half of everything had been said, the latest anniversary. A calendar with one square per day shows every year at a glance, down to the single day the chat fell silent or boiled over. Pick a year, the last twelve months or any two dates, and the whole report is counted again for just that stretch.
+- **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence, who took over the chat since it began, who has not written in a long time, and the milestones on the way: the 10,000th message and who sent it, the day half of everything had been said, the latest anniversary. For a group, its history as WhatsApp noted it: who created it, who joined, was added, left or was removed and when, what it used to be called, and how many people came and went in all. A calendar with one square per day shows every year at a glance, down to the single day the chat fell silent or boiled over. Pick a year, the last twelve months or any two dates, and the whole report is counted again for just that stretch.
 - **Its personality.** The words, catchphrases and emojis each person uses far more than everyone else, who laughs the most in writing, who answers in one word or one emoji and who writes paragraphs, and who sends the stickers, the photos and the voice notes, and which sites the links lead to, for the chat and for each person. A row of awards near the top hands out the titles: the night owl, the novelist, the opener, each with the number that earned it. And for the word the lists did not pick, a search field: type any word or short phrase and see how many messages contain it, who says it most, and how that changed from month to month.
 
 A chat is also other people's messages, and they never agreed to have them analysed by a stranger's server. So the page is built so that you do not have to trust it: the file is read inside your browser tab and nothing is uploaded. A switch replaces the names with neutral labels and hides message text before you share a screenshot. A button draws the headline numbers as one picture to pass on, with the names or with the labels, and it is drawn inside the tab like everything else. Another opens the print dialog, where the whole report comes out as pages or as a PDF, without the controls and in colours meant for paper. In a large group the report lists the most active people, and another switch lists everyone. Whoever is left out can still be looked up: one section shows a single person of your choice up close, with their numbers, the hours and weekdays they write in, their words, and whom they answer and mention most.
@@ -66,7 +66,7 @@ A chat export contains messages from people who never agreed to have them analys
 - **A Content-Security-Policy with `connect-src 'none'`.** Page scripts cannot fetch, post or open a socket, so a careless addition such as an analytics snippet fails instead of leaking a chat.
 - **No third-party requests.** JSZip is bundled into the page's own script at build time and the fonts are kept in `public/fonts/`. Their licence notices ship with the build, in `THIRD-PARTY-LICENCES.txt` and `fonts/`. The built page loads nothing from any other server.
 - **Untrusted text is escaped** before it reaches the DOM, and the compiler checks it. Names and messages are attacker-controlled input: anyone in a group chat can set their name. Markup has its own type, `SafeHtml`, which a plain string cannot be assigned to, so a name that was never escaped does not compile.
-- **A parse report after every load** states how many messages were read, how many system notices were skipped and how many entries had unreadable dates, so a half-understood file does not pass for a complete one.
+- **A parse report after every load** states how many messages were read, how many system notices were kept as group history and how many skipped, and how many entries had unreadable dates, so a half-understood file does not pass for a complete one.
 
 The policy is a `<meta>` tag, which leaves gaps: it does not apply inside the worker and cannot stop another site from framing the page. Closing them needs a host that can send HTTP headers; see "Known limits" in the roadmap.
 
@@ -93,7 +93,7 @@ The dev server relaxes `connect-src` to its own WebSocket so hot reload works. `
 ## Tests
 
 ```sh
-npm test               # Vitest, 2,800 tests in 85 files
+npm test               # Vitest, 3,013 tests in 87 files
 npm run test:coverage  # the same, with a coverage report in coverage/
 npm run check          # type check, lint, formatting, tests with coverage, build
 ```
@@ -115,7 +115,7 @@ Every chat line in the tests is invented, and the zips are built inside the test
 | Path                   | What it does                                                                                            |
 | ---------------------- | ------------------------------------------------------------------------------------------------------- |
 | `src/core/`            | No DOM and no browser globals; shared by the page, the worker and the tests                             |
-| `src/core/parsing/`    | Line pattern, invisible characters, message kinds, date order, pasted lines                             |
+| `src/core/parsing/`    | Line pattern, invisible characters, message kinds, group notices, date order, pasted lines              |
 | `src/core/analysis/`   | Per-person statistics, words, emojis, link sites, streaks, silences, milestones, the word search        |
 | `src/ui/`              | `main.ts` entry, the page controller, file loading, the worker client, periods, the rules of the awards |
 | `src/ui/sections/`     | One module per section of the report                                                                    |

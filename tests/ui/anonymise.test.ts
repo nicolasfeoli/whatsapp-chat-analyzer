@@ -5,10 +5,12 @@ import {
   SOMEBODY_ELSE_LABEL,
   anonymiseAnalysis,
   anonymousLabelOf,
+  anonymousMemberLabelOf,
 } from '../../src/ui/anonymise';
 import type { ChatAnalysis } from '../../src/core/types';
 import { assignPersonColours } from '../../src/ui/person-colours';
 import { renderAwardsSection } from '../../src/ui/sections/awards';
+import { renderGroupHistorySection } from '../../src/ui/sections/group-history';
 import { renderMilestonesSection } from '../../src/ui/sections/milestones';
 import { renderPeakTimesSection } from '../../src/ui/sections/peak-times';
 import { renderPersonProfileSection } from '../../src/ui/sections/person-profile';
@@ -18,6 +20,7 @@ import { renderTextingStyleSection } from '../../src/ui/sections/texting-style';
 import { renderWhoIsStillHereSection } from '../../src/ui/sections/who-is-still-here';
 import { renderWordSearchOutcome } from '../../src/ui/sections/word-search';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
+import { THE_EXPORTER, groupEvent, namedMember } from '../fixtures/group-events';
 import { localMidnight, localTime, mediaMessage, textMessage } from '../fixtures/messages';
 
 const longestMessage = textMessage({
@@ -625,5 +628,113 @@ describe('anonymiseAnalysis', () => {
     expect(namedChat.people[0]?.name).toBe('Ana');
     expect(namedChat.messages[0]?.text).toBe('hello Bob');
     expect(namedChat.wordCounts.has('bob')).toBe(true);
+  });
+});
+
+describe('anonymiseAnalysis, the history of the group', () => {
+  const carla = namedMember('~ Carla');
+  const dani = namedMember('Dani who never wrote');
+  const eva = namedMember('Eva who never wrote');
+
+  /** The group of Ana, Bob Vega and Carla, with two people who came and went without a word. */
+  const chatWithHistory = chatAnalysis({
+    people: namedChat.people,
+    groupEvents: [
+      groupEvent('2023-03-14 08:00', {
+        kind: 'created',
+        creator: namedMember('Ana'),
+        groupName: 'Vega family',
+      }),
+      groupEvent('2023-03-14 08:01', {
+        kind: 'added',
+        actor: namedMember('Ana'),
+        members: [namedMember('Bob Vega'), namedMember('Carla'), dani, eva, THE_EXPORTER],
+      }),
+      groupEvent('2023-04-01 09:00', { kind: 'joined', member: carla, isThroughInviteLink: true }),
+      groupEvent('2023-05-01 09:00', { kind: 'left', member: eva }),
+      groupEvent('2023-06-01 09:00', { kind: 'removed', actor: null, members: [dani] }),
+      groupEvent('2023-07-01 09:00', {
+        kind: 'renamed',
+        actor: namedMember('Bob Vega'),
+        previousName: 'Vega family',
+        newName: 'Ana and the Vegas',
+      }),
+      groupEvent('2023-08-01 09:00', { kind: 'icon-changed', actor: eva }),
+      groupEvent('2023-09-01 09:00', { kind: 'left', member: THE_EXPORTER }),
+    ],
+  });
+  const hiddenEvents = anonymiseAnalysis(chatWithHistory).groupEvents;
+  const hiddenChanges = hiddenEvents.map((hiddenEvent) => hiddenEvent.change);
+
+  it('gives a participant the label they have everywhere else', () => {
+    expect(hiddenChanges[0]).toMatchObject({ creator: namedMember('Person A') });
+    expect(hiddenChanges[5]).toMatchObject({ actor: namedMember('Person B') });
+  });
+
+  it('recognises a participant written with or without the tilde of a stranger', () => {
+    expect(hiddenChanges[1]).toMatchObject({
+      members: expect.arrayContaining([namedMember('Person C')]) as unknown,
+    });
+    expect(hiddenChanges[2]).toMatchObject({ member: namedMember('Person C') });
+  });
+
+  it('gives each person who never wrote a numbered label, in order of first appearance', () => {
+    expect(anonymousMemberLabelOf(0)).toBe('Member 1');
+    expect(hiddenChanges[1]).toEqual({
+      kind: 'added',
+      actor: namedMember('Person A'),
+      members: [
+        namedMember('Person B'),
+        namedMember('Person C'),
+        namedMember('Member 1'),
+        namedMember('Member 2'),
+        THE_EXPORTER,
+      ],
+    });
+  });
+
+  it('keeps the same label for that person in every later event', () => {
+    expect(hiddenChanges[3]).toEqual({ kind: 'left', member: namedMember('Member 2') });
+    expect(hiddenChanges[4]).toEqual({
+      kind: 'removed',
+      actor: null,
+      members: [namedMember('Member 1')],
+    });
+    expect(hiddenChanges[6]).toEqual({ kind: 'icon-changed', actor: namedMember('Member 2') });
+  });
+
+  it('leaves out every name the group had', () => {
+    expect(hiddenChanges[0]).toMatchObject({ groupName: null });
+    expect(hiddenChanges[5]).toMatchObject({ previousName: null, newName: null });
+  });
+
+  it('keeps whoever made the export as they are, since "You" is not a name', () => {
+    expect(hiddenChanges[7]).toEqual({ kind: 'left', member: THE_EXPORTER });
+  });
+
+  it('keeps the dates and the order of the events', () => {
+    expect(hiddenEvents.map((hiddenEvent) => hiddenEvent.timestamp)).toEqual(
+      chatWithHistory.groupEvents.map((groupEvent) => groupEvent.timestamp),
+    );
+  });
+
+  it('does not modify the events it was given', () => {
+    expect(chatWithHistory.groupEvents[0]?.change).toMatchObject({ groupName: 'Vega family' });
+  });
+
+  it('leaves no name and no group name in the section', () => {
+    const hiddenChat = anonymiseAnalysis(chatWithHistory);
+
+    const sectionHtml = renderGroupHistorySection(
+      hiddenChat,
+      assignPersonColours(hiddenChat.people),
+    );
+
+    for (const name of ['Ana', 'Bob', 'Vega', 'Carla', 'Dani', 'Eva', 'family']) {
+      expect(sectionHtml).not.toContain(name);
+    }
+    expect(sectionHtml).toContain('Person A</span> created the group<');
+    expect(sectionHtml).toContain('Person B</span> changed the group name<');
+    expect(sectionHtml).toContain('Member 2');
   });
 });
