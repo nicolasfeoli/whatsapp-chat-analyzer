@@ -45,6 +45,8 @@ export interface PageElements {
   readonly periodToInput: HTMLInputElement;
   /** The note that says which days the report shows, while that is not the whole chat. */
   readonly periodNote: HTMLElement;
+  /** The button that draws the headline numbers as one picture and saves it as a PNG file. */
+  readonly saveSummaryImageButton: HTMLButtonElement;
   /** The container the report is rendered into. */
   readonly reportContainer: HTMLElement;
   /** The floating tooltip shared by the charts. */
@@ -97,6 +99,7 @@ export function findPageElements(): PageElements {
     periodFromInput: getRequiredElement('period-from-input', HTMLInputElement),
     periodToInput: getRequiredElement('period-to-input', HTMLInputElement),
     periodNote: getRequiredElement('period-note', HTMLElement),
+    saveSummaryImageButton: getRequiredElement('save-summary-image-button', HTMLButtonElement),
     reportContainer: getRequiredElement('report', HTMLElement),
     tooltip: getRequiredElement('tooltip', HTMLElement),
   };
