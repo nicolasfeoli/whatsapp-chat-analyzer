@@ -1,6 +1,6 @@
 # Review and roadmap
 
-Started as a review of a single AI-generated `index.html` on 2026-10-05. The parser is covered by Node tests with invented chats, the page is checked end to end in headless Firefox, and it has been run against one real iPhone en-US export. Android and other languages are tested only with invented lines that follow the known export layouts.
+Started as a review of a single AI-generated `index.html` on 2026-10-05. The parser is covered by tests with invented chats, the page is checked end to end in headless Firefox, and it has been run against one real iPhone en-US export. Android and other languages are tested only with invented lines that follow the known export layouts.
 
 ## Verdict
 
@@ -8,7 +8,7 @@ The page works, renders correctly, and the core design is sound: no backend, no 
 
 ## Fixed on 2026-10-05
 
-Each fix has a test in `test/parser.test.js` (run `node --test`), and the page was checked against one real iPhone en-US export.
+Each fix has a test (now under `tests/core`, run `npm test`), and the page was checked against one real iPhone en-US export.
 
 1. **Crash on large chats.** The spread into `Math.max` is now a loop. Tested with 400,000 messages.
 2. **iPhone deleted messages, locations and polls.** Lines carrying the left-to-right mark are now classified by type instead of all being dropped. System notices are still dropped.
@@ -21,26 +21,62 @@ Each fix has a test in `test/parser.test.js` (run `node --test`), and the page w
 9. **Other languages.** Android placeholders are recognised in any language. Deleted, attachment, poll and location markers were added for Portuguese, German, French and Italian. Arabic, Persian and Devanagari digits and Arabic am/pm are read. These strings come from memory of the export formats and have not been checked against real exports in those languages.
 10. **Counting.** Keycap emojis and subdivision flags are counted; Android `null` lines count as media; the reply insight and chart share one threshold; a participant named "Others" no longer collides with the grouped series.
 11. **Markup.** Proper `<head>`, `lang`, meta description.
-12. **Third-party requests.** JSZip and the fonts are vendored under `vendor/`. The page now makes no request to any other server.
+12. **Third-party requests.** JSZip and the fonts are served from the site itself. The page now makes no request to any other server.
 
 ## Hardening done on 2026-10-05
 
-- **Split into files.** `index.html`, `style.css`, `core.js` (parsing and analysis, no DOM), `app.js` (rendering and loading), `worker.js`.
+- **Split into files.** Page shell, styles, a core for parsing and analysis with no DOM access, rendering and loading, and a worker.
 - **Content-Security-Policy.** Only the site's own files load; no inline scripts; scripts cannot open connections. Checked in Firefox: no violations with the example chat, a text file, a zip, and a 300,000-message file.
 - **Web Worker.** Parsing and analysis run off the main thread, with a status line while they run. The worker keeps the text for the date-order switch, so the page holds no second copy. Falls back to the main thread where workers are refused.
 - **Parse report.** After loading, the page states messages read, lines, platform, date order, system notices skipped, and any entries whose date could not be read (with a warning when that is more than 2%).
 - **Size caps.** 250 MB of text, 400 MB zip, and the chat inside a zip is checked before unpacking.
 - **Privacy note, source link, favicon, Open Graph title and description.**
 
+## Repository housekeeping on 2026-10-06
+
+- MIT licence added.
+- Source formatted with Prettier; no behaviour change.
+- GitHub Actions runs `npm run check` on Node 22 and 24 for every pull request and every push to `main`.
+- Bug report template that asks for invented lines instead of a real chat.
+- `CONTRIBUTING.md` with setup, code style and test conventions.
+- A Pages workflow that builds and deploys `dist/`. It only runs when started by hand, and Pages is not enabled on the repository yet.
+
+### Rewrite in TypeScript on 2026-10-06
+
+- **Strict TypeScript.** The three JavaScript files (`core.js`, `app.js`, `worker.js`) became small modules under `src/core`, `src/ui` and `src/worker`. Message kinds, analysis results and worker messages are discriminated unions.
+- **Same behaviour.** The old implementation was kept as the specification while porting. Parsing and analysis were compared on tens of thousands of generated chats, and the rendered report was compared string for string. The README screenshots were retaken from the built page and came out pixel for pixel the same, so they were left as they were.
+- **Tooling.** Vite builds the page, Vitest runs the tests, ESLint (typescript-eslint, strict type-checked) and Prettier keep the style. `npm run check` runs all of it and is what CI runs. The page now has a build step: it is no longer a folder that can be served as it is.
+- **JSZip from npm.** It is bundled into the page's own script at build time; the vendored copy is gone. Fonts moved to `public/fonts/`. The built page still requests nothing from another server.
+- **Tests for the page.** Section renderers, charts, file loading, the worker client and the real `index.html` are tested in a simulated browser, including a chat made of markup. The suite went from one file of parser tests to 1,520 tests in 50 files, with coverage thresholds of 90% for the core and 85% each for the page and the worker code.
+- **Known limits are pinned.** `tests/core/known-limits.test.ts` has tests for the parser limits listed below, so fixing one means changing a test on purpose.
+- **Escaping checked by the compiler.** Markup has its own type, `SafeHtml`. Only `escapeHtml` and the `` html`...` `` tag produce it, and the tag does not accept plain strings, so chat text that was never escaped cannot reach `innerHTML`.
+- **Whole words in the markup.** Element ids, CSS classes and `data-` attributes were renamed from the old abbreviations (`.c`, `.sw`, `#tip`, `data-v`) to names that say what they are. The stylesheet's declarations did not change, and the rendered report was compared with the old one again after the renaming.
+- **A page controller that can be started more than once.** `main.ts` only gathers the browser's services; `page-controller.ts` holds the behaviour and receives them as parameters, so each test starts a page of its own.
+- **Licence notices in the build.** The bundler strips the comments that carried the notices of JSZip and the libraries inside it. `public/THIRD-PARTY-LICENCES.txt` restores them and is copied into `dist/`; a test keeps it in step with the installed versions.
+- **The core cannot reach the DOM.** `tsconfig.core.json` compiles `src/core` without the DOM library, and ESLint forbids it browser globals and imports from the page.
+- **Any thrown object with a message is shown.** As in the JavaScript version, a failure while reading a file shows the `message` of whatever was thrown, also when it is not an `Error` of the page's own realm.
+
 ## Known limits
 
 - Pasted chat lines from a real participant are counted as extra messages from them.
 - iPhone system or media lines in a language without a marker table are dropped rather than counted.
 - A message that only says something like `<lol>` is counted as media.
+- A typed message that contains "security code", "missed video call", "end-to-end encrypted" or the Spanish equivalents is dropped as a system notice.
+- A contact whose name has a group verb in the middle, such as "Uncle Left Shark", is dropped as a system notice. "Left Shark" is kept.
+- "This message was deleted by admin Bob" counts as typed text, because the deleted-message marker must match the whole line.
+- An iPhone placeholder after a sender written with a space before the colon (`Ana : image omitted`) counts as typed text.
+- A typed continuation line that itself starts like a timestamp (`01/01/24 10:00 - breakfast with Bob: yes`) becomes a message from an invented sender.
+- A participant whose only messages are dated more than ten minutes before the message above them is folded away as pasted text. A line pasted after a media message is counted as folded but its text is not kept.
+- Seconds above 59 roll over into the next minute, and "13:00 AM" is read as 01:00, instead of being rejected.
+- Year-first dates with a two-digit year are misread: `24/12/31` as 24 December 2031, `45/12/31` as 31 December 1945.
+- Forcing a date order that the file contradicts rejects every date and reports "no messages" instead of ignoring the forced order.
+- Words are split at a curly apostrophe (`don’t`) and at accents typed as combining characters.
+- The legend reads "1 others" for a single extra person, and "Busiest day ... with 1 messages" for a day with one message.
 - Only Latin and Latin Extended font subsets are vendored.
-- The policy is a `<meta>` tag, so it cannot forbid other sites from framing the page, and it does not cover `worker.js` itself (which only runs this repo's code). Sending it as an HTTP header would close both; GitHub Pages cannot set headers, Cloudflare Pages and Netlify can.
+- The policy is a `<meta>` tag, so it cannot forbid other sites from framing the page, and it does not cover the worker script itself (which only runs this repo's code). Sending it as an HTTP header would close both; GitHub Pages cannot set headers, Cloudflare Pages and Netlify can.
 - Inline `style` attributes are still allowed, because the charts set colours and widths that way.
-- The fallback for pages opened straight from disk has not been exercised in Chrome. Serving the folder over HTTP is the tested path.
+- The built page cannot be opened straight from disk: the browser refuses its scripts and styles, so it has to be served over HTTP. The main-thread fallback remains for browsers that refuse or lack module workers.
+- `npm run dev` relaxes `connect-src` to the dev server's own WebSocket so hot reload works. The file on disk and the production build keep `connect-src 'none'`.
 - The status line names the stage but shows no percentage.
 
 ## Risks of running it publicly
@@ -56,7 +92,6 @@ Each fix has a test in `test/parser.test.js` (run `node --test`), and the page w
 ### Legal
 
 - **Trademark.** Meta's brand rules do not allow "WhatsApp" in a product name or domain in a way that suggests affiliation, and domains containing it do get takedown notices. Use a neutral name with "for WhatsApp" as a descriptor, keep the disclaimer, and do not use the logo or the brand green.
-- **No licence file.** Without one, nobody may legally reuse the code. Pick one (MIT is the usual choice for this kind of project).
 
 ### Product
 
@@ -71,7 +106,6 @@ Each fix has a test in `test/parser.test.js` (run `node --test`), and the page w
 
 These need a decision rather than more code.
 
-- Choose a licence (MIT is the usual choice).
 - Decide on the name, given the trademark risk above.
 - Make the repository public and pick a host. GitHub Pages is the simplest; a host that can send headers allows a stricter policy.
 - Once the public URL is known: add `og:url`, a social preview image, and point the footer link at the public repo.
@@ -113,7 +147,7 @@ These need a decision rather than more code.
 
 ### Project hygiene
 
-- GitHub Actions: run tests, validate HTML, deploy to Pages.
-- Dependabot or a pinned-hash check for vendored libraries.
-- Issue templates that warn against attaching real chats.
+- GitHub Actions: validate HTML. Enable Pages and run the deploy workflow once a host is chosen.
+- One smoke test in a real browser (Playwright against `vite preview`): load a `.txt`, check that the report renders with no Content-Security-Policy violation. It is the only way to prove that `worker-src 'self'` and `connect-src 'none'` work together with the real worker; the suite uses stand-ins for `Worker` and for the worker's global scope.
+- Dependabot for the npm dependencies.
 - A `SECURITY.md` with a contact address.

@@ -1,0 +1,314 @@
+// @vitest-environment jsdom
+
+/**
+ * Tests of the whole report, from the text of an invented export to the
+ * elements on the page.
+ *
+ * The most important block here is the one on hostile text: a chat export is
+ * untrusted input, and the page is drawn by assigning strings to `innerHTML`,
+ * so every name, message and file name must arrive on the page as text.
+ */
+
+import { describe, expect, it } from 'vitest';
+
+import { analyseChatExport } from '../../src/core/index';
+import type { ChatAnalysis } from '../../src/core/index';
+import { renderHeatmapTooltip } from '../../src/ui/charts/heatmap';
+import { renderTimelineSvg, renderTimelineTooltip } from '../../src/ui/charts/timeline';
+import { renderChatReport } from '../../src/ui/chat-report';
+import { androidLine, exportText, iphoneLine } from '../fixtures/export-lines';
+import { findElement, parseMarkup, tagNamesIn, textsOfElements } from '../fixtures/markup';
+
+/** The width the timeline is drawn at in these tests. */
+const TIMELINE_WIDTH_IN_PIXELS = 800;
+
+/**
+ * Every kind of element the report is built from. Anything else on the page
+ * can only have come from the chat.
+ */
+const ELEMENTS_THE_REPORT_IS_BUILT_FROM: readonly string[] = [
+  'b',
+  'div',
+  'h2',
+  'h3',
+  'i',
+  'li',
+  'line',
+  'p',
+  'path',
+  'rect',
+  'section',
+  'small',
+  'span',
+  'svg',
+  'table',
+  'tbody',
+  'td',
+  'text',
+  'th',
+  'thead',
+  'tr',
+  'ul',
+];
+
+/** Matches the name of an attribute that would run script, such as `onerror` or `onclick`. */
+const EVENT_HANDLER_ATTRIBUTE_PATTERN = /^on/i;
+
+/**
+ * Analyses the text of an invented export and fails the test when no message
+ * could be read.
+ */
+function analyseExport(rawText: string): ChatAnalysis {
+  const result = analyseChatExport(rawText, null, 'en-GB');
+  if (result.kind !== 'analysed') {
+    throw new Error('The invented export could not be read');
+  }
+  return result.analysis;
+}
+
+/**
+ * Puts everything the page would show for a chat into one container: the
+ * report, the timeline drawn into its placeholder, and the tooltip of every
+ * timeline bar and of one heatmap square.
+ */
+function renderWholePage(analysis: ChatAnalysis, title: string): HTMLDivElement {
+  const report = renderChatReport(analysis, title);
+  const page = parseMarkup(report.html);
+
+  findElement(page, '#timeline').innerHTML = renderTimelineSvg(
+    report.timeline,
+    TIMELINE_WIDTH_IN_PIXELS,
+  );
+
+  const tooltips = document.createElement('div');
+  report.timeline.buckets.forEach((_bucket, bucketIndex) => {
+    tooltips.innerHTML += renderTimelineTooltip(report.timeline, bucketIndex);
+  });
+  tooltips.innerHTML += renderHeatmapTooltip({ weekdayIndex: 0, hour: 0, messageCount: 1 });
+  page.append(tooltips);
+
+  return page;
+}
+
+/**
+ * Lists the name of every attribute, on any element, that would run script.
+ */
+function eventHandlerAttributesIn(container: ParentNode): string[] {
+  const attributeNames: string[] = [];
+  for (const element of container.querySelectorAll('*')) {
+    for (const attributeName of element.getAttributeNames()) {
+      if (EVENT_HANDLER_ATTRIBUTE_PATTERN.test(attributeName)) {
+        attributeNames.push(attributeName);
+      }
+    }
+  }
+  return attributeNames;
+}
+
+/**
+ * Writes ten alternating messages a minute apart, so both people have enough
+ * replies and typed messages for every section and insight to appear.
+ */
+function writeConversation(firstSender: string, secondSender: string, text: string): string[] {
+  const lines: string[] = [];
+  for (let minute = 0; minute < 20; minute += 1) {
+    const sender = minute % 2 === 0 ? firstSender : secondSender;
+    const time = `10:${String(minute).padStart(2, '0')}:00`;
+    lines.push(iphoneLine({ date: '13/01/2024', time, sender, text }));
+  }
+  return lines;
+}
+
+describe('renderChatReport', () => {
+  describe('sections', () => {
+    const analysis = analyseExport(exportText(writeConversation('Ana', 'Bob', 'see you later')));
+
+    it('renders the sections in the order of the page', () => {
+      const page = parseMarkup(renderChatReport(analysis, 'Ana and Bob').html);
+
+      expect(textsOfElements(page, 'h2')).toEqual([
+        'Ana and Bob',
+        'What stands out',
+        'Who says what',
+        'Activity over time',
+        'When the chat is alive',
+        'Replies and openings',
+        'Words and emojis',
+        'From the record',
+      ]);
+    });
+
+    it('starts with the heading and the headline numbers, outside any section', () => {
+      const page = parseMarkup(renderChatReport(analysis, 'Ana and Bob').html);
+
+      const outline = Array.from(page.children, (child) => child.className || child.tagName);
+
+      expect(outline).toEqual([
+        'chat-heading',
+        'headline-statistics',
+        'SECTION',
+        'SECTION',
+        'SECTION',
+        'SECTION',
+        'SECTION',
+        'SECTION',
+        'SECTION',
+      ]);
+    });
+
+    it('leaves the timeline container empty and hands the data over for drawing', () => {
+      const report = renderChatReport(analysis, 'Ana and Bob');
+
+      expect(findElement(parseMarkup(report.html), '#timeline').childNodes).toHaveLength(0);
+      expect(report.timeline.granularity).toBe('day');
+      expect(report.timeline.series.map((series) => series.label)).toEqual(['Ana', 'Bob']);
+      expect(report.timeline.buckets.map((bucket) => bucket.totalMessageCount)).toEqual([20]);
+    });
+
+    it('says in the timeline caption how long a bar is', () => {
+      const page = parseMarkup(renderChatReport(analysis, 'Ana and Bob').html);
+
+      expect(page.textContent).toContain('Messages per day, stacked by person.');
+    });
+
+    it('leaves out "Replies and openings" for a chat with a single sender', () => {
+      const monologue = analyseExport(androidLine({ sender: 'Ana', text: 'note to self' }));
+
+      const page = parseMarkup(renderChatReport(monologue, 'Notes').html);
+
+      expect(textsOfElements(page, 'h2')).not.toContain('Replies and openings');
+      expect(page.querySelectorAll('section')).toHaveLength(6);
+    });
+  });
+
+  describe('a group of eight', () => {
+    /** Each person sends one message fewer than the one before, so the order is certain. */
+    const eightPeople = ['Ana', 'Bob', 'Carla', 'Dani', 'Eva', 'Fede', 'Gus', 'Hugo'];
+    const lines = eightPeople.flatMap((sender, index) => {
+      const messageCount = eightPeople.length - index;
+      return Array.from({ length: messageCount }, (_unused, messageIndex) =>
+        iphoneLine({
+          date: '13/01/2024',
+          time: `1${index}:0${messageIndex}:00`,
+          sender,
+          text: 'hello',
+        }),
+      );
+    });
+    const analysis = analyseExport(exportText(lines));
+    const report = renderChatReport(analysis, 'Group');
+    const page = parseMarkup(report.html);
+
+    it('colours six people and counts the other two in the legend', () => {
+      expect(textsOfElements(page, '.legend span')).toEqual([
+        'Ana',
+        'Bob',
+        'Carla',
+        'Dani',
+        'Eva',
+        'Fede',
+        '2 others',
+      ]);
+    });
+
+    it('stacks six people and "Others" in the timeline', () => {
+      expect(report.timeline.series.map((series) => series.label)).toEqual([
+        'Ana',
+        'Bob',
+        'Carla',
+        'Dani',
+        'Eva',
+        'Fede',
+        'Others',
+      ]);
+      expect(report.timeline.buckets[0]?.messageCountsBySeries).toEqual([8, 7, 6, 5, 4, 3, 3]);
+    });
+
+    it('names "Others" with its count in the tooltip of the timeline', () => {
+      const tooltip = parseMarkup(renderTimelineTooltip(report.timeline, 0));
+
+      expect(textsOfElements(tooltip, '.tooltip-row')).toContain('Others3');
+      expect(textsOfElements(tooltip, '.tooltip-row')).toContain('Total36');
+    });
+
+    it('still lists all eight in the table of people', () => {
+      expect(page.querySelectorAll('tbody tr')).toHaveLength(8);
+    });
+  });
+
+  describe('hostile text in the export', () => {
+    const hostileSender = '<img src=x onerror=alert(1)>';
+    const quoteBreakingSender = 'Bob" onmouseover="alert(2)" x="';
+    const hostileMessage =
+      '<script>alert(3)</script> <svg onload=alert(4)> <a href="javascript:alert(5)">win a prize</a>';
+    const hostileTitle = '"><iframe src="javascript:alert(6)"></iframe>';
+
+    const rawText = exportText(
+      writeConversation(hostileSender, quoteBreakingSender, hostileMessage),
+    );
+    const analysis = analyseExport(rawText);
+    const page = renderWholePage(analysis, hostileTitle);
+
+    it('is read as two senders and twenty typed messages, markup and all', () => {
+      expect(analysis.people.map((person) => person.name)).toEqual([
+        hostileSender,
+        quoteBreakingSender,
+      ]);
+      expect(analysis.messages[0]?.text).toBe(hostileMessage);
+    });
+
+    it('creates no element other than the ones the report is built from', () => {
+      const unexpectedTagNames = tagNamesIn(page).filter(
+        (tagName) => !ELEMENTS_THE_REPORT_IS_BUILT_FROM.includes(tagName),
+      );
+
+      expect(unexpectedTagNames).toEqual([]);
+    });
+
+    it('creates no image, script, frame or link', () => {
+      expect(page.querySelectorAll('img, script, iframe, a, object, embed')).toHaveLength(0);
+    });
+
+    it('creates only the one drawing of the timeline', () => {
+      expect(page.querySelectorAll('svg')).toHaveLength(1);
+      expect(findElement(page, 'svg').hasAttribute('onload')).toBe(false);
+    });
+
+    it('sets no attribute that would run script', () => {
+      expect(eventHandlerAttributesIn(page)).toEqual([]);
+    });
+
+    it('shows the title as text', () => {
+      expect(findElement(page, '.chat-heading h2').textContent).toBe(hostileTitle);
+    });
+
+    it('shows the senders as text wherever they are named', () => {
+      expect(textsOfElements(page, '.legend span')).toEqual([hostileSender, quoteBreakingSender]);
+      expect(textsOfElements(page, 'tbody td:first-child')).toEqual([
+        hostileSender,
+        quoteBreakingSender,
+      ]);
+      expect(textsOfElements(page, '.bubble .person-name')).toContain(hostileSender);
+    });
+
+    it('keeps a sender with quotes inside the title attribute of their bar', () => {
+      const labelTitles = Array.from(
+        page.querySelectorAll('.horizontal-bars .bar-label'),
+        (label) => label.getAttribute('title'),
+      );
+
+      expect(labelTitles).toContain(quoteBreakingSender);
+    });
+
+    it('shows the message as text in its bubble', () => {
+      expect(textsOfElements(page, '.bubble .bubble-text')).toContain(hostileMessage);
+    });
+
+    it('is caught by these checks when it is not escaped, which proves they can fail', () => {
+      const unescapedPage = parseMarkup(`<div class="person-name">${hostileSender}</div>`);
+
+      expect(unescapedPage.querySelectorAll('img')).toHaveLength(1);
+      expect(eventHandlerAttributesIn(unescapedPage)).toEqual(['onerror']);
+    });
+  });
+});

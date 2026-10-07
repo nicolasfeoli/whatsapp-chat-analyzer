@@ -1,0 +1,55 @@
+# Builds the page and publishes dist/ to GitHub Pages.
+#
+# GitHub Pages is NOT enabled on this repository yet, so this workflow only runs
+# when someone starts it by hand from the Actions tab; nothing triggers it on a
+# push. Before the first run: Settings > Pages > Source > "GitHub Actions".
+# Until then the deploy job fails without publishing anything.
+#
+# Read "Before going public" in ROADMAP.md first. GitHub Pages cannot send HTTP
+# headers, so the Content-Security-Policy stays a <meta> tag with the gaps
+# listed under "Known limits".
+
+name: Deploy to GitHub Pages
+
+on:
+  workflow_dispatch:
+
+# Nothing is granted at the top level; each job asks for what it needs.
+permissions: {}
+
+# Let a deployment that has started finish, and never run two at once.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      # The same gate as CI, which also leaves the production build in dist/.
+      - run: npm run check
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist/
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      # Both are required by actions/deploy-pages: one to publish, one to prove where the build came from.
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
