@@ -319,6 +319,90 @@ describe('collectInsights', () => {
     });
   });
 
+  describe('who has gone quiet', () => {
+    /**
+     * Builds a chat of the whole of 2024 (366 days) between Ana, who writes to
+     * the end, and the people given.
+     */
+    function yearLongChatWith(otherPeople: readonly PersonStatistics[]): ChatAnalysis {
+      const ana = personStatistics({
+        name: 'Ana',
+        messageCount: 500,
+        firstMessageTimestamp: localTime('2024-01-01 09:00'),
+        lastMessageTimestamp: localTime('2024-12-31 22:00'),
+      });
+      return analysisOf([ana, ...otherPeople], {
+        spanInDays: 366,
+        firstMessageTimestamp: localTime('2024-01-01 09:00'),
+        lastMessageTimestamp: localTime('2024-12-31 22:00'),
+      });
+    }
+
+    /**
+     * Builds somebody who wrote from 2 January 2024 until a last day.
+     */
+    function personQuietSince(
+      name: string,
+      messageCount: number,
+      lastDay: string,
+    ): PersonStatistics {
+      return personStatistics({
+        name,
+        messageCount,
+        firstMessageTimestamp: localTime('2024-01-02 09:00'),
+        lastMessageTimestamp: localTime(`${lastDay} 18:00`),
+      });
+    }
+
+    it('names the person, their last day and how much of the chat they missed', () => {
+      /* 14 March to 31 December 2024 is 292 days, 9.6 months. */
+      const analysis = yearLongChatWith([personQuietSince('Carla', 300, '2024-03-14')]);
+
+      expect(findInsight(analysis, 'has not written')).toBe(
+        '<b>Carla</b> has not written since <b>14 Mar 2024</b>, the last 10 months of the chat.',
+      );
+    });
+
+    it('is left out when nobody has been silent for more than 90 days', () => {
+      /* 2 October to 31 December 2024 is exactly 90 days. */
+      const analysis = yearLongChatWith([personQuietSince('Carla', 300, '2024-10-02')]);
+
+      expect(findInsight(analysis, 'has not written')).toBeUndefined();
+    });
+
+    it('is left out for somebody who wrote fewer than 20 messages', () => {
+      const analysis = yearLongChatWith([personQuietSince('Carla', 19, '2024-03-14')]);
+
+      expect(findInsight(analysis, 'has not written')).toBeUndefined();
+    });
+
+    it('is written from 20 messages on', () => {
+      const analysis = yearLongChatWith([personQuietSince('Carla', 20, '2024-03-14')]);
+
+      expect(findInsight(analysis, 'has not written')).toContain('<b>Carla</b>');
+    });
+
+    it('names the most active of several people who have gone quiet', () => {
+      const analysis = yearLongChatWith([
+        personQuietSince('Carla', 300, '2024-06-01'),
+        personQuietSince('Dani', 200, '2024-02-01'),
+      ]);
+
+      expect(findInsight(analysis, 'has not written')).toContain('<b>Carla</b>');
+    });
+
+    it('is left out of a chat too short for a silence to mean anything', () => {
+      const carla = personQuietSince('Carla', 300, '2024-01-03');
+      const analysis = analysisOf([personStatistics({ name: 'Ana', messageCount: 500 }), carla], {
+        spanInDays: 179,
+        firstMessageTimestamp: localTime('2024-01-01 09:00'),
+        lastMessageTimestamp: localTime('2024-06-27 22:00'),
+      });
+
+      expect(findInsight(analysis, 'has not written')).toBeUndefined();
+    });
+  });
+
   describe('the busiest day', () => {
     it('is always named, with its message count', () => {
       const analysis = chatAnalysis({

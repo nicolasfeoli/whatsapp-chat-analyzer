@@ -24,8 +24,12 @@ const HOUR_COUNT = 24;
 /** The parts of a person's statistics a test cares about; `name` is always stated. */
 export type PersonStatisticsParts = Partial<PersonStatistics> & Pick<PersonStatistics, 'name'>;
 
+/** When a person wrote first and last unless a test says otherwise: the one day of the default chat. */
+const DEFAULT_PERSON_MESSAGE_TIME = '2024-01-13 10:00';
+
 /**
- * Builds the statistics of one participant. Everything not stated is zero or empty.
+ * Builds the statistics of one participant. Everything not stated is zero or
+ * empty, and their first and last message are on the day of the default chat.
  *
  * @param parts - The name and the numbers the test is about.
  * @returns Complete statistics for that person.
@@ -45,6 +49,8 @@ export function personStatistics(parts: PersonStatisticsParts): PersonStatistics
     nightMessageCount: 0,
     messageCountsByHour: new Array<number>(HOUR_COUNT).fill(0),
     messageCountsByWeekday: new Array<number>(WEEKDAY_COUNT).fill(0),
+    firstMessageTimestamp: localTime(DEFAULT_PERSON_MESSAGE_TIME),
+    lastMessageTimestamp: localTime(DEFAULT_PERSON_MESSAGE_TIME),
     replyDelaysInMilliseconds: [],
     mentionCountsByName: new Map<string, number>(),
     signaturePhrases: [],

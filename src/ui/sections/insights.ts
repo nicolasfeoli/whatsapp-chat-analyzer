@@ -29,6 +29,7 @@ import {
 } from './featured-people';
 import type { PeopleShown } from './featured-people';
 import { renderSectionHeading } from './section-heading';
+import { countSilentDaysAtEnd, formatSilence, hasGoneQuiet } from './who-is-still-here';
 
 /** The "for every 10 from X, Y sends N" comparison is expressed per this many messages. */
 const MESSAGES_IN_RATIO_COMPARISON = 10;
@@ -47,6 +48,13 @@ const MINIMUM_TURNS_FOR_MESSAGES_IN_A_ROW = 5;
 
 /** A streak of a single day is not worth mentioning. */
 const SHORTEST_STREAK_WORTH_MENTIONING_IN_DAYS = 2;
+
+/**
+ * A person needs this many messages before their silence is put into a
+ * sentence. Somebody who said hello twice three years ago did not go quiet;
+ * they were never part of the chat.
+ */
+const MINIMUM_MESSAGES_FOR_GONE_QUIET = 20;
 
 /**
  * For a chat of two, how many messages the more active person sends for every
@@ -187,6 +195,26 @@ function describeLongestSilence(analysis: ChatAnalysis): SafeHtml | null {
 }
 
 /**
+ * The most active person who has gone quiet, and since when.
+ */
+function describePersonGoneQuiet(
+  analysis: ChatAnalysis,
+  peopleShown: PeopleShown,
+): SafeHtml | null {
+  /* The people are ranked by messages, so the first match is the one whose absence shows most. */
+  const quietPerson = selectFeaturedPeople(analysis.people, peopleShown).find(
+    (person: PersonStatistics): boolean =>
+      person.messageCount >= MINIMUM_MESSAGES_FOR_GONE_QUIET && hasGoneQuiet(person, analysis),
+  );
+  if (quietPerson === undefined) {
+    return null;
+  }
+  const lastDay = escapeHtml(formatLongDate(quietPerson.lastMessageTimestamp));
+  const silence = escapeHtml(formatSilence(countSilentDaysAtEnd(quietPerson, analysis)));
+  return html`${renderBoldName(quietPerson.name)} has not written since <b>${lastDay}</b>, the last ${silence} of the chat.`;
+}
+
+/**
  * The day with the most messages.
  */
 function describeBusiestDay(analysis: ChatAnalysis): SafeHtml {
@@ -311,6 +339,7 @@ export function collectInsights(
     hasSeveralPeople ? describeConversationStarter(analysis) : null,
     describeLongestStreak(analysis),
     describeLongestSilence(analysis),
+    describePersonGoneQuiet(analysis, peopleShown),
     describeBusiestDay(analysis),
     describeMostFrequentLaugher(analysis, peopleShown),
     describeLongestWriter(analysis, peopleShown),

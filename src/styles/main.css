@@ -644,6 +644,10 @@ td:first-child {
   font-size: 18px;
   overflow-wrap: anywhere;
 }
+td.presence-gone-quiet {
+  color: var(--muted);
+  font-style: italic;
+}
 .profile-facts {
   margin: 0;
   display: grid;

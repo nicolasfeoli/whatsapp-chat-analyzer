@@ -432,6 +432,64 @@ describe('analyseChat', () => {
     });
   });
 
+  describe("each person's first and last message", () => {
+    const messages = [
+      textMessage({ sender: 'Ana', sentAt: '2023-03-14 09:00' }),
+      textMessage({ sender: 'Carla', sentAt: '2023-03-15 18:30' }),
+      mediaMessage({ sender: 'Carla', sentAt: '2023-06-01 12:00' }),
+      textMessage({ sender: 'Bob', sentAt: '2023-07-02 08:00' }),
+      deletedMessage({ sender: 'Ana', sentAt: '2024-02-20 23:15:30' }),
+    ];
+
+    it('records when each person wrote for the first time', () => {
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').firstMessageTimestamp).toEqual(
+        localTime('2023-03-14 09:00'),
+      );
+      expect(findPerson(analysis, 'Carla').firstMessageTimestamp).toEqual(
+        localTime('2023-03-15 18:30'),
+      );
+    });
+
+    it('records when each person wrote for the last time, whatever kind of message it was', () => {
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Carla').lastMessageTimestamp).toEqual(
+        localTime('2023-06-01 12:00'),
+      );
+      expect(findPerson(analysis, 'Ana').lastMessageTimestamp).toEqual(
+        localTime('2024-02-20 23:15:30'),
+      );
+    });
+
+    it('gives somebody who wrote once the same first and last message', () => {
+      const bob = findPerson(analyseMessages(messages), 'Bob');
+
+      expect(bob.firstMessageTimestamp).toEqual(localTime('2023-07-02 08:00'));
+      expect(bob.lastMessageTimestamp).toEqual(bob.firstMessageTimestamp);
+    });
+
+    it('goes by the time of the messages, not by their order in the file', () => {
+      const shuffledMessages = [messages[4], messages[2], messages[0], messages[1]].filter(
+        (message) => message !== undefined,
+      );
+
+      const ana = findPerson(analyseMessages(shuffledMessages), 'Ana');
+
+      expect(ana.firstMessageTimestamp).toEqual(localTime('2023-03-14 09:00'));
+      expect(ana.lastMessageTimestamp).toEqual(localTime('2024-02-20 23:15:30'));
+    });
+
+    it('ends the chat with the last message of whoever wrote last', () => {
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').lastMessageTimestamp).toEqual(
+        analysis.lastMessageTimestamp,
+      );
+    });
+  });
+
   describe('heatmap of weekday and hour', () => {
     it('has seven rows of twenty-four hours', () => {
       const { weekdayHourHeatmap } = analyseMessages([textMessage()]);

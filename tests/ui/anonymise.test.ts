@@ -9,8 +9,9 @@ import {
 import type { ChatAnalysis } from '../../src/core/types';
 import { assignPersonColours } from '../../src/ui/person-colours';
 import { renderPersonProfileSection } from '../../src/ui/sections/person-profile';
+import { renderWhoIsStillHereSection } from '../../src/ui/sections/who-is-still-here';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
-import { mediaMessage, textMessage } from '../fixtures/messages';
+import { localTime, mediaMessage, textMessage } from '../fixtures/messages';
 
 const longestMessage = textMessage({
   sender: 'Bob Vega',
@@ -236,6 +237,51 @@ describe('anonymiseAnalysis', () => {
     expect(sectionHtml).toContain('Person B</span><small>7 replies</small>');
     expect(sectionHtml).toContain('Somebody else</span><small>5 mentions</small>');
     expect(sectionHtml).toContain('dinner<small>3</small>');
+  });
+
+  describe('"Who is still here"', () => {
+    /** A chat of the whole of 2024 in which Carla stopped writing in March. */
+    const yearLongChat = chatAnalysis({
+      spanInDays: 366,
+      firstMessageTimestamp: localTime('2024-01-01 09:00'),
+      lastMessageTimestamp: localTime('2024-12-31 22:00'),
+      people: [
+        personStatistics({
+          name: 'Ana',
+          messageCount: 30,
+          firstMessageTimestamp: localTime('2024-01-01 09:00'),
+          lastMessageTimestamp: localTime('2024-12-31 22:00'),
+        }),
+        personStatistics({
+          name: '~ Carla',
+          messageCount: 10,
+          firstMessageTimestamp: localTime('2024-01-02 09:00'),
+          lastMessageTimestamp: localTime('2024-03-14 18:00'),
+        }),
+      ],
+    });
+    const hiddenYearLongChat = anonymiseAnalysis(yearLongChat);
+
+    it('keeps when each person wrote first and last', () => {
+      expect(hiddenYearLongChat.people[1]?.firstMessageTimestamp).toEqual(
+        localTime('2024-01-02 09:00'),
+      );
+      expect(hiddenYearLongChat.people[1]?.lastMessageTimestamp).toEqual(
+        localTime('2024-03-14 18:00'),
+      );
+    });
+
+    it('lists labels instead of names, with the same dates and status', () => {
+      const sectionHtml = renderWhoIsStillHereSection(
+        hiddenYearLongChat,
+        assignPersonColours(hiddenYearLongChat.people),
+      );
+
+      expect(sectionHtml).toContain('Person B</td><td>2 Jan 2024</td><td>14 Mar 2024</td>');
+      expect(sectionHtml).toContain('Gone quiet');
+      expect(sectionHtml).not.toContain('Ana');
+      expect(sectionHtml).not.toContain('Carla');
+    });
   });
 
   it('does not change the analysis it was given', () => {

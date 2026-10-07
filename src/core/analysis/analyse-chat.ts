@@ -143,16 +143,17 @@ function sortMessagesChronologically(messages: readonly ChatMessage[]): ChatMess
 }
 
 /**
- * Looks up the totals of a sender, creating them on the first message.
+ * Looks up the totals of the sender of a message, creating them when it is
+ * the first message from that sender.
  */
-function getOrCreatePerson(totals: ChatTotals, sender: string): PersonStatisticsAccumulator {
-  const existingPerson = totals.peopleByName.get(sender);
+function getOrCreatePerson(totals: ChatTotals, message: ChatMessage): PersonStatisticsAccumulator {
+  const existingPerson = totals.peopleByName.get(message.sender);
   if (existingPerson !== undefined) {
     return existingPerson;
   }
 
-  const newPerson = createPersonStatisticsAccumulator(sender);
-  totals.peopleByName.set(sender, newPerson);
+  const newPerson = createPersonStatisticsAccumulator(message.sender, message.timestamp);
+  totals.peopleByName.set(message.sender, newPerson);
   return newPerson;
 }
 
@@ -367,8 +368,10 @@ function accumulateChatTotals(
   let previous: CountedMessage | null = null;
 
   for (const message of chronologicalMessages) {
-    const person = getOrCreatePerson(totals, message.sender);
+    const person = getOrCreatePerson(totals, message);
     person.messageCount += 1;
+    /* The messages are walked oldest first, so the latest one seen is the newest so far. */
+    person.lastMessageTimestamp = message.timestamp;
 
     recordWhenMessageWasSent(totals, person, message.timestamp);
     recordComparisonPeriod(person, message.timestamp, comparisonPeriods);
@@ -392,8 +395,10 @@ function assignSignaturePhrases(totals: ChatTotals): void {
     return;
   }
   for (const [name, personPhraseCounts] of totals.phraseCountsByName) {
-    const person = getOrCreatePerson(totals, name);
-    person.signaturePhrases = findSignaturePhrases(personPhraseCounts, totals.phraseCounts);
+    const person = totals.peopleByName.get(name);
+    if (person !== undefined) {
+      person.signaturePhrases = findSignaturePhrases(personPhraseCounts, totals.phraseCounts);
+    }
   }
 }
 

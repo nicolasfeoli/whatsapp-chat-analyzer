@@ -19,9 +19,14 @@ export type PersonStatisticsAccumulator = Mutable<PersonStatistics>;
  * Creates the totals for a participant who has not been counted yet.
  *
  * @param name - The participant's name as written in the export.
+ * @param firstMessageTimestamp - When the message that introduces them was
+ *   sent. Until a later message is recorded it is their last message too.
  * @returns Totals with every count at zero.
  */
-export function createPersonStatisticsAccumulator(name: string): PersonStatisticsAccumulator {
+export function createPersonStatisticsAccumulator(
+  name: string,
+  firstMessageTimestamp: Date,
+): PersonStatisticsAccumulator {
   return {
     name,
     messageCount: 0,
@@ -37,6 +42,8 @@ export function createPersonStatisticsAccumulator(name: string): PersonStatistic
     nightMessageCount: 0,
     messageCountsByHour: new Array<number>(HOURS_PER_DAY).fill(0),
     messageCountsByWeekday: new Array<number>(DAYS_PER_WEEK).fill(0),
+    firstMessageTimestamp,
+    lastMessageTimestamp: firstMessageTimestamp,
     replyDelaysInMilliseconds: [],
     mentionCountsByName: new Map<string, number>(),
     signaturePhrases: [],

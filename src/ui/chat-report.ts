@@ -31,6 +31,7 @@ import { renderReplyPairsSection } from './sections/reply-pairs';
 import { renderSummarySection } from './sections/summary';
 import { renderThenAndNowSection } from './sections/then-and-now';
 import { renderTimelineSection } from './sections/timeline';
+import { renderWhoIsStillHereSection } from './sections/who-is-still-here';
 import { renderWordsAndEmojisSection } from './sections/words-and-emojis';
 
 /** The report as markup, plus the data the page needs to draw the timeline into it. */
@@ -67,6 +68,7 @@ export function renderChatReport(
     renderMediaTypesSection(analysis, personColours, peopleShown),
     renderTimelineSection(timeline.granularity),
     renderThenAndNowSection(analysis, personColours, peopleShown),
+    renderWhoIsStillHereSection(analysis, personColours, peopleShown),
     renderHeatmapSection(analysis),
     renderRepliesSection(analysis, personColours, peopleShown),
     renderReplyPairsSection(analysis, personColours, peopleShown),
