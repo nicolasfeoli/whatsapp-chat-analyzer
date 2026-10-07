@@ -69,6 +69,11 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - Catchphrases are runs of two or three neighbouring words. A phrase that several people share is nobody's catchphrase, however typical of the chat it is.
 - "Then and now" compares message counts only, and needs a chat of at least sixty days.
 - The sections that compare people list the eight most active, and the words of the six who have a colour of their own. "Show everyone" lists them all, but the timeline still merges everyone beyond the sixth into "Others", and a grid of a large group is wide and mostly empty.
+- A period is cut out of the messages and analysed as if the export held nothing else. A conversation that runs across the first or last midnight of the period is cut in two, the reply to a message of the day before is not counted, and "then and now", the streaks and the silences are measured inside the period only. The heading shows the first and last day with messages, which can lie inside the dates that were picked.
+- Periods are local calendar days of the device that runs the analysis, like every other time on the page. The ready-made periods are the whole chat, the last twelve months and the calendar years; a single month or a quarter has to be typed as two dates.
+- A period is analysed on the main thread, not in the worker, from the messages the page already holds. In a chat of several hundred thousand messages the page does not react for a moment after a period is chosen; the status line says so first, and going back to the whole chat is instant.
+- With "Hide names", the labels follow the ranking inside the period, so "Person A" of one year can be somebody else in the next.
+- The period row is not offered for a chat shorter than sixty days that lies within one calendar year. The line that says what was read always describes the whole file.
 - "Hide names" replaces names and hides message text, and takes the words of the names out of the word lists. Nicknames, the remaining words and the dates are still shown, so a screenshot can still give a chat away to somebody who knows it.
 - A typed continuation line that itself starts like a timestamp (`01/01/24 10:00 - breakfast with Bob: yes`) becomes a message from an invented sender.
 - A participant whose only messages are dated more than ten minutes before the message above them is folded away as pasted text. A line pasted after a media message is counted as folded but its text is not kept.
@@ -131,7 +136,8 @@ These need a decision rather than more code.
 
 ### Features
 
-- Date range filter and per-person filter that update every chart.
+- Per-person filter that updates every chart.
+- Ready-made periods for single months or quarters, and analysing a period in the worker.
 - Shareable summary card rendered to an image, with an anonymise toggle (Person A, Person B) and message text hidden by default.
 - "Wrapped"-style year recap view.
 - Per-person heatmaps; who is active at which hours.

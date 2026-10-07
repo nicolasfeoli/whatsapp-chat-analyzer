@@ -1,7 +1,7 @@
 /**
  * What happens on the page, and when: connects the file picker, drag and
- * drop, the date-order switch and the window events to the analysis and the
- * report.
+ * drop, the date-order switch, the display switches, the period row and the
+ * window events to the analysis and the report.
  *
  * The modules this file draws on are pure wherever possible; the DOM work is
  * gathered here so there is one place to look for "what happens when".
@@ -28,6 +28,22 @@ import { COLOURED_PEOPLE_LIMIT } from './person-colours';
 import { cleanChatTitle, describeFileLoadingFailure, readChatTextFromFile } from './file-loading';
 import { setInnerHtml } from './html';
 import { describeAmbiguousDateOrder, summariseParseReport } from './parse-report';
+import {
+  analysePeriod,
+  isPeriodChoiceWorthOffering,
+  isSamePeriod,
+  listPeriodPresets,
+  NO_MESSAGES_IN_PERIOD_STATUS,
+  wholeChatPeriod,
+} from './period';
+import type { Period, PeriodPreset } from './period';
+import {
+  offerPeriodChoices,
+  readChosenPeriod,
+  selectCustomPeriod,
+  showDisplayedPeriod,
+  showPeriodInDateFields,
+} from './period-control';
 import { SAMPLE_CHAT_TITLE, generateSampleChatText } from './sample-chat';
 import type { PeopleShown } from './sections/featured-people';
 import { TIMELINE_CONTAINER_ID } from './sections/timeline';
@@ -42,6 +58,16 @@ export const TIMELINE_REDRAW_DELAY_IN_MILLISECONDS = 120;
 
 /** Shown while the file's text is handed to the analysis. */
 export const READING_MESSAGES_STATUS = 'Reading messages …';
+
+/** Shown while the messages of a chosen period are counted again. */
+export const ANALYSING_PERIOD_STATUS = 'Counting the messages of that period …';
+
+/**
+ * How long the page waits before it analyses a chosen period. The analysis
+ * runs on the main thread and blocks the page while it does, so the browser
+ * is first given time to paint the status line.
+ */
+export const PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS = 30;
 
 /** Shown when the file was read but held nothing that looks like a message. */
 export const NO_MESSAGES_FOUND_STATUS =
@@ -97,10 +123,22 @@ export interface PageDependencies {
 interface DisplayedChat {
   /** The title above the report, reused when the date order is switched. */
   readonly title: string;
-  /** The analysis the report was drawn from, kept so it can be redrawn with or without names. */
+  /** The analysis of the whole chat, kept so every period can be counted from its messages. */
   readonly analysis: ChatAnalysis;
   /** The order the dates were read in, so the switch knows which one is "the other". */
   readonly dateOrder: DateOrder;
+  /** The period of the whole chat. */
+  readonly wholeChat: Period;
+  /** The ready-made periods the period list offers for this chat. */
+  readonly periodPresets: readonly PeriodPreset[];
+  /** The period the report on display is drawn for. */
+  readonly period: Period;
+  /**
+   * The analysis of that period, which the report is drawn from; kept so it
+   * can be redrawn with or without names. It is `analysis` itself while the
+   * period is the whole chat.
+   */
+  readonly periodAnalysis: ChatAnalysis;
 }
 
 /** Where a chat came from, which decides what surrounds the report. */
@@ -126,6 +164,9 @@ class PageController {
   /** The timer of the pending timeline redraw, if a resize is in progress. */
   private timelineRedrawTimer: number | undefined = undefined;
 
+  /** The timer of a period that was chosen but is not analysed yet. */
+  private periodAnalysisTimer: number | undefined = undefined;
+
   public constructor(dependencies: PageDependencies) {
     this.pageElements = dependencies.pageElements;
     this.tooltip = dependencies.tooltip;
@@ -145,6 +186,7 @@ class PageController {
     this.connectDragAndDrop();
     this.connectDateOrderSwitch();
     this.connectDisplaySwitches();
+    this.connectPeriodControl();
     this.connectWindowEvents();
     this.showSampleChat();
   }
@@ -234,8 +276,30 @@ class PageController {
     title: string,
     origin: ChatOrigin,
   ): void {
-    this.displayedChat = { title, dateOrder: result.dateOrder, analysis: result.analysis };
+    /* A period of the previous chat that is still waiting must not be drawn over this one. */
+    this.browserWindow.clearTimeout(this.periodAnalysisTimer);
+    this.periodAnalysisTimer = undefined;
+
+    const wholeChat = wholeChatPeriod(result.analysis);
+    const periodPresets = listPeriodPresets(result.analysis);
+    /* Another file, or the same one read with the other date order, starts at the whole chat again. */
+    this.displayedChat = {
+      title,
+      dateOrder: result.dateOrder,
+      analysis: result.analysis,
+      wholeChat,
+      periodPresets,
+      period: wholeChat,
+      periodAnalysis: result.analysis,
+    };
     this.showStatus('', false);
+    offerPeriodChoices(
+      this.pageElements,
+      periodPresets,
+      wholeChat,
+      isPeriodChoiceWorthOffering(result.analysis, periodPresets),
+    );
+    showDisplayedPeriod(this.pageElements, periodPresets, wholeChat, wholeChat);
 
     const isSample = origin === 'sample';
     this.pageElements.sampleNote.hidden = !isSample;
@@ -277,6 +341,7 @@ class PageController {
    */
   private async loadChatFile(file: File): Promise<void> {
     try {
+      this.forgetPendingPeriod();
       this.showStatus(`Opening ${file.name} …`, true);
       const rawText = await readChatTextFromFile(file);
 
@@ -298,9 +363,97 @@ class PageController {
     const { title, dateOrder } = this.displayedChat;
     const otherDateOrder: AmbiguousDateOrder = dateOrder === 'dmy' ? 'mdy' : 'dmy';
 
+    this.forgetPendingPeriod();
     this.showStatus(READING_MESSAGES_STATUS, true);
     const outcome = await this.analysisClient.reanalyseRetainedText(otherDateOrder);
     this.showAnalysisOutcome(outcome, title, 'loaded-file');
+  }
+
+  /**
+   * Gives up a period that was chosen but is not analysed yet, and puts the
+   * period row back to the period on display. Reading a file takes over the
+   * status line, and its report would be overwritten by the late period.
+   */
+  private forgetPendingPeriod(): void {
+    this.browserWindow.clearTimeout(this.periodAnalysisTimer);
+    this.periodAnalysisTimer = undefined;
+    if (this.displayedChat !== null) {
+      const { periodPresets, period, wholeChat } = this.displayedChat;
+      showDisplayedPeriod(this.pageElements, periodPresets, period, wholeChat);
+    }
+  }
+
+  /**
+   * Draws the report for a period of the chat on display and makes the period
+   * row say so.
+   */
+  private showPeriod(displayedChat: DisplayedChat, period: Period, analysis: ChatAnalysis): void {
+    this.displayedChat = { ...displayedChat, period, periodAnalysis: analysis };
+    this.showStatus('', false);
+    showDisplayedPeriod(
+      this.pageElements,
+      displayedChat.periodPresets,
+      period,
+      displayedChat.wholeChat,
+    );
+    this.showChatReport(analysis, displayedChat.title);
+  }
+
+  /**
+   * Counts the messages of a period again and shows the report for it. A
+   * period without messages leaves the report as it is and says so.
+   */
+  private analyseAndShowPeriod(displayedChat: DisplayedChat, period: Period): void {
+    const periodAnalysis = analysePeriod(displayedChat.analysis, period);
+    if (periodAnalysis === null) {
+      this.showStatus(NO_MESSAGES_IN_PERIOD_STATUS, false);
+      return;
+    }
+    this.showPeriod(displayedChat, period, periodAnalysis);
+  }
+
+  /**
+   * Reacts to a choice in the period row: reads the chosen period and redraws
+   * the report for it from the messages the page already holds. Dates that
+   * cannot be used leave the report as it is and say why in the status line.
+   *
+   * The whole chat is drawn at once, because its analysis is kept. Any other
+   * period is analysed on the main thread, which blocks the page for a moment
+   * in a large chat, so the status line is shown first and the work starts
+   * after the browser had time to paint it.
+   */
+  private changePeriod(): void {
+    const displayedChat = this.displayedChat;
+    if (displayedChat === null) {
+      return;
+    }
+    this.browserWindow.clearTimeout(this.periodAnalysisTimer);
+    this.periodAnalysisTimer = undefined;
+
+    const { periodPresets, wholeChat } = displayedChat;
+    const reading = readChosenPeriod(this.pageElements, periodPresets, wholeChat);
+    if (reading.kind === 'unusable') {
+      this.showStatus(reading.reason, false);
+      return;
+    }
+    const { period } = reading;
+    /* A ready-made period fills the date fields at once, before its report is ready. */
+    showPeriodInDateFields(this.pageElements, period);
+
+    if (isSamePeriod(period, displayedChat.period)) {
+      this.showPeriod(displayedChat, period, displayedChat.periodAnalysis);
+      return;
+    }
+    if (isSamePeriod(period, wholeChat)) {
+      this.showPeriod(displayedChat, period, displayedChat.analysis);
+      return;
+    }
+
+    this.showStatus(ANALYSING_PERIOD_STATUS, true);
+    this.periodAnalysisTimer = this.browserWindow.setTimeout((): void => {
+      this.periodAnalysisTimer = undefined;
+      this.analyseAndShowPeriod(displayedChat, period);
+    }, PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS);
   }
 
   /**
@@ -375,16 +528,35 @@ class PageController {
 
   /**
    * Redraws the report when "hide names" or "show everyone" is ticked or
-   * unticked. The chat is not read again: the analysis on display is drawn a
-   * second time.
+   * unticked. The chat is not read again: the analysis of the period on
+   * display is drawn a second time.
    */
   private connectDisplaySwitches(): void {
     const { hideNamesCheckbox, showEveryoneCheckbox } = this.pageElements;
     for (const checkbox of [hideNamesCheckbox, showEveryoneCheckbox]) {
       checkbox.addEventListener('change', (): void => {
         if (this.displayedChat !== null) {
-          this.showChatReport(this.displayedChat.analysis, this.displayedChat.title);
+          this.showChatReport(this.displayedChat.periodAnalysis, this.displayedChat.title);
         }
+      });
+    }
+  }
+
+  /**
+   * Connects the period list and the two date fields. Editing a date turns
+   * the list to "Custom range" first, so the dates are what is read.
+   */
+  private connectPeriodControl(): void {
+    const { periodSelect, periodFromInput, periodToInput } = this.pageElements;
+
+    periodSelect.addEventListener('change', (): void => {
+      this.changePeriod();
+    });
+
+    for (const dateField of [periodFromInput, periodToInput]) {
+      dateField.addEventListener('change', (): void => {
+        selectCustomPeriod(this.pageElements);
+        this.changePeriod();
       });
     }
   }

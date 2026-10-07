@@ -28,6 +28,7 @@ export {
   formatDuration,
   median,
   mondayFirstWeekdayIndexOf,
+  sortableDayNumber,
   startOfDay,
 } from './formatting';
 export { LEFT_TO_RIGHT_MARK } from './parsing/invisible-characters';

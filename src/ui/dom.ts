@@ -35,6 +35,16 @@ export interface PageElements {
   readonly showEveryoneRow: HTMLElement;
   /** The checkbox that lists everyone in the report instead of the most active people. */
   readonly showEveryoneCheckbox: HTMLInputElement;
+  /** The row with the period list and the two date fields; hidden for a chat too short to be worth dividing. */
+  readonly periodRow: HTMLElement;
+  /** The list of ready-made periods: the whole chat, the last twelve months, each calendar year. */
+  readonly periodSelect: HTMLSelectElement;
+  /** The date field with the first day of the period. */
+  readonly periodFromInput: HTMLInputElement;
+  /** The date field with the last day of the period. */
+  readonly periodToInput: HTMLInputElement;
+  /** The note that says which days the report shows, while that is not the whole chat. */
+  readonly periodNote: HTMLElement;
   /** The container the report is rendered into. */
   readonly reportContainer: HTMLElement;
   /** The floating tooltip shared by the charts. */
@@ -82,6 +92,11 @@ export function findPageElements(): PageElements {
     hideNamesCheckbox: getRequiredElement('hide-names-checkbox', HTMLInputElement),
     showEveryoneRow: getRequiredElement('show-everyone-row', HTMLElement),
     showEveryoneCheckbox: getRequiredElement('show-everyone-checkbox', HTMLInputElement),
+    periodRow: getRequiredElement('period-row', HTMLElement),
+    periodSelect: getRequiredElement('period-select', HTMLSelectElement),
+    periodFromInput: getRequiredElement('period-from-input', HTMLInputElement),
+    periodToInput: getRequiredElement('period-to-input', HTMLInputElement),
+    periodNote: getRequiredElement('period-note', HTMLElement),
     reportContainer: getRequiredElement('report', HTMLElement),
     tooltip: getRequiredElement('tooltip', HTMLElement),
   };

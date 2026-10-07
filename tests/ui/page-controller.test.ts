@@ -23,12 +23,18 @@ import type {
 import { findPageElements } from '../../src/ui/dom';
 import type { PageElements } from '../../src/ui/dom';
 import {
+  ANALYSING_PERIOD_STATUS,
   NO_MESSAGES_FOUND_STATUS,
+  PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS,
   READING_MESSAGES_STATUS,
   TIMELINE_REDRAW_DELAY_IN_MILLISECONDS,
   startPage,
 } from '../../src/ui/page-controller';
 import type { PageWindow, ProgressListener } from '../../src/ui/page-controller';
+import {
+  NO_MESSAGES_IN_PERIOD_STATUS,
+  PERIOD_ENDS_BEFORE_IT_STARTS_STATUS,
+} from '../../src/ui/period';
 import { createTooltip } from '../../src/ui/tooltip';
 import { analysedResult } from '../fixtures/analysis-builders';
 import { androidLine, exportText, iphoneLine } from '../fixtures/export-lines';
@@ -904,6 +910,523 @@ describe('hiding names for a screenshot', () => {
     setHideNames(page, true);
 
     expect(page.elements.reportContainer.querySelectorAll('#timeline svg')).toHaveLength(1);
+  });
+});
+
+describe('choosing a period', () => {
+  /**
+   * A file that runs from 14 March 2023 to 20 June 2024. Ana and Bob both
+   * wrote in 2023; in 2024 Bob wrote alone.
+   */
+  function fileOverTwoYears(): File {
+    const lines = [
+      iphoneLine({ date: '14/03/2023', time: '10:00:00', sender: 'Ana', text: 'spring plans' }),
+      iphoneLine({ date: '14/03/2023', time: '10:01:00', sender: 'Bob', text: 'count me in' }),
+      iphoneLine({ date: '31/12/2023', time: '23:00:00', sender: 'Ana', text: 'happy new year' }),
+      iphoneLine({ date: '01/01/2024', time: '00:05:00', sender: 'Bob', text: 'same to you' }),
+      iphoneLine({ date: '20/06/2024', time: '18:00:00', sender: 'Bob', text: 'anybody there' }),
+    ];
+    return new File([exportText(lines)], 'WhatsApp Chat with Two years.txt');
+  }
+
+  /**
+   * A file whose dates read two ways, more than a year apart either way:
+   * 1 February 2023 to 5 June 2024, or 2 January 2023 to 6 May 2024.
+   */
+  function ambiguousFileOverTwoYears(): File {
+    const lines = [
+      androidLine({ date: '1/2/23', time: '10:00', sender: 'Carla', text: 'are we still on?' }),
+      androidLine({ date: '5/6/24', time: '10:01', sender: 'Dani', text: 'yes, see you there' }),
+    ];
+    return new File([exportText(lines)], 'WhatsApp Chat with Carla.txt');
+  }
+
+  /** Picks an entry of the period list the way the reader does. */
+  function choosePeriod(page: TestPage, value: string): void {
+    page.elements.periodSelect.value = value;
+    page.elements.periodSelect.dispatchEvent(new Event('change'));
+  }
+
+  /** Types a date into one of the two date fields and leaves the field. */
+  function enterDate(dateField: HTMLInputElement, value: string): void {
+    dateField.value = value;
+    dateField.dispatchEvent(new Event('change'));
+  }
+
+  /** Waits until the line under the title says the report covers the given days. */
+  async function waitForReportPeriod(page: TestPage, period: string): Promise<void> {
+    await vi.waitFor(() => {
+      expect(reportPeriod(page)).toBe(period);
+    });
+  }
+
+  /** Loads the file over two years and shows the report of one of its periods. */
+  async function showPeriodOfTwoYearFile(
+    page: TestPage,
+    value: string,
+    expectedReportPeriod: string,
+  ): Promise<void> {
+    await loadFile(page, fileOverTwoYears(), 'Two years');
+    choosePeriod(page, value);
+    await waitForReportPeriod(page, expectedReportPeriod);
+  }
+
+  /** What the line under the title says for the whole of the file over two years. */
+  const WHOLE_FILE_PERIOD = '14 Mar 2023 to 20 Jun 2024 · 465 days';
+
+  /** What it says for the year 2023 of that file. */
+  const YEAR_2023_PERIOD = '14 Mar 2023 to 31 Dec 2023 · 293 days';
+
+  /** What it says for the year 2024 of that file. */
+  const YEAR_2024_PERIOD = '1 Jan 2024 to 20 Jun 2024 · 172 days';
+
+  describe('what is offered', () => {
+    it('offers the example chat, nine months within one year, its whole span and typed dates', () => {
+      const page = startTestPage();
+      const { periodRow, periodSelect, periodFromInput, periodToInput, periodNote } = page.elements;
+
+      expect(periodRow.hidden).toBe(false);
+      expect(textsOfElements(periodSelect, 'option')).toEqual(['The whole chat', 'Custom range']);
+      expect(periodSelect.value).toBe('whole-chat');
+      expect(periodFromInput.value).toBe('2026-01-05');
+      expect(periodToInput.value).toBe('2026-10-03');
+      expect(periodNote.hidden).toBe(true);
+    });
+
+    it('is not offered for a chat of a single evening', async () => {
+      const page = startTestPage();
+
+      await loadFile(page, fileOfAna(), 'Ana');
+
+      expect(page.elements.periodRow.hidden).toBe(true);
+    });
+
+    it('lists the last twelve months and each year of a chat over two years', async () => {
+      const page = startTestPage();
+
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+
+      expect(page.elements.periodRow.hidden).toBe(false);
+      expect(textsOfElements(page.elements.periodSelect, 'option')).toEqual([
+        'The whole chat',
+        'Last 12 months',
+        '2023',
+        '2024',
+        'Custom range',
+      ]);
+    });
+
+    it('starts at the whole chat, with the date fields limited to its days', async () => {
+      const page = startTestPage();
+
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+
+      const { periodSelect, periodFromInput, periodToInput } = page.elements;
+      expect(periodSelect.value).toBe('whole-chat');
+      expect(reportPeriod(page)).toBe(WHOLE_FILE_PERIOD);
+      expect(periodFromInput.value).toBe('2023-03-14');
+      expect(periodToInput.value).toBe('2024-06-20');
+      expect(periodFromInput.min).toBe('2023-03-14');
+      expect(periodToInput.max).toBe('2024-06-20');
+    });
+  });
+
+  describe('a year from the list', () => {
+    it('redraws the report for that year only, without reading the file again', async () => {
+      const page = startTestPage();
+
+      await showPeriodOfTwoYearFile(page, 'year-2024', YEAR_2024_PERIOD);
+
+      const report = page.elements.reportContainer;
+      expect(reportTitle(page)).toBe('Two years');
+      expect(textsOfElements(report, '.legend span')).toEqual(['Bob']);
+      expect(report.textContent).not.toContain('spring plans');
+      expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+    });
+
+    it('fills the date fields with the first and last day of the year within the chat', async () => {
+      const page = startTestPage();
+
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+
+      expect(page.elements.periodFromInput.value).toBe('2023-03-14');
+      expect(page.elements.periodToInput.value).toBe('2023-12-31');
+      expect(page.elements.periodSelect.value).toBe('year-2023');
+    });
+
+    it('says next to the fields which days the report shows', async () => {
+      const page = startTestPage();
+
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+
+      expect(page.elements.periodNote.hidden).toBe(false);
+      expect(page.elements.periodNote.textContent).toBe(
+        'Showing 14 Mar 2023 to 31 Dec 2023, not the whole chat.',
+      );
+    });
+
+    it('leaves the line about the file as it was, because it describes the whole file', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+      const parseReportOfWholeFile = page.elements.parseReport.textContent;
+
+      choosePeriod(page, 'year-2023');
+      await waitForReportPeriod(page, YEAR_2023_PERIOD);
+
+      expect(parseReportOfWholeFile).toContain('Read 5 messages');
+      expect(page.elements.parseReport.textContent).toBe(parseReportOfWholeFile);
+      expect(page.elements.parseReport.hidden).toBe(false);
+    });
+
+    it('shows that work is under way before it starts, and fills the date fields meanwhile', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+
+      choosePeriod(page, 'year-2023');
+
+      expect(page.elements.statusLine.textContent).toBe(ANALYSING_PERIOD_STATUS);
+      expect(page.elements.statusLine.classList.contains('busy')).toBe(true);
+      expect(page.elements.periodToInput.value).toBe('2023-12-31');
+      expect(reportPeriod(page)).toBe(WHOLE_FILE_PERIOD);
+    });
+
+    it('starts the work 30 milliseconds later, so the status can be painted first', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+      vi.useFakeTimers();
+      choosePeriod(page, 'year-2023');
+
+      vi.advanceTimersByTime(PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS - 1);
+      expect(reportPeriod(page)).toBe(WHOLE_FILE_PERIOD);
+
+      vi.advanceTimersByTime(1);
+      expect(reportPeriod(page)).toBe(YEAR_2023_PERIOD);
+    });
+
+    it('clears the status once the report is drawn', async () => {
+      const page = startTestPage();
+
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+
+      expect(page.elements.statusLine.hidden).toBe(true);
+      expect(page.elements.statusLine.classList.contains('busy')).toBe(false);
+    });
+
+    it('draws only the later of two choices made in quick succession', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+      vi.useFakeTimers();
+
+      choosePeriod(page, 'year-2023');
+      choosePeriod(page, 'year-2024');
+      vi.advanceTimersByTime(PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS);
+
+      expect(reportPeriod(page)).toBe(YEAR_2024_PERIOD);
+      expect(page.elements.periodSelect.value).toBe('year-2024');
+      expect(vi.getTimerCount()).toBe(0);
+    });
+
+    it('draws the last twelve months from the day after the same date a year earlier', async () => {
+      const page = startTestPage();
+
+      await showPeriodOfTwoYearFile(
+        page,
+        'last-12-months',
+        '31 Dec 2023 to 20 Jun 2024 · 173 days',
+      );
+
+      expect(page.elements.periodFromInput.value).toBe('2023-06-21');
+      expect(page.elements.periodNote.textContent).toBe(
+        'Showing 21 Jun 2023 to 20 Jun 2024, not the whole chat.',
+      );
+    });
+  });
+
+  describe('going back to the whole chat', () => {
+    it('redraws it at once, from the analysis the page kept', async () => {
+      const page = startTestPage();
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+
+      choosePeriod(page, 'whole-chat');
+
+      expect(reportPeriod(page)).toBe(WHOLE_FILE_PERIOD);
+      expect(page.elements.periodFromInput.value).toBe('2023-03-14');
+      expect(page.elements.periodToInput.value).toBe('2024-06-20');
+      expect(page.elements.periodNote.hidden).toBe(true);
+      expect(page.elements.statusLine.hidden).toBe(true);
+      expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+    });
+
+    it('gives up a period that was chosen a moment earlier and is not drawn yet', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+      vi.useFakeTimers();
+      choosePeriod(page, 'year-2023');
+
+      choosePeriod(page, 'whole-chat');
+      vi.advanceTimersByTime(PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS);
+
+      expect(reportPeriod(page)).toBe(WHOLE_FILE_PERIOD);
+      expect(page.elements.statusLine.hidden).toBe(true);
+    });
+  });
+
+  describe('dates typed by hand', () => {
+    it('turn the list to "Custom range" and redraw the report for the days between them', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+
+      enterDate(page.elements.periodFromInput, '2023-12-31');
+      expect(page.elements.periodSelect.value).toBe('custom');
+      await waitForReportPeriod(page, '31 Dec 2023 to 20 Jun 2024 · 173 days');
+
+      expect(page.elements.periodSelect.value).toBe('custom');
+      expect(page.elements.periodNote.textContent).toBe(
+        'Showing 31 Dec 2023 to 20 Jun 2024, not the whole chat.',
+      );
+    });
+
+    it('include the messages of both the first and the last day', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+
+      enterDate(page.elements.periodFromInput, '2023-12-31');
+      enterDate(page.elements.periodToInput, '2024-01-01');
+      await waitForReportPeriod(page, '31 Dec 2023 to 1 Jan 2024 · 2 days');
+
+      /* Ana wrote at 23:00 on the first day and Bob at 00:05 on the last. */
+      const report = page.elements.reportContainer;
+      expect(textsOfElements(report, '.legend span')).toEqual(['Ana', 'Bob']);
+      expect(textsOfElements(report, '.bubble-text')).toContain('happy new year');
+    });
+
+    it('show the list entry of a ready-made period when they match one exactly', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+
+      enterDate(page.elements.periodToInput, '2023-12-31');
+      await waitForReportPeriod(page, YEAR_2023_PERIOD);
+
+      expect(page.elements.periodSelect.value).toBe('year-2023');
+    });
+
+    it('take an emptied field as the end of the chat on that side', async () => {
+      const page = startTestPage();
+      await showPeriodOfTwoYearFile(page, 'year-2024', YEAR_2024_PERIOD);
+
+      enterDate(page.elements.periodFromInput, '');
+
+      expect(reportPeriod(page)).toBe(WHOLE_FILE_PERIOD);
+      expect(page.elements.periodFromInput.value).toBe('2023-03-14');
+      expect(page.elements.periodSelect.value).toBe('whole-chat');
+    });
+
+    it('redraw the example chat for a month of it', async () => {
+      const page = startTestPage();
+
+      enterDate(page.elements.periodFromInput, '2026-03-01');
+      enterDate(page.elements.periodToInput, '2026-03-31');
+      await vi.waitFor(() => {
+        expect(page.elements.periodNote.textContent).toBe(
+          'Showing 1 Mar 2026 to 31 Mar 2026, not the whole chat.',
+        );
+      });
+
+      expect(reportPeriod(page)).toMatch(/^\d+ Mar 2026 to \d+ Mar 2026 · \d+ days$/);
+      expect(page.elements.sampleNote.hidden).toBe(false);
+      expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('dates that cannot be used', () => {
+    it('leave the report as it is and say so when "from" is after "to"', async () => {
+      const page = startTestPage();
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+
+      enterDate(page.elements.periodFromInput, '2024-01-01');
+
+      expect(page.elements.statusLine.textContent).toBe(PERIOD_ENDS_BEFORE_IT_STARTS_STATUS);
+      expect(page.elements.statusLine.hidden).toBe(false);
+      expect(page.elements.statusLine.classList.contains('busy')).toBe(false);
+      expect(reportPeriod(page)).toBe(YEAR_2023_PERIOD);
+    });
+
+    it('keep the typed dates in the fields, so they can be corrected, and the note on what is shown', async () => {
+      const page = startTestPage();
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+
+      enterDate(page.elements.periodFromInput, '2024-01-01');
+
+      expect(page.elements.periodFromInput.value).toBe('2024-01-01');
+      expect(page.elements.periodToInput.value).toBe('2023-12-31');
+      expect(page.elements.periodSelect.value).toBe('custom');
+      expect(page.elements.periodNote.textContent).toBe(
+        'Showing 14 Mar 2023 to 31 Dec 2023, not the whole chat.',
+      );
+    });
+
+    it('leave the report as it is and say so when nobody wrote between the dates', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+
+      enterDate(page.elements.periodFromInput, '2023-04-01');
+      enterDate(page.elements.periodToInput, '2023-11-30');
+
+      expect(await waitForFinalStatus(page)).toBe(NO_MESSAGES_IN_PERIOD_STATUS);
+      expect(reportPeriod(page)).toBe(WHOLE_FILE_PERIOD);
+      expect(page.elements.periodNote.hidden).toBe(true);
+    });
+
+    it('say the same at once when both dates lie before the chat began', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+      page.elements.periodToInput.value = '2022-12-31';
+
+      enterDate(page.elements.periodFromInput, '2022-01-01');
+
+      expect(page.elements.statusLine.textContent).toBe(NO_MESSAGES_IN_PERIOD_STATUS);
+      expect(reportPeriod(page)).toBe(WHOLE_FILE_PERIOD);
+    });
+
+    it('drop the message again when a usable period is chosen next', async () => {
+      const page = startTestPage();
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+      enterDate(page.elements.periodFromInput, '2024-01-01');
+
+      choosePeriod(page, 'year-2023');
+
+      expect(page.elements.statusLine.hidden).toBe(true);
+      expect(page.elements.periodFromInput.value).toBe('2023-03-14');
+      expect(reportPeriod(page)).toBe(YEAR_2023_PERIOD);
+    });
+  });
+
+  describe('together with the other switches', () => {
+    it('hides the names of the period on display, not of the whole chat', async () => {
+      const page = startTestPage();
+      await showPeriodOfTwoYearFile(page, 'year-2024', YEAR_2024_PERIOD);
+
+      page.elements.hideNamesCheckbox.checked = true;
+      page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+
+      const report = page.elements.reportContainer;
+      expect(reportTitle(page)).toBe('A chat');
+      expect(reportPeriod(page)).toBe(YEAR_2024_PERIOD);
+      expect(textsOfElements(report, '.legend span')).toEqual(['Person A']);
+    });
+
+    it('draws a period that is chosen while names are hidden without names', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOverTwoYears(), 'Two years');
+      page.elements.hideNamesCheckbox.checked = true;
+
+      choosePeriod(page, 'year-2023');
+      await waitForReportPeriod(page, YEAR_2023_PERIOD);
+
+      const report = page.elements.reportContainer;
+      expect(textsOfElements(report, '.legend span')).toEqual(['Person A', 'Person B']);
+      expect(report.textContent).not.toContain('Ana');
+      expect(report.textContent).not.toContain('happy new year');
+    });
+
+    it('keeps the period when "show everyone" is ticked', async () => {
+      const page = startTestPage();
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+
+      page.elements.showEveryoneCheckbox.checked = true;
+      page.elements.showEveryoneCheckbox.dispatchEvent(new Event('change'));
+
+      expect(reportPeriod(page)).toBe(YEAR_2023_PERIOD);
+    });
+  });
+
+  describe('when the chat on display changes', () => {
+    it('goes back to the whole chat for the next file that is loaded', async () => {
+      const page = startTestPage();
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+
+      await loadFile(page, ambiguousFileOverTwoYears(), 'Carla');
+
+      expect(page.elements.periodSelect.value).toBe('whole-chat');
+      expect(page.elements.periodNote.hidden).toBe(true);
+      expect(page.elements.periodFromInput.value).toBe('2023-02-01');
+      expect(page.elements.periodToInput.value).toBe('2024-06-05');
+      expect(reportPeriod(page)).toContain('1 Feb 2023 to 5 Jun 2024');
+    });
+
+    it('withdraws the row when a chat of a single evening is loaded next', async () => {
+      const page = startTestPage();
+      await showPeriodOfTwoYearFile(page, 'year-2023', YEAR_2023_PERIOD);
+
+      await loadFile(page, fileOfAna(), 'Ana');
+
+      expect(page.elements.periodRow.hidden).toBe(true);
+      expect(page.elements.periodNote.hidden).toBe(true);
+    });
+
+    it('goes back to the whole chat when the date order is switched', async () => {
+      const page = startTestPage();
+      await loadFile(page, ambiguousFileOverTwoYears(), 'Carla');
+      choosePeriod(page, 'year-2023');
+      await waitForReportPeriod(page, '1 Feb 2023 to 1 Feb 2023 · 1 day');
+
+      page.elements.switchDateOrderButton.click();
+      await vi.waitFor(() => {
+        expect(page.elements.dateOrderMessage.textContent).toContain(
+          'Reading them as month/day/year.',
+        );
+      });
+
+      expect(page.elements.periodSelect.value).toBe('whole-chat');
+      expect(page.elements.periodNote.hidden).toBe(true);
+      expect(page.elements.periodFromInput.value).toBe('2023-01-02');
+      expect(reportPeriod(page)).toContain('2 Jan 2023 to 6 May 2024');
+    });
+
+    it('gives up a period that is not drawn yet when another file is chosen', () => {
+      const scriptedClient = createScriptedClient();
+      const page = startTestPage({ scriptedClient });
+      const exampleChatPeriod = reportPeriod(page);
+      vi.useFakeTimers();
+      enterDate(page.elements.periodFromInput, '2026-03-01');
+
+      chooseFile(page, fileOfAna());
+      vi.advanceTimersByTime(PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS);
+
+      expect(reportPeriod(page)).toBe(exampleChatPeriod);
+      expect(page.elements.statusLine.textContent).toBe('Opening WhatsApp Chat with Ana.txt …');
+      expect(page.elements.periodSelect.value).toBe('whole-chat');
+      expect(page.elements.periodFromInput.value).toBe('2026-01-05');
+    });
+
+    it('gives up a period that is not drawn yet when the date order is switched', async () => {
+      const page = startTestPage();
+      await loadFile(page, ambiguousFileOverTwoYears(), 'Carla');
+      choosePeriod(page, 'year-2023');
+
+      page.elements.switchDateOrderButton.click();
+      await vi.waitFor(() => {
+        expect(reportPeriod(page)).toContain('2 Jan 2023 to 6 May 2024');
+      });
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS * 2);
+      });
+
+      expect(reportPeriod(page)).toContain('2 Jan 2023 to 6 May 2024');
+      expect(page.elements.periodSelect.value).toBe('whole-chat');
+    });
+  });
+
+  it('does nothing while no chat is on display', () => {
+    const page = startTestPage({ analyseOnMainThread: () => ({ kind: 'empty' }) });
+    vi.useFakeTimers();
+
+    choosePeriod(page, 'custom');
+    enterDate(page.elements.periodFromInput, '2024-01-01');
+    vi.runAllTimers();
+
+    expect(page.elements.statusLine.textContent).toBe(NO_MESSAGES_FOUND_STATUS);
+    expect(page.elements.reportContainer.textContent).toBe('');
   });
 });
 

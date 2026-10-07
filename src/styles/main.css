@@ -215,6 +215,24 @@ label.loader-row {
   gap: 8px;
   cursor: pointer;
 }
+.period-row {
+  gap: 8px;
+}
+.period-row select,
+.period-row input {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 4px 8px;
+  max-width: 100%;
+}
+.period-note {
+  flex-basis: 100%;
+  color: var(--ink);
+  font-weight: 500;
+}
 .button {
   background: var(--accent);
   color: var(--on-accent);
