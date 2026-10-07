@@ -16,6 +16,7 @@ import { renderReplySpeedPairsSection } from '../../src/ui/sections/reply-speed-
 import { renderSharedSitesSection } from '../../src/ui/sections/shared-sites';
 import { renderTextingStyleSection } from '../../src/ui/sections/texting-style';
 import { renderWhoIsStillHereSection } from '../../src/ui/sections/who-is-still-here';
+import { renderWordSearchOutcome } from '../../src/ui/sections/word-search';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
 import { localMidnight, localTime, mediaMessage, textMessage } from '../fixtures/messages';
 
@@ -575,6 +576,48 @@ describe('anonymiseAnalysis', () => {
 
     it('does not change the milestones it was given', () => {
       expect(chatWithMilestones.milestones[0]).toMatchObject({ sender: 'Bob Vega' });
+    });
+  });
+
+  describe('"Look up a word"', () => {
+    /** Looks a word up in the real messages and draws the outcome from the copy without names. */
+    function lookUpWithoutNames(query: string): string {
+      return renderWordSearchOutcome(
+        query,
+        namedChat,
+        hiddenChat,
+        assignPersonColours(hiddenChat.people),
+        'most-active',
+      );
+    }
+
+    it('finds nothing in the copy itself, whose texts are hidden', () => {
+      const outcomeHtml = renderWordSearchOutcome(
+        'hello',
+        hiddenChat,
+        hiddenChat,
+        assignPersonColours(hiddenChat.people),
+        'most-active',
+      );
+
+      expect(outcomeHtml).toContain('No message contains');
+    });
+
+    it('shows who wrote a word by label when the real messages are searched', () => {
+      /* Bob Vega wrote "Ana" in his long message and Carla in her caption. */
+      const outcomeHtml = lookUpWithoutNames('ana');
+
+      expect(outcomeHtml).toContain('“ana” is in 2 of 3 written messages');
+      expect(outcomeHtml).toContain('Person B');
+      expect(outcomeHtml).toContain('Person C');
+    });
+
+    it('leaves no name and no message text in the outcome, beyond the word the reader typed', () => {
+      const outcomeHtml = lookUpWithoutNames('ana');
+
+      for (const hiddenText of ['Ana', 'Bob', 'Vega', 'Carla', 'long story', 'for ']) {
+        expect(outcomeHtml).not.toContain(hiddenText);
+      }
     });
   });
 

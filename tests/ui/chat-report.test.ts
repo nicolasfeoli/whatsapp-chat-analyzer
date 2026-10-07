@@ -17,6 +17,8 @@ import { renderCalendarTooltip } from '../../src/ui/charts/calendar';
 import { renderHeatmapTooltip } from '../../src/ui/charts/heatmap';
 import { renderTimelineSvg, renderTimelineTooltip } from '../../src/ui/charts/timeline';
 import { renderChatReport } from '../../src/ui/chat-report';
+import { assignPersonColours } from '../../src/ui/person-colours';
+import { renderWordSearchOutcome } from '../../src/ui/sections/word-search';
 import { androidLine, exportText, iphoneLine, iphoneNotTypedLine } from '../fixtures/export-lines';
 import { findElement, parseMarkup, tagNamesIn, textsOfElements } from '../fixtures/markup';
 
@@ -36,6 +38,7 @@ const ELEMENTS_THE_REPORT_IS_BUILT_FROM: readonly string[] = [
   'h2',
   'h3',
   'i',
+  'input',
   'label',
   'li',
   'line',
@@ -59,6 +62,9 @@ const ELEMENTS_THE_REPORT_IS_BUILT_FROM: readonly string[] = [
   'ul',
 ];
 
+/** A search that is markup itself; its one word, "script", stands in every hostile message. */
+const HOSTILE_SEARCH_QUERY = '"><script>';
+
 /** Matches the name of an attribute that would run script, such as `onerror` or `onclick`. */
 const EVENT_HANDLER_ATTRIBUTE_PATTERN = /^on/i;
 
@@ -77,7 +83,8 @@ function analyseExport(rawText: string): ChatAnalysis {
 /**
  * Puts everything the page would show for a chat into one container: the
  * report, the timeline drawn into its placeholder, and the tooltip of every
- * timeline bar, of one heatmap square and of one calendar square.
+ * timeline bar, of one heatmap square and of one calendar square, and the
+ * outcome of looking up a word that is itself markup.
  */
 function renderWholePage(analysis: ChatAnalysis, title: string): HTMLDivElement {
   const report = renderChatReport(analysis, title);
@@ -95,6 +102,14 @@ function renderWholePage(analysis: ChatAnalysis, title: string): HTMLDivElement 
   tooltips.innerHTML += renderHeatmapTooltip({ weekdayIndex: 0, hour: 0, messageCount: 1 });
   tooltips.innerHTML += renderCalendarTooltip({ dayKey: 20240113, messageCount: 1 });
   page.append(tooltips);
+
+  findElement(page, '#word-search-result').innerHTML = renderWordSearchOutcome(
+    HOSTILE_SEARCH_QUERY,
+    analysis,
+    analysis,
+    assignPersonColours(analysis.people),
+    'most-active',
+  );
 
   return page;
 }
@@ -144,6 +159,7 @@ describe('renderChatReport', () => {
         'When the chat is alive',
         'Replies and openings',
         'Words and emojis',
+        'Look up a word',
         'One person up close',
         'From the record',
       ]);
@@ -157,6 +173,7 @@ describe('renderChatReport', () => {
       expect(outline).toEqual([
         'chat-heading',
         'headline-statistics',
+        'SECTION',
         'SECTION',
         'SECTION',
         'SECTION',
@@ -295,7 +312,42 @@ describe('renderChatReport', () => {
       ]);
     });
 
-    it('adds the most shared sites after words and emojis once the chat holds ten links', () => {
+    it('puts the word search right after words and emojis, with an empty field and no outcome yet', () => {
+      const page = parseMarkup(renderChatReport(analysis, 'Ana and Bob').html);
+
+      const headings = textsOfElements(page, 'h2');
+      const wordsPosition = headings.indexOf('Words and emojis');
+      const searchField = findElement(page, '#word-search-input');
+
+      expect(headings[wordsPosition + 1]).toBe('Look up a word');
+      expect(searchField.getAttribute('value')).toBeNull();
+      expect(findElement(page, '#word-search-result').querySelector('.horizontal-bars')).toBeNull();
+    });
+
+    it('leaves the word search out of a chat without a typed word', () => {
+      const stickersOnly = analyseExport(
+        exportText([
+          iphoneNotTypedLine({
+            date: '13/01/2024',
+            time: '10:00:00',
+            sender: 'Ana',
+            text: 'sticker omitted',
+          }),
+          iphoneNotTypedLine({
+            date: '13/01/2024',
+            time: '10:01:00',
+            sender: 'Bob',
+            text: 'sticker omitted',
+          }),
+        ]),
+      );
+
+      const page = parseMarkup(renderChatReport(stickersOnly, 'Stickers').html);
+
+      expect(textsOfElements(page, 'h2')).not.toContain('Look up a word');
+    });
+
+    it('adds the most shared sites after the word search once the chat holds ten links', () => {
       const lines = Array.from({ length: 10 }, (_unused, index): string =>
         iphoneLine({
           date: '13/01/2024',
@@ -309,7 +361,7 @@ describe('renderChatReport', () => {
       const headings = textsOfElements(page, 'h2');
       const wordsPosition = headings.indexOf('Words and emojis');
 
-      expect(headings[wordsPosition + 1]).toBe('Most shared sites');
+      expect(headings[wordsPosition + 2]).toBe('Most shared sites');
       /* The first and the longest message are quoted in full elsewhere; this section must not. */
       const sitesSection = Array.from(page.querySelectorAll('section')).find(
         (section) => section.querySelector('h2')?.textContent === 'Most shared sites',
@@ -377,6 +429,7 @@ describe('renderChatReport', () => {
         'Who mentions whom',
         'How conversations end',
         'Words and emojis',
+        'Look up a word',
         'One person up close',
         'Milestones',
         'From the record',
@@ -406,7 +459,7 @@ describe('renderChatReport', () => {
 
       expect(textsOfElements(page, 'h2')).not.toContain('Replies and openings');
       expect(textsOfElements(page, 'h2')).not.toContain('One person up close');
-      expect(page.querySelectorAll('section')).toHaveLength(6);
+      expect(page.querySelectorAll('section')).toHaveLength(7);
     });
   });
 
@@ -533,6 +586,16 @@ describe('renderChatReport', () => {
       );
 
       expect(labelTitles).toContain(quoteBreakingSender);
+    });
+
+    it('shows the looked-up words as text, and the senders next to their bars', () => {
+      const outcome = findElement(page, '#word-search-result');
+
+      /* Each of the twenty messages opens and closes a script element, which is the word twice. */
+      expect(findElement(outcome, '.word-search-summary').textContent).toBe(
+        '“script” is in 20 of 20 written messages (100%), 40 times in all.',
+      );
+      expect(textsOfElements(outcome, '.bar-label')).toEqual([hostileSender, quoteBreakingSender]);
     });
 
     it('shows the message as text in its bubble', () => {
