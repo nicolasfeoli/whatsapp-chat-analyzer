@@ -24,7 +24,7 @@ I wanted to know what one of my group chats looked like from the outside. After 
 
 WhatsApp can export a chat as a text file, but the file is thousands of lines with no summary. This page turns it into something you can read in a minute and share with the group:
 
-- **Answers to the arguments.** Who writes most, who starts the conversations, who replies fastest, and who sends five messages in a row before anyone answers.
+- **Answers to the arguments.** Who writes most, who starts the conversations, who replies fastest, who answers whom, whose questions are left hanging, and who sends five messages in a row before anyone answers.
 - **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence.
 - **Its personality.** The words and emojis each person uses far more than everyone else, and who laughs the most in writing.
 
@@ -93,7 +93,7 @@ The dev server relaxes `connect-src` to its own WebSocket so hot reload works. `
 ## Tests
 
 ```sh
-npm test               # Vitest, 1,520 tests in 50 files
+npm test               # Vitest, 1,575 tests in 52 files
 npm run test:coverage  # the same, with a coverage report in coverage/
 npm run check          # type check, lint, formatting, tests with coverage, build
 ```

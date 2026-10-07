@@ -632,6 +632,280 @@ describe('analyseChat', () => {
     });
   });
 
+  describe('who replies to whom', () => {
+    it('credits a reply to whoever wrote the message just before it', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:01' }),
+        textMessage({ sender: 'Carla', sentAt: '2024-01-13 10:02' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:03' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:04' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Bob').replyCountsByRecipient).toEqual(new Map([['Ana', 2]]));
+      expect(findPerson(analysis, 'Carla').replyCountsByRecipient).toEqual(new Map([['Bob', 1]]));
+      expect(findPerson(analysis, 'Ana').replyCountsByRecipient).toEqual(new Map([['Carla', 1]]));
+    });
+
+    it('lists the people somebody replied to in order of first reply', () => {
+      const messages = [
+        textMessage({ sender: 'Carla', sentAt: '2024-01-13 10:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:01' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:02' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:03' }),
+      ];
+
+      const ana = findPerson(analyseMessages(messages), 'Ana');
+
+      expect([...ana.replyCountsByRecipient.keys()]).toEqual(['Carla', 'Bob']);
+    });
+
+    it('counts one reply per turn, not one per message of the turn', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:01' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:02' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:03' }),
+      ];
+
+      const bob = findPerson(analyseMessages(messages), 'Bob');
+
+      expect(bob.replyCountsByRecipient).toEqual(new Map([['Ana', 1]]));
+    });
+
+    it('counts as many replies in total as it records reply delays', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:01' }),
+        textMessage({ sender: 'Carla', sentAt: '2024-01-13 10:02' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:03' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-14 10:03' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-14 10:04' }),
+      ];
+
+      const bob = findPerson(analyseMessages(messages), 'Bob');
+      const replyCounts = [...bob.replyCountsByRecipient.values()];
+
+      expect(bob.replyCountsByRecipient).toEqual(
+        new Map([
+          ['Ana', 2],
+          ['Carla', 1],
+        ]),
+      );
+      expect(replyCounts.reduce((total, count) => total + count, 0)).toBe(
+        bob.replyDelaysInMilliseconds.length,
+      );
+    });
+
+    it('credits nobody when the answer comes after twelve hours or more', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 08:00:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 20:00:00' }),
+      ];
+
+      const bob = findPerson(analyseMessages(messages), 'Bob');
+
+      expect(bob.replyCountsByRecipient.size).toBe(0);
+    });
+
+    it('credits nobody in a chat with a single sender', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:05' }),
+      ];
+
+      const ana = findPerson(analyseMessages(messages), 'Ana');
+
+      expect(ana.replyCountsByRecipient.size).toBe(0);
+    });
+
+    it('counts a photo sent in answer as a reply too', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        mediaMessage({ sender: 'Bob', sentAt: '2024-01-13 10:01' }),
+      ];
+
+      const bob = findPerson(analyseMessages(messages), 'Bob');
+
+      expect(bob.replyCountsByRecipient).toEqual(new Map([['Ana', 1]]));
+    });
+  });
+
+  describe('the last word of a conversation', () => {
+    it('goes to whoever wrote last before eight hours of silence', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:01' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-14 10:00' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Bob').conversationsEndedCount).toBe(1);
+      expect(findPerson(analysis, 'Ana').conversationsEndedCount).toBe(0);
+    });
+
+    it('is not given for the conversation still open at the end of the export', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:01' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').conversationsEndedCount).toBe(0);
+      expect(findPerson(analysis, 'Bob').conversationsEndedCount).toBe(0);
+    });
+
+    it('is given after exactly eight hours of silence', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 18:00:00' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Ana').conversationsEndedCount).toBe(1);
+    });
+
+    it('is not given after one second less than eight hours', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 17:59:59' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Ana').conversationsEndedCount).toBe(0);
+    });
+
+    it('goes to the same person who then breaks the silence', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 22:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-14 08:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-15 08:00' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Ana').conversationsEndedCount).toBe(2);
+    });
+
+    it('is given once for every conversation but the last', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-14 10:00' }),
+        textMessage({ sender: 'Carla', sentAt: '2024-01-15 10:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-16 10:00' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+      const endedCounts = analysis.people.map((person) => person.conversationsEndedCount);
+
+      expect(analysis.conversationCount).toBe(4);
+      expect(endedCounts.reduce((total, count) => total + count, 0)).toBe(3);
+    });
+
+    it('can be a photo or a deleted message', () => {
+      const messages = [
+        mediaMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
+        deletedMessage({ sender: 'Bob', sentAt: '2024-01-14 10:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-15 10:00' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').conversationsEndedCount).toBe(1);
+      expect(findPerson(analysis, 'Bob').conversationsEndedCount).toBe(1);
+    });
+  });
+
+  describe('unanswered questions', () => {
+    it('counts a question after which nobody wrote for eight hours', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'anyone up for dinner?' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-14 10:00', text: 'good morning' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').unansweredQuestionCount).toBe(1);
+      expect(findPerson(analysis, 'Bob').unansweredQuestionCount).toBe(0);
+    });
+
+    it('does not count a question somebody else wrote after', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'anyone up for dinner?' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:05', text: 'yes' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-14 10:00', text: 'good morning' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Ana').unansweredQuestionCount).toBe(0);
+    });
+
+    it('does not count an earlier question once the same person has been answered', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'dinner?' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:05', text: 'yes' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:06', text: 'great' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-14 10:00', text: 'good morning' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Ana').unansweredQuestionCount).toBe(0);
+    });
+
+    it('counts every question of the closing turn, wherever it stands in the turn', () => {
+      const messages = [
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 09:59', text: 'hello' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'dinner?' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:01', text: 'I can book a table' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:02', text: 'hello??' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-14 10:00', text: 'good morning' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Ana').unansweredQuestionCount).toBe(2);
+    });
+
+    it('counts a question the same person follows up on after the silence', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 22:00', text: 'dinner tomorrow?' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-14 08:00', text: 'so, dinner?' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-14 08:01', text: 'yes' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-15 08:00', text: 'good morning' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Ana').unansweredQuestionCount).toBe(1);
+    });
+
+    it('does not count the question the export ends on', () => {
+      const messages = [
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:00', text: 'hello' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:01', text: 'dinner?' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Ana').unansweredQuestionCount).toBe(0);
+    });
+
+    it('does not count a closing turn without a question', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'see you tomorrow' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-14 10:00', text: 'good morning' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Ana').unansweredQuestionCount).toBe(0);
+    });
+
+    it('never counts more unanswered questions than questions asked', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'dinner?' }),
+        mediaMessage({ sender: 'Ana', sentAt: '2024-01-13 10:01' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-14 10:00', text: 'lunch?' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-15 10:00', text: 'sorry, was away' }),
+      ];
+
+      const ana = findPerson(analyseMessages(messages), 'Ana');
+
+      expect(ana.questionCount).toBe(2);
+      expect(ana.unansweredQuestionCount).toBe(2);
+    });
+  });
+
   describe('turns', () => {
     it('counts the first message of the chat as a turn', () => {
       const analysis = analyseMessages([textMessage({ sender: 'Ana' })]);

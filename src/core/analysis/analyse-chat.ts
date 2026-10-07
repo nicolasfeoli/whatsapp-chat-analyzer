@@ -49,6 +49,18 @@ interface ChatTotals {
   longestMessageWordCount: number;
   longestSilence: LongestSilence | null;
   conversationCount: number;
+  /**
+   * Questions asked so far in the turn that is still open: the run of messages
+   * from the latest sender since somebody else last wrote. They are counted
+   * as unanswered when the conversation ends before anybody else writes.
+   */
+  questionCountInOpenTurn: number;
+}
+
+/** A message that has been counted, together with the totals of its sender. */
+interface CountedMessage {
+  readonly message: ChatMessage;
+  readonly sender: PersonStatisticsAccumulator;
 }
 
 /**
@@ -72,6 +84,7 @@ function createChatTotals(): ChatTotals {
     longestMessageWordCount: 0,
     longestSilence: null,
     conversationCount: 0,
+    questionCountInOpenTurn: 0,
   };
 }
 
@@ -122,46 +135,62 @@ function recordWhenMessageWasSent(
 }
 
 /**
+ * Closes the conversation that the long silence has just ended: whoever wrote
+ * last had the last word, and the questions of their closing turn went
+ * unanswered.
+ */
+function recordConversationEnd(totals: ChatTotals, lastSpeaker: PersonStatisticsAccumulator): void {
+  lastSpeaker.conversationsEndedCount += 1;
+  lastSpeaker.unansweredQuestionCount += totals.questionCountInOpenTurn;
+  totals.questionCountInOpenTurn = 0;
+}
+
+/**
  * Updates everything that depends on the message before this one: who opened
- * the conversation, how long the reply took, the longest silence, and turns.
+ * and who closed the conversation, who replied to whom and how long it took,
+ * the longest silence, and turns.
  */
 function recordConversationFlow(
   totals: ChatTotals,
   person: PersonStatisticsAccumulator,
   message: ChatMessage,
-  previousMessage: ChatMessage | null,
+  previous: CountedMessage | null,
 ): void {
-  if (previousMessage === null) {
+  if (previous === null) {
     person.conversationsStartedCount += 1;
     person.turnCount += 1;
     totals.conversationCount += 1;
     return;
   }
 
-  const gapInMilliseconds = message.timestamp.getTime() - previousMessage.timestamp.getTime();
+  const gapInMilliseconds = message.timestamp.getTime() - previous.message.timestamp.getTime();
   if (gapInMilliseconds >= CONVERSATION_BREAK_IN_MILLISECONDS) {
     person.conversationsStartedCount += 1;
     totals.conversationCount += 1;
+    recordConversationEnd(totals, previous.sender);
   }
 
-  totals.longestSilence = keepLongerSilence(totals.longestSilence, previousMessage, message);
+  totals.longestSilence = keepLongerSilence(totals.longestSilence, previous.message, message);
 
-  const isFromSomeoneElse = previousMessage.sender !== message.sender;
+  const isFromSomeoneElse = previous.sender !== person;
   if (!isFromSomeoneElse) {
     return;
   }
   person.turnCount += 1;
+  totals.questionCountInOpenTurn = 0;
 
   const isWithinReplyWindow =
     gapInMilliseconds >= 0 && gapInMilliseconds < LONGEST_REPLY_DELAY_IN_MILLISECONDS;
   if (isWithinReplyWindow) {
     person.replyDelaysInMilliseconds.push(gapInMilliseconds);
+    incrementCount(person.replyCountsByRecipient, previous.sender.name);
   }
 }
 
 /**
  * Counts the content of a message: a media placeholder, a deleted tombstone,
- * or the links, emojis and words of typed text.
+ * or the links, emojis and words of typed text. A typed question is also
+ * added to the questions of the open turn.
  */
 function recordMessageContent(
   totals: ChatTotals,
@@ -179,6 +208,9 @@ function recordMessageContent(
 
   const textStatistics = analyseMessageText(message.text);
   recordTextMessage(person, textStatistics);
+  if (textStatistics.containsQuestion) {
+    totals.questionCountInOpenTurn += 1;
+  }
 
   for (const emoji of textStatistics.emojis) {
     incrementCount(totals.emojiCounts, emoji);
@@ -201,17 +233,17 @@ function recordMessageContent(
  */
 function accumulateChatTotals(chronologicalMessages: readonly ChatMessage[]): ChatTotals {
   const totals = createChatTotals();
-  let previousMessage: ChatMessage | null = null;
+  let previous: CountedMessage | null = null;
 
   for (const message of chronologicalMessages) {
     const person = getOrCreatePerson(totals, message.sender);
     person.messageCount += 1;
 
     recordWhenMessageWasSent(totals, person, message.timestamp);
-    recordConversationFlow(totals, person, message, previousMessage);
+    recordConversationFlow(totals, person, message, previous);
     recordMessageContent(totals, person, message);
 
-    previousMessage = message;
+    previous = { message, sender: person };
   }
 
   return totals;

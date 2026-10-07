@@ -171,6 +171,32 @@ describe('renderChatReport', () => {
       expect(page.textContent).toContain('Messages per day, stacked by person.');
     });
 
+    it('adds who answers whom and how conversations end for a group that spans two days', () => {
+      const group = analyseExport(
+        exportText([
+          iphoneLine({ date: '13/01/2024', time: '10:00:00', sender: 'Ana', text: 'dinner?' }),
+          iphoneLine({ date: '13/01/2024', time: '10:01:00', sender: 'Bob', text: 'yes' }),
+          iphoneLine({ date: '13/01/2024', time: '10:02:00', sender: 'Carla', text: 'where?' }),
+          iphoneLine({ date: '14/01/2024', time: '10:00:00', sender: 'Ana', text: 'morning' }),
+        ]),
+      );
+
+      const headings = textsOfElements(parseMarkup(renderChatReport(group, 'Group').html), 'h2');
+
+      expect(headings.slice(5, 9)).toEqual([
+        'Replies and openings',
+        'Who answers whom',
+        'How conversations end',
+        'Words and emojis',
+      ]);
+    });
+
+    it('leaves out who answers whom for a chat of two', () => {
+      const page = parseMarkup(renderChatReport(analysis, 'Ana and Bob').html);
+
+      expect(textsOfElements(page, 'h2')).not.toContain('Who answers whom');
+    });
+
     it('leaves out "Replies and openings" for a chat with a single sender', () => {
       const monologue = analyseExport(androidLine({ sender: 'Ana', text: 'note to self' }));
 
@@ -232,7 +258,13 @@ describe('renderChatReport', () => {
     });
 
     it('still lists all eight in the table of people', () => {
-      expect(page.querySelectorAll('tbody tr')).toHaveLength(8);
+      expect(page.querySelectorAll('table:not(.reply-grid) tbody tr')).toHaveLength(8);
+    });
+
+    it('gives all eight a row and a column in the grid of who answers whom', () => {
+      expect(textsOfElements(page, 'h2')).toContain('Who answers whom');
+      expect(page.querySelectorAll('.reply-grid tbody tr')).toHaveLength(8);
+      expect(page.querySelectorAll('.reply-grid thead th')).toHaveLength(8);
     });
   });
 
