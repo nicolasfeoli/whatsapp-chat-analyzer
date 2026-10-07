@@ -14,7 +14,12 @@ import { colourOfPerson } from '../person-colours';
 import type { PersonColours } from '../person-colours';
 import { ratioWhenAtLeast, sumOf } from '../ranking';
 import { formatPercentage, formatWholeNumber } from '../text-formatting';
-import { selectFeaturedPeople } from './featured-people';
+import {
+  DEFAULT_PEOPLE_SHOWN,
+  renderPeopleShownNote,
+  selectFeaturedPeople,
+} from './featured-people';
+import type { PeopleShown } from './featured-people';
 import { renderSectionHeading } from './section-heading';
 
 /**
@@ -89,12 +94,14 @@ function renderUnansweredQuestions(
  *
  * @param analysis - The analysed chat.
  * @param personColours - The colour assignment shared by all charts.
+ * @param peopleShown - Whether to list the most active people only, or everyone.
  * @returns A `<section>` element as markup, or empty markup for a chat with a
  *   single sender or one in which no conversation has ended yet.
  */
 export function renderConversationEndingsSection(
   analysis: ChatAnalysis,
   personColours: PersonColours,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
 ): SafeHtml {
   const hasSeveralPeople = analysis.people.length > 1;
   const hasEndedConversation = analysis.conversationCount > 1;
@@ -102,7 +109,7 @@ export function renderConversationEndingsSection(
     return EMPTY_HTML;
   }
 
-  const featuredPeople = selectFeaturedPeople(analysis.people);
+  const featuredPeople = selectFeaturedPeople(analysis.people, peopleShown);
   const lastWordsHtml = renderLastWords(featuredPeople, personColours);
   const unansweredQuestionsHtml = renderUnansweredQuestions(featuredPeople, personColours);
 
@@ -112,5 +119,6 @@ export function renderConversationEndingsSection(
   );
   const lastWordsColumnHtml = html`<div><h3>Had the last word</h3>${lastWordsHtml}</div>`;
   const questionsColumnHtml = html`<div><h3>Questions left unanswered</h3>${unansweredQuestionsHtml}</div>`;
-  return html`<section>${headingHtml}<div class="two-columns">${lastWordsColumnHtml}${questionsColumnHtml}</div></section>`;
+  const noteHtml = renderPeopleShownNote(featuredPeople.length, analysis.people.length);
+  return html`<section>${headingHtml}<div class="two-columns">${lastWordsColumnHtml}${questionsColumnHtml}</div>${noteHtml}</section>`;
 }

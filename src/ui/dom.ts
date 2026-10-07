@@ -31,6 +31,10 @@ export interface PageElements {
   readonly switchDateOrderButton: HTMLButtonElement;
   /** The checkbox that replaces names by neutral labels and hides message text. */
   readonly hideNamesCheckbox: HTMLInputElement;
+  /** The row of the "show everyone" checkbox; hidden for a chat in which nobody is left out. */
+  readonly showEveryoneRow: HTMLElement;
+  /** The checkbox that lists everyone in the report instead of the most active people. */
+  readonly showEveryoneCheckbox: HTMLInputElement;
   /** The container the report is rendered into. */
   readonly reportContainer: HTMLElement;
   /** The floating tooltip shared by the charts. */
@@ -76,6 +80,8 @@ export function findPageElements(): PageElements {
     dateOrderMessage: getRequiredElement('date-order-message', HTMLElement),
     switchDateOrderButton: getRequiredElement('switch-date-order-button', HTMLButtonElement),
     hideNamesCheckbox: getRequiredElement('hide-names-checkbox', HTMLInputElement),
+    showEveryoneRow: getRequiredElement('show-everyone-row', HTMLElement),
+    showEveryoneCheckbox: getRequiredElement('show-everyone-checkbox', HTMLInputElement),
     reportContainer: getRequiredElement('report', HTMLElement),
     tooltip: getRequiredElement('tooltip', HTMLElement),
   };

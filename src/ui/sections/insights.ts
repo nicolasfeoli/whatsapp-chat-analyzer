@@ -21,11 +21,13 @@ import {
   weekdayNameOf,
 } from '../text-formatting';
 import {
+  DEFAULT_PEOPLE_SHOWN,
   formatReplyDelay,
   rankPeopleBy,
   selectFeaturedPeople,
   typicalReplyDelayOf,
 } from './featured-people';
+import type { PeopleShown } from './featured-people';
 import { renderSectionHeading } from './section-heading';
 
 /** The "for every 10 from X, Y sends N" comparison is expressed per this many messages. */
@@ -121,8 +123,8 @@ function describeQuietestWeekday(analysis: ChatAnalysis): SafeHtml {
 /**
  * Who replies fastest and who slowest, when at least two people can be compared.
  */
-function describeReplySpeed(analysis: ChatAnalysis): SafeHtml | null {
-  const featuredPeople = selectFeaturedPeople(analysis.people);
+function describeReplySpeed(analysis: ChatAnalysis, peopleShown: PeopleShown): SafeHtml | null {
+  const featuredPeople = selectFeaturedPeople(analysis.people, peopleShown);
   const peopleByReplyDelay = rankPeopleBy(featuredPeople, typicalReplyDelayOf, 'ascending');
   const fastest = peopleByReplyDelay[0];
   const slowest = peopleByReplyDelay[peopleByReplyDelay.length - 1];
@@ -197,9 +199,12 @@ function describeBusiestDay(analysis: ChatAnalysis): SafeHtml {
 /**
  * Who laughs in writing most often, as a share of their typed messages.
  */
-function describeMostFrequentLaugher(analysis: ChatAnalysis): SafeHtml | null {
+function describeMostFrequentLaugher(
+  analysis: ChatAnalysis,
+  peopleShown: PeopleShown,
+): SafeHtml | null {
   const peopleByLaughShare = rankPeopleBy(
-    selectFeaturedPeople(analysis.people),
+    selectFeaturedPeople(analysis.people, peopleShown),
     (person: PersonStatistics): number | null =>
       ratioWhenAtLeast(
         person.laughingMessageCount,
@@ -219,9 +224,9 @@ function describeMostFrequentLaugher(analysis: ChatAnalysis): SafeHtml | null {
 /**
  * Who writes the longest messages on average, against who writes the shortest.
  */
-function describeLongestWriter(analysis: ChatAnalysis): SafeHtml | null {
+function describeLongestWriter(analysis: ChatAnalysis, peopleShown: PeopleShown): SafeHtml | null {
   const peopleByWordsPerMessage = rankPeopleBy(
-    selectFeaturedPeople(analysis.people),
+    selectFeaturedPeople(analysis.people, peopleShown),
     (person: PersonStatistics): number | null =>
       ratioWhenAtLeast(
         person.wordCount,
@@ -244,9 +249,9 @@ function describeLongestWriter(analysis: ChatAnalysis): SafeHtml | null {
 /**
  * Who sends the largest share of their messages between midnight and 5:00.
  */
-function describeNightOwl(analysis: ChatAnalysis): SafeHtml | null {
+function describeNightOwl(analysis: ChatAnalysis, peopleShown: PeopleShown): SafeHtml | null {
   const peopleByNightShare = rankPeopleBy(
-    selectFeaturedPeople(analysis.people),
+    selectFeaturedPeople(analysis.people, peopleShown),
     (person: PersonStatistics): number | null =>
       ratioWhenAtLeast(
         person.nightMessageCount,
@@ -266,9 +271,12 @@ function describeNightOwl(analysis: ChatAnalysis): SafeHtml | null {
 /**
  * Who sends the most messages in a row before somebody else writes.
  */
-function describeMostMessagesInARow(analysis: ChatAnalysis): SafeHtml | null {
+function describeMostMessagesInARow(
+  analysis: ChatAnalysis,
+  peopleShown: PeopleShown,
+): SafeHtml | null {
   const peopleByMessagesPerTurn = rankPeopleBy(
-    selectFeaturedPeople(analysis.people),
+    selectFeaturedPeople(analysis.people, peopleShown),
     (person: PersonStatistics): number | null =>
       ratioWhenAtLeast(person.messageCount, person.turnCount, MINIMUM_TURNS_FOR_MESSAGES_IN_A_ROW),
     'descending',
@@ -287,23 +295,27 @@ function describeMostMessagesInARow(analysis: ChatAnalysis): SafeHtml | null {
  * Sentences that compare people are left out of a chat with a single sender.
  *
  * @param analysis - The analysed chat.
+ * @param peopleShown - Whether the sentences compare the most active people only, or everyone.
  * @returns Each sentence as markup; names are already escaped.
  */
-export function collectInsights(analysis: ChatAnalysis): SafeHtml[] {
+export function collectInsights(
+  analysis: ChatAnalysis,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
+): SafeHtml[] {
   const hasSeveralPeople = analysis.people.length > 1;
   const candidateSentences: (SafeHtml | null)[] = [
     hasSeveralPeople ? describeMostActivePerson(analysis) : null,
     describeBusiestSlot(analysis),
     describeQuietestWeekday(analysis),
-    hasSeveralPeople ? describeReplySpeed(analysis) : null,
+    hasSeveralPeople ? describeReplySpeed(analysis, peopleShown) : null,
     hasSeveralPeople ? describeConversationStarter(analysis) : null,
     describeLongestStreak(analysis),
     describeLongestSilence(analysis),
     describeBusiestDay(analysis),
-    describeMostFrequentLaugher(analysis),
-    describeLongestWriter(analysis),
-    describeNightOwl(analysis),
-    hasSeveralPeople ? describeMostMessagesInARow(analysis) : null,
+    describeMostFrequentLaugher(analysis, peopleShown),
+    describeLongestWriter(analysis, peopleShown),
+    describeNightOwl(analysis, peopleShown),
+    hasSeveralPeople ? describeMostMessagesInARow(analysis, peopleShown) : null,
   ];
   return candidateSentences.filter(
     (sentence: SafeHtml | null): sentence is SafeHtml => sentence !== null,
@@ -314,11 +326,17 @@ export function collectInsights(analysis: ChatAnalysis): SafeHtml[] {
  * Draws the "What stands out" section.
  *
  * @param analysis - The analysed chat.
+ * @param peopleShown - Whether the sentences compare the most active people only, or everyone.
  * @returns A `<section>` element as markup.
  */
-export function renderInsightsSection(analysis: ChatAnalysis): SafeHtml {
+export function renderInsightsSection(
+  analysis: ChatAnalysis,
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
+): SafeHtml {
   const itemsHtml = joinHtml(
-    collectInsights(analysis).map((sentence: SafeHtml): SafeHtml => html`<li>${sentence}</li>`),
+    collectInsights(analysis, peopleShown).map(
+      (sentence: SafeHtml): SafeHtml => html`<li>${sentence}</li>`,
+    ),
   );
   const headingHtml = renderSectionHeading('What stands out');
   return html`<section>${headingHtml}<ul class="insights">${itemsHtml}</ul></section>`;

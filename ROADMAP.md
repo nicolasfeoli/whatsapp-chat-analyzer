@@ -68,6 +68,7 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - Mentions are read from iPhone exports only. Android writes a mention as `@` and a phone number, which cannot be matched to a name. A mention is matched to a participant by name, so two participants saved under the same name are counted as one.
 - Catchphrases are runs of two or three neighbouring words. A phrase that several people share is nobody's catchphrase, however typical of the chat it is.
 - "Then and now" compares message counts only, and needs a chat of at least sixty days.
+- The sections that compare people list the eight most active, and the words of the six who have a colour of their own. "Show everyone" lists them all, but the timeline still merges everyone beyond the sixth into "Others", and a grid of a large group is wide and mostly empty.
 - "Hide names" replaces names and hides message text, and takes the words of the names out of the word lists. Nicknames, the remaining words and the dates are still shown, so a screenshot can still give a chat away to somebody who knows it.
 - A typed continuation line that itself starts like a timestamp (`01/01/24 10:00 - breakfast with Bob: yes`) becomes a message from an invented sender.
 - A participant whose only messages are dated more than ten minutes before the message above them is folded away as pasted text. A line pasted after a media message is counted as folded but its text is not kept.

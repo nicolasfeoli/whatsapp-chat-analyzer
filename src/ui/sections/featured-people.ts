@@ -4,6 +4,8 @@
 
 import { formatDuration, median, MILLISECONDS_PER_MINUTE } from '../../core/index';
 import type { PersonStatistics, TimestampResolution } from '../../core/index';
+import { EMPTY_HTML, escapeHtml, html } from '../html';
+import type { SafeHtml } from '../html';
 
 /**
  * How many people the bar charts, the table and the comparisons show. In a
@@ -28,15 +30,47 @@ export interface PersonWithValue {
 }
 
 /**
+ * Whom the sections that compare people list: the most active only, which
+ * keeps a large group readable, or everyone, for a group in which the people
+ * who write little matter too.
+ */
+export type PeopleShown = 'most-active' | 'everyone';
+
+/** What the report shows until the reader asks for everyone. */
+export const DEFAULT_PEOPLE_SHOWN: PeopleShown = 'most-active';
+
+/**
  * Picks the people who are shown individually.
  *
  * @param people - Everyone in the chat, most messages first.
- * @returns The first eight.
+ * @param peopleShown - Whether to stop at the most active.
+ * @returns The first eight, or everyone when asked to.
  */
 export function selectFeaturedPeople(
   people: readonly PersonStatistics[],
+  peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
 ): readonly PersonStatistics[] {
+  if (peopleShown === 'everyone') {
+    return people;
+  }
   return people.slice(0, FEATURED_PEOPLE_LIMIT);
+}
+
+/**
+ * Writes the note that a section lists only part of the people, so the cut is
+ * not mistaken for the whole chat.
+ *
+ * @param shownCount - How many people the section lists.
+ * @param totalCount - How many people wrote in the chat.
+ * @returns A `<p class="hint people-shown-note">` element as markup, or empty
+ *   markup when nobody is left out.
+ */
+export function renderPeopleShownNote(shownCount: number, totalCount: number): SafeHtml {
+  if (shownCount >= totalCount) {
+    return EMPTY_HTML;
+  }
+  const note = `Showing the ${String(shownCount)} most active of ${String(totalCount)} people.`;
+  return html`<p class="hint people-shown-note">${escapeHtml(note)}</p>`;
 }
 
 /**
