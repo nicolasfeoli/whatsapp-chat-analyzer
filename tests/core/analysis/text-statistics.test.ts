@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   analyseMessageText,
   countLinks,
+  extractLinkSites,
   extractEmojis,
   extractMentionedNames,
   extractPhrases,
@@ -138,6 +139,28 @@ describe('countLinks', () => {
     { description: 'an empty text', text: '', expected: 0 },
   ])('counts $expected for $description', ({ text, expected }) => {
     expect(countLinks(text)).toBe(expected);
+  });
+});
+
+describe('extractLinkSites', () => {
+  it('lists the site of every link, in order, repeats included', () => {
+    const text = 'https://example.com/one then www.example.org and https://example.com/two';
+
+    expect(extractLinkSites(text)).toEqual(['example.com', 'example.org', 'example.com']);
+  });
+
+  it('keeps nothing of the path or the query of a link', () => {
+    const text = 'look https://www.example.com/album/ana-birthday?key=secret#photo-3';
+
+    expect(extractLinkSites(text)).toEqual(['example.com']);
+  });
+
+  it('leaves out a link without a host that looks like a site', () => {
+    expect(extractLinkSites('router at http://192.168.0.1/admin')).toEqual([]);
+  });
+
+  it('finds none in a text without links, a bare domain included', () => {
+    expect(extractLinkSites('see example.com tomorrow')).toEqual([]);
   });
 });
 
@@ -489,10 +512,22 @@ describe('analyseMessageText', () => {
     });
   });
 
+  describe('the sites of links', () => {
+    it('lists the site of each link next to the number of links', () => {
+      const statistics = analyseMessageText(
+        'tickets https://www.example.com/buy?seat=12 and http://10.0.0.7/setup',
+      );
+
+      expect(statistics.linkCount).toBe(2);
+      expect(statistics.linkSites).toEqual(['example.com']);
+    });
+  });
+
   describe('an empty message', () => {
     it('counts nothing', () => {
       expect(analyseMessageText('')).toEqual({
         linkCount: 0,
+        linkSites: [],
         containsQuestion: false,
         emojis: [],
         wordCount: 0,

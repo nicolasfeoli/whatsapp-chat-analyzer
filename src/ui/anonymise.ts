@@ -8,7 +8,8 @@
  *
  * Numbers, dates, emojis and common words stay: they are what the screenshot
  * is for. Words that are part of somebody's name are taken out of the word
- * lists, since a chat is full of people calling each other by name.
+ * lists, since a chat is full of people calling each other by name. The sites
+ * that links lead to stay as well, except those named after a participant.
  */
 
 import type {
@@ -37,6 +38,15 @@ const SHORTEST_NAME_WORD_LENGTH = 3;
 
 /** A word of a name: a letter of any script followed by letters or apostrophes, as in the word lists. */
 const NAME_WORD_PATTERN = /[\p{L}][\p{L}']*/gu;
+
+/** What separates the labels of a site: `example.com` has the labels `example` and `com`. */
+const SITE_LABEL_SEPARATOR = '.';
+
+/**
+ * What separates the words inside the label of a site: anything that is not a
+ * letter, so `ana-garcia` and `ana2024` both hold the word `ana`.
+ */
+const SITE_WORD_SEPARATOR_PATTERN = /[^\p{L}]+/u;
 
 /**
  * Writes the neutral label of the person at a position in the ranking.
@@ -116,6 +126,36 @@ function removeNameWords(
 }
 
 /**
+ * Tells whether a site is named after a participant: one of the words of its
+ * labels is a word of a name, as in `ana-garcia.example`. The last label is
+ * not looked at, since it is a top-level domain and never a name of its own;
+ * a participant called "Com" would otherwise hide most of the web.
+ */
+function isSiteNamedAfterSomebody(site: string, nameWords: ReadonlySet<string>): boolean {
+  const labelsBeforeTopLevelDomain = site.split(SITE_LABEL_SEPARATOR).slice(0, -1);
+  return labelsBeforeTopLevelDomain.some((label: string): boolean =>
+    label.split(SITE_WORD_SEPARATOR_PATTERN).some((word: string): boolean => nameWords.has(word)),
+  );
+}
+
+/**
+ * Copies a table of link counts by site without the sites named after a
+ * participant. The other sites are not names and stay as they are.
+ */
+function removeSitesNamedAfterPeople(
+  linkSiteCounts: ReadonlyMap<string, number>,
+  nameWords: ReadonlySet<string>,
+): Map<string, number> {
+  const keptLinkSiteCounts = new Map<string, number>();
+  for (const [site, count] of linkSiteCounts) {
+    if (!isSiteNamedAfterSomebody(site, nameWords)) {
+      keptLinkSiteCounts.set(site, count);
+    }
+  }
+  return keptLinkSiteCounts;
+}
+
+/**
  * Tells whether a phrase is free of the words names are made of.
  */
 function isFreeOfNameWords(
@@ -140,6 +180,7 @@ function anonymisePerson(person: PersonStatistics, replacement: NameReplacement)
     replyCountsByRecipient: relabelCounts(person.replyCountsByRecipient, labelOfSender),
     mentionCountsByName: relabelCounts(person.mentionCountsByName, labelOfMentionedName),
     wordCounts: removeNameWords(person.wordCounts, replacement.nameWords),
+    linkSiteCounts: removeSitesNamedAfterPeople(person.linkSiteCounts, replacement.nameWords),
     signaturePhrases: person.signaturePhrases.filter((signaturePhrase: SignaturePhrase): boolean =>
       isFreeOfNameWords(signaturePhrase, replacement.nameWords),
     ),
@@ -176,8 +217,9 @@ function anonymiseMilestone(milestone: ChatMilestone, replacement: NameReplaceme
  *
  * @param analysis - The analysed chat. It is not modified.
  * @returns The copy: same numbers, neutral labels instead of names (also for
- *   the senders of the milestones), hidden message texts, and word lists
- *   without the words of the names.
+ *   the senders of the milestones), hidden message texts, word lists without
+ *   the words of the names, and site lists without the sites named after a
+ *   participant.
  */
 export function anonymiseAnalysis(analysis: ChatAnalysis): ChatAnalysis {
   const replacement = buildNameReplacement(analysis.people);
@@ -195,6 +237,7 @@ export function anonymiseAnalysis(analysis: ChatAnalysis): ChatAnalysis {
       anonymiseMessage(message, replacement),
     ),
     wordCounts: removeNameWords(analysis.wordCounts, replacement.nameWords),
+    linkSiteCounts: removeSitesNamedAfterPeople(analysis.linkSiteCounts, replacement.nameWords),
     longestMessage,
     milestones: analysis.milestones.map((milestone: ChatMilestone): ChatMilestone =>
       anonymiseMilestone(milestone, replacement),

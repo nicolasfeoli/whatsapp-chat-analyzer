@@ -23,6 +23,7 @@ const FIRST_MESSAGE_TIME = localTime('2024-01-13 10:00');
 function textStatistics(overrides: Partial<MessageTextStatistics> = {}): MessageTextStatistics {
   return {
     linkCount: 0,
+    linkSites: [],
     containsQuestion: false,
     emojis: [],
     wordCount: 0,
@@ -53,6 +54,7 @@ describe('createPersonStatisticsAccumulator', () => {
       emojiCount: 0,
       questionCount: 0,
       linkCount: 0,
+      linkSiteCounts: new Map<string, number>(),
       laughingMessageCount: 0,
       nightMessageCount: 0,
       messageCountsByHour: new Array<number>(24).fill(0),
