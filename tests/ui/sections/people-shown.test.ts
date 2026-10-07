@@ -24,6 +24,7 @@ import { renderPeopleSection } from '../../../src/ui/sections/people';
 import { renderRepliesSection } from '../../../src/ui/sections/replies';
 import { renderReplyPairsSection } from '../../../src/ui/sections/reply-pairs';
 import { renderReplySpeedPairsSection } from '../../../src/ui/sections/reply-speed-pairs';
+import { renderTextingStyleSection } from '../../../src/ui/sections/texting-style';
 import { renderThenAndNowSection } from '../../../src/ui/sections/then-and-now';
 import { renderWhoIsStillHereSection } from '../../../src/ui/sections/who-is-still-here';
 import { renderWordsAndEmojisSection } from '../../../src/ui/sections/words-and-emojis';
@@ -45,6 +46,9 @@ function buildPerson(index: number): PersonStatistics {
     messageCount: 1000 - index * 100,
     textMessageCount: 900 - index * 90,
     wordCount: 2000,
+    /* A share of 10% or more, so that no row reads "Person 1" followed by "0%". */
+    singleWordMessageCount: 450,
+    longestMessageWordCount: 40,
     turnCount: 100,
     /* The quiet person sends half of their messages at night; nobody else sends any. */
     nightMessageCount: isQuietPerson ? 50 : 0,
@@ -155,6 +159,11 @@ const sectionCases: readonly SectionCase[] = [
   {
     name: 'How conversations end',
     render: (peopleShown) => renderConversationEndingsSection(analysis, personColours, peopleShown),
+    defaultNote: EIGHT_OF_TEN_NOTE,
+  },
+  {
+    name: 'How each person writes',
+    render: (peopleShown) => renderTextingStyleSection(analysis, personColours, peopleShown),
     defaultNote: EIGHT_OF_TEN_NOTE,
   },
   {

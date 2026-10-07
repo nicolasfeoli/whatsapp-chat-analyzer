@@ -13,6 +13,7 @@ import { renderPeakTimesSection } from '../../src/ui/sections/peak-times';
 import { renderPersonProfileSection } from '../../src/ui/sections/person-profile';
 import { renderReplySpeedPairsSection } from '../../src/ui/sections/reply-speed-pairs';
 import { renderSharedSitesSection } from '../../src/ui/sections/shared-sites';
+import { renderTextingStyleSection } from '../../src/ui/sections/texting-style';
 import { renderWhoIsStillHereSection } from '../../src/ui/sections/who-is-still-here';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
 import { localMidnight, localTime, mediaMessage, textMessage } from '../fixtures/messages';
@@ -363,6 +364,51 @@ describe('anonymiseAnalysis', () => {
 
       expect(sectionHtml).toContain('Person A</td><td>Mostly on Saturdays, around 23:00</td>');
       expect(sectionHtml).toContain('Person B</td><td>Mostly on Mondays, around 08:00</td>');
+      expect(sectionHtml).not.toContain('Ana');
+      expect(sectionHtml).not.toContain('Bob');
+      expect(sectionHtml).not.toContain('Vega');
+    });
+  });
+
+  describe('"How each person writes"', () => {
+    /** Ana types one word at a time; Bob Vega writes long messages. */
+    const chatWithStyles = chatAnalysis({
+      people: [
+        personStatistics({
+          name: 'Ana',
+          messageCount: 200,
+          textMessageCount: 200,
+          singleWordMessageCount: 150,
+          emojiOnlyMessageCount: 20,
+          longestMessageWordCount: 9,
+        }),
+        personStatistics({
+          name: 'Bob Vega',
+          messageCount: 100,
+          textMessageCount: 100,
+          singleWordMessageCount: 5,
+          longestMessageWordCount: 310,
+        }),
+      ],
+    });
+    const hiddenChatWithStyles = anonymiseAnalysis(chatWithStyles);
+
+    it('keeps the counts the shares are made of', () => {
+      expect(hiddenChatWithStyles.people[0]).toMatchObject({
+        singleWordMessageCount: 150,
+        emojiOnlyMessageCount: 20,
+        longestMessageWordCount: 9,
+      });
+    });
+
+    it('lists labels instead of names, with the same shares and lengths', () => {
+      const sectionHtml = renderTextingStyleSection(
+        hiddenChatWithStyles,
+        assignPersonColours(hiddenChatWithStyles.people),
+      );
+
+      expect(sectionHtml).toContain('Person A</td><td>75%</td><td>10%</td><td>9 words</td>');
+      expect(sectionHtml).toContain('Person B</td><td>5.0%</td><td>0%</td><td>310 words</td>');
       expect(sectionHtml).not.toContain('Ana');
       expect(sectionHtml).not.toContain('Bob');
       expect(sectionHtml).not.toContain('Vega');

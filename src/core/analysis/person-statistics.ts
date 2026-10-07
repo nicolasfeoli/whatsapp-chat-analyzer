@@ -36,6 +36,9 @@ export function createPersonStatisticsAccumulator(
     deletedCount: 0,
     editedMessageCount: 0,
     wordCount: 0,
+    singleWordMessageCount: 0,
+    emojiOnlyMessageCount: 0,
+    longestMessageWordCount: 0,
     emojiCount: 0,
     questionCount: 0,
     linkCount: 0,
@@ -135,6 +138,16 @@ export function recordTextMessage(
   if (textStatistics.containsLaugh) {
     person.laughingMessageCount += 1;
   }
+  if (textStatistics.isSingleWord) {
+    person.singleWordMessageCount += 1;
+  }
+  if (textStatistics.isEmojiOnly) {
+    person.emojiOnlyMessageCount += 1;
+  }
+  person.longestMessageWordCount = Math.max(
+    person.longestMessageWordCount,
+    textStatistics.wordCount,
+  );
   recordEmojisWordsAndMentions(person, textStatistics);
 }
 

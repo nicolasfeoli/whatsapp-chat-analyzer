@@ -431,6 +431,63 @@ describe('analyseChat', () => {
     });
   });
 
+  describe("each person's texting style", () => {
+    const messages = [
+      textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', text: 'ok' }),
+      textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:01', text: `yes ${PARTY_POPPER}` }),
+      textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:02', text: PARTY_POPPER }),
+      textMessage({
+        sender: 'Ana',
+        sentAt: '2024-01-13 10:03',
+        text: 'see you at the usual place',
+      }),
+      textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:04', text: `${RED_HEART} ${RED_HEART}` }),
+      textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:05', text: 'on my way' }),
+      mediaMessage({ sender: 'Carla', sentAt: '2024-01-13 10:06', caption: 'look' }),
+      deletedMessage({ sender: 'Carla', sentAt: '2024-01-13 10:07' }),
+    ];
+
+    it('counts the typed messages of each person that are a single word', () => {
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').singleWordMessageCount).toBe(2);
+      expect(findPerson(analysis, 'Bob').singleWordMessageCount).toBe(0);
+    });
+
+    it('counts the typed messages of each person that are emojis only', () => {
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').emojiOnlyMessageCount).toBe(1);
+      expect(findPerson(analysis, 'Bob').emojiOnlyMessageCount).toBe(1);
+    });
+
+    it("records the number of words of each person's longest typed message", () => {
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').longestMessageWordCount).toBe(6);
+      expect(findPerson(analysis, 'Bob').longestMessageWordCount).toBe(3);
+    });
+
+    it('counts nothing for a caption, a media placeholder or a deleted message', () => {
+      const carla = findPerson(analyseMessages(messages), 'Carla');
+
+      expect(carla).toMatchObject({
+        textMessageCount: 0,
+        singleWordMessageCount: 0,
+        emojiOnlyMessageCount: 0,
+        longestMessageWordCount: 0,
+      });
+    });
+
+    it("gives the chat's longest message the length of its sender's longest", () => {
+      const analysis = analyseMessages(messages);
+
+      expect(analysis.longestMessageWordCount).toBe(
+        findPerson(analysis, 'Ana').longestMessageWordCount,
+      );
+    });
+  });
+
   describe('night messages', () => {
     it.each([
       { time: '00:00', description: 'midnight' },

@@ -31,6 +31,8 @@ function textStatistics(overrides: Partial<MessageTextStatistics> = {}): Message
     containsLaugh: false,
     mentionedNames: [],
     phrases: [],
+    isSingleWord: false,
+    isEmojiOnly: false,
     ...overrides,
   };
 }
@@ -51,6 +53,9 @@ describe('createPersonStatisticsAccumulator', () => {
       deletedCount: 0,
       editedMessageCount: 0,
       wordCount: 0,
+      singleWordMessageCount: 0,
+      emojiOnlyMessageCount: 0,
+      longestMessageWordCount: 0,
       emojiCount: 0,
       questionCount: 0,
       linkCount: 0,
@@ -248,6 +253,30 @@ describe('recordTextMessage', () => {
     );
   });
 
+  it('counts a message of a single word, and one of emojis only, as such', () => {
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
+
+    recordTextMessage(person, textStatistics({ wordCount: 1, isSingleWord: true }));
+    recordTextMessage(person, textStatistics({ emojis: [PARTY_POPPER], isEmojiOnly: true }));
+    recordTextMessage(person, textStatistics({ wordCount: 4 }));
+
+    expect(person).toMatchObject({
+      textMessageCount: 3,
+      singleWordMessageCount: 1,
+      emojiOnlyMessageCount: 1,
+    });
+  });
+
+  it('remembers the number of words of the longest message, not of the latest', () => {
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
+
+    recordTextMessage(person, textStatistics({ wordCount: 4 }));
+    recordTextMessage(person, textStatistics({ wordCount: 31 }));
+    recordTextMessage(person, textStatistics({ wordCount: 7 }));
+
+    expect(person.longestMessageWordCount).toBe(31);
+  });
+
   it('adds up over several messages', () => {
     const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
@@ -310,6 +339,20 @@ describe('recordCaption', () => {
         ['Carla', 1],
       ]),
     );
+  });
+
+  it('does not count a caption as a single word, as emojis only or as the longest message', () => {
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
+
+    recordCaption(person, textStatistics({ wordCount: 1, isSingleWord: true }));
+    recordCaption(person, textStatistics({ emojis: [RED_HEART], isEmojiOnly: true }));
+    recordCaption(person, textStatistics({ wordCount: 40 }));
+
+    expect(person).toMatchObject({
+      singleWordMessageCount: 0,
+      emojiOnlyMessageCount: 0,
+      longestMessageWordCount: 0,
+    });
   });
 
   it('does not count a caption as a typed message, a question or a laugh', () => {

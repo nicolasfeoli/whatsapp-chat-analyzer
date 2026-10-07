@@ -1,6 +1,7 @@
 /**
  * What can be counted in the text of one typed message: links and the sites
- * they lead to, a question, emojis, words and written laughs.
+ * they lead to, a question, emojis, words and written laughs, and whether the
+ * message is a single word or nothing but emojis.
  */
 
 import { findSiteOfLink } from './link-hosts';
@@ -37,6 +38,17 @@ export interface MessageTextStatistics {
    * significant. Repeats included.
    */
   readonly phrases: readonly string[];
+  /**
+   * Whether the message is one word and nothing else to read: exactly one
+   * word, no link and no mention. Emojis, digits and punctuation around the
+   * word do not change that, so "ok!!" and "yes 👍" are single words.
+   */
+  readonly isSingleWord: boolean;
+  /**
+   * Whether the message is made of emojis and nothing else: at least one
+   * emoji, and only white space between and around them.
+   */
+  readonly isEmojiOnly: boolean;
 }
 
 /**
@@ -95,6 +107,14 @@ const WORD_PATTERN = /[\p{L}][\p{L}']*/gu;
  */
 const EMOJI_PATTERN =
   /[0-9#*]\ufe0f?\u20e3|\u{1F3F4}[\u{E0020}-\u{E007E}]+\u{E007F}|\p{Regional_Indicator}{2}|\p{Extended_Pictographic}(?:\ufe0f|\u200d\p{Extended_Pictographic}|[\u{1F3FB}-\u{1F3FF}])*/gu;
+
+/**
+ * What may stand between and around the emojis of a message made of emojis
+ * only: white space, and the invisible marks an emoji can leave behind when it
+ * is typed on its own, namely the variation selector (U+FE0F), the zero-width
+ * joiner (U+200D) and the two direction marks (U+200E, U+200F).
+ */
+const INVISIBLE_BETWEEN_EMOJIS_PATTERN = /\s|\ufe0f|\u200d|\u200e|\u200f/gu;
 
 /**
  * A whole word that is a written laugh, in the ways English and Spanish
@@ -214,6 +234,21 @@ export function isLaugh(word: string): boolean {
 }
 
 /**
+ * Tells whether a text is made of emojis and nothing else.
+ *
+ * @param text - The complete text of a message.
+ * @returns `true` when it holds at least one emoji and, besides emojis, only
+ *   white space. A letter, a digit, a punctuation mark or a link makes it `false`.
+ */
+export function isEmojiOnlyText(text: string): boolean {
+  const textWithoutEmojis = text.replace(EMOJI_PATTERN, '');
+  if (textWithoutEmojis.length === text.length) {
+    return false;
+  }
+  return textWithoutEmojis.replace(INVISIBLE_BETWEEN_EMOJIS_PATTERN, '') === '';
+}
+
+/**
  * Tells whether a word that is not a laugh deserves a place in the ranking of
  * most used words.
  */
@@ -266,7 +301,7 @@ export function extractPhrases(text: string): string[] {
  * @param text - The complete text of a message of kind `text`, or the caption
  *   of a media message.
  * @returns Links and their sites, question, emojis, words, laughs, mentions
- *   and phrases found in it.
+ *   and phrases found in it, and whether it is a single word or emojis only.
  */
 export function analyseMessageText(text: string): MessageTextStatistics {
   const linkSites = extractLinkSites(text);
@@ -297,5 +332,7 @@ export function analyseMessageText(text: string): MessageTextStatistics {
     containsLaugh,
     mentionedNames,
     phrases: extractPhrases(textWithoutLinks),
+    isSingleWord: words.length === 1 && linkCount === 0 && mentionedNames.length === 0,
+    isEmojiOnly: isEmojiOnlyText(text),
   };
 }

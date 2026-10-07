@@ -8,6 +8,7 @@ import {
   extractMentionedNames,
   extractPhrases,
   extractWords,
+  isEmojiOnlyText,
   isLaugh,
   removeLinks,
   removeMentions,
@@ -356,6 +357,44 @@ describe('isLaugh', () => {
   });
 });
 
+describe('isEmojiOnlyText', () => {
+  it.each([
+    { name: 'a single emoji', text: PARTY_POPPER },
+    { name: 'the same emoji three times', text: PARTY_POPPER.repeat(3) },
+    {
+      name: 'emojis with spaces and a line break',
+      text: ` ${PARTY_POPPER} ${RED_HEART}\n${PARTY_POPPER} `,
+    },
+    { name: 'a heart with its variation selector', text: RED_HEART },
+    { name: 'a keycap', text: KEYCAP_ONE },
+    { name: 'a flag', text: FLAG_OF_COSTA_RICA },
+    { name: 'a family joined into one emoji', text: FAMILY_MAN_WOMAN_GIRL },
+    { name: 'a thumbs up with a skin tone', text: THUMBS_UP_MEDIUM_SKIN_TONE },
+  ])('is true for $name', ({ text }) => {
+    expect(isEmojiOnlyText(text)).toBe(true);
+  });
+
+  it.each([
+    { name: 'an empty text', text: '' },
+    { name: 'white space', text: '  \n ' },
+    { name: 'a word', text: 'ok' },
+    { name: 'a word and an emoji', text: `ok ${PARTY_POPPER}` },
+    { name: 'an emoji and an exclamation mark', text: `${PARTY_POPPER}!` },
+    { name: 'an emoji and a number', text: `${PARTY_POPPER} 3` },
+    { name: 'a number', text: '3' },
+    { name: 'a typed smiley', text: ':)' },
+    { name: 'an emoji and a link', text: `${PARTY_POPPER} https://example.com` },
+  ])('is false for $name', ({ text }) => {
+    expect(isEmojiOnlyText(text)).toBe(false);
+  });
+
+  it('gives the same answer every time, because the pattern keeps no state between calls', () => {
+    expect(isEmojiOnlyText(PARTY_POPPER)).toBe(true);
+    expect(isEmojiOnlyText(PARTY_POPPER)).toBe(true);
+    expect(isEmojiOnlyText('ok')).toBe(false);
+  });
+});
+
 describe('analyseMessageText', () => {
   describe('words', () => {
     it('counts every word, filler included', () => {
@@ -523,6 +562,45 @@ describe('analyseMessageText', () => {
     });
   });
 
+  describe('a message of a single word', () => {
+    it.each([
+      { text: 'ok', why: 'one word' },
+      { text: 'Vale!!', why: 'punctuation is not a word' },
+      { text: `yes ${PARTY_POPPER}`, why: 'an emoji is not a word' },
+      { text: 'jajaja', why: 'a laugh is a word' },
+      { text: 'at 5', why: 'a number is not a word' },
+    ])('is "$text", because $why', ({ text }) => {
+      expect(analyseMessageText(text).isSingleWord).toBe(true);
+    });
+
+    it.each([
+      { text: 'ok then', why: 'it has two words' },
+      { text: 'ok\nthen', why: 'its two words are on two lines' },
+      { text: "don't know", why: 'it has two words' },
+      { text: PARTY_POPPER, why: 'it has no word' },
+      { text: '12:30', why: 'it has no word' },
+      { text: 'look https://example.com/menu', why: 'it comes with a link' },
+      { text: '@\u2068Bob\u2069 thanks', why: 'it comes with a mention' },
+      { text: '', why: 'it is empty' },
+    ])('is not "$text", because $why', ({ text }) => {
+      expect(analyseMessageText(text).isSingleWord).toBe(false);
+    });
+
+    it("takes a word with an apostrophe, such as don't, for one word", () => {
+      expect(analyseMessageText("don't").isSingleWord).toBe(true);
+    });
+  });
+
+  describe('a message of emojis only', () => {
+    it('is reported for a message that holds emojis and nothing else', () => {
+      expect(analyseMessageText(`${PARTY_POPPER}${RED_HEART}`).isEmojiOnly).toBe(true);
+    });
+
+    it('is not reported for a message with a word next to its emoji', () => {
+      expect(analyseMessageText(`yes ${PARTY_POPPER}`).isEmojiOnly).toBe(false);
+    });
+  });
+
   describe('an empty message', () => {
     it('counts nothing', () => {
       expect(analyseMessageText('')).toEqual({
@@ -535,6 +613,8 @@ describe('analyseMessageText', () => {
         containsLaugh: false,
         mentionedNames: [],
         phrases: [],
+        isSingleWord: false,
+        isEmojiOnly: false,
       });
     });
   });

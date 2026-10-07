@@ -26,7 +26,7 @@ WhatsApp can export a chat as a text file, but the file is thousands of lines wi
 
 - **Answers to the arguments.** Who writes most, who starts the conversations, who replies fastest, who answers whom and how fast, who mentions whom, who edits their messages after sending them, on which weekday and at what hour each person mostly writes, whose questions are left hanging, and who sends five messages in a row before anyone answers.
 - **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence, who took over the chat since it began, who has not written in a long time, and the milestones on the way: the 10,000th message and who sent it, the day half of everything had been said, the latest anniversary. Pick a year, the last twelve months or any two dates, and the whole report is counted again for just that stretch.
-- **Its personality.** The words, catchphrases and emojis each person uses far more than everyone else, who laughs the most in writing, and who sends the stickers, the photos and the voice notes, and which sites the links lead to, for the chat and for each person.
+- **Its personality.** The words, catchphrases and emojis each person uses far more than everyone else, who laughs the most in writing, who answers in one word or one emoji and who writes paragraphs, and who sends the stickers, the photos and the voice notes, and which sites the links lead to, for the chat and for each person.
 
 A chat is also other people's messages, and they never agreed to have them analysed by a stranger's server. So the page is built so that you do not have to trust it: the file is read inside your browser tab and nothing is uploaded. A switch replaces the names with neutral labels and hides message text before you share a screenshot. In a large group the report lists the most active people, and another switch lists everyone. Whoever is left out can still be looked up: one section shows a single person of your choice up close, with their numbers, the hours and weekdays they write in, their words, and whom they answer and mention most.
 
@@ -93,7 +93,7 @@ The dev server relaxes `connect-src` to its own WebSocket so hot reload works. `
 ## Tests
 
 ```sh
-npm test               # Vitest, 2,323 tests in 71 files
+npm test               # Vitest, 2,396 tests in 72 files
 npm run test:coverage  # the same, with a coverage report in coverage/
 npm run check          # type check, lint, formatting, tests with coverage, build
 ```
