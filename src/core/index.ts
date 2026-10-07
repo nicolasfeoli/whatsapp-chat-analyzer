@@ -19,6 +19,15 @@ export {
   removeLinks,
 } from './analysis/text-statistics';
 export type { MessageTextStatistics } from './analysis/text-statistics';
+export {
+  countOccurrencesInText,
+  monthKeyFromDate,
+  normaliseForSearch,
+  parseSearchQuery,
+  searchMessages,
+  yearFromMonthKey,
+} from './analysis/word-search';
+export type { WordSearchResult } from './analysis/word-search';
 export { isStopWord } from './analysis/stop-words';
 export { describeThrownValue } from './errors';
 export {

@@ -718,7 +718,8 @@ td:first-child {
 }
 
 /* one person up close */
-.profile-chooser {
+.profile-chooser,
+.word-search-field {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -726,7 +727,8 @@ td:first-child {
   font-size: 14px;
   color: var(--ink-2);
 }
-.profile-chooser select {
+.profile-chooser select,
+.word-search-field input {
   font: inherit;
   color: var(--ink);
   background: var(--surface);
@@ -734,6 +736,17 @@ td:first-child {
   border-radius: 6px;
   padding: 4px 8px;
   max-width: 100%;
+}
+.word-search-field input {
+  width: 260px;
+}
+.word-search-result {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.word-search-summary {
+  font-size: 15px;
 }
 .person-profile {
   display: flex;

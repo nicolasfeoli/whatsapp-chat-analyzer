@@ -28,6 +28,7 @@ import {
   PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS,
   READING_MESSAGES_STATUS,
   TIMELINE_REDRAW_DELAY_IN_MILLISECONDS,
+  WORD_SEARCH_DELAY_IN_MILLISECONDS,
   startPage,
 } from '../../src/ui/page-controller';
 import type { PageWindow, ProgressListener } from '../../src/ui/page-controller';
@@ -35,9 +36,10 @@ import {
   NO_MESSAGES_IN_PERIOD_STATUS,
   PERIOD_ENDS_BEFORE_IT_STARTS_STATUS,
 } from '../../src/ui/period';
+import { WORD_SEARCH_HINT } from '../../src/ui/sections/word-search';
 import { createTooltip } from '../../src/ui/tooltip';
 import { analysedResult } from '../fixtures/analysis-builders';
-import { androidLine, exportText, iphoneLine } from '../fixtures/export-lines';
+import { androidLine, exportText, iphoneLine, iphoneNotTypedLine } from '../fixtures/export-lines';
 import { findElement, textsOfElements } from '../fixtures/markup';
 import { loadIndexHtmlBody } from '../fixtures/page';
 import { buildZipFile } from '../fixtures/zip-files';
@@ -1761,5 +1763,337 @@ describe('looking at one person up close', () => {
     choosePerson(page, 99);
 
     expect(profiledName(page)).toBe('Ana');
+  });
+});
+
+describe('looking up a word', () => {
+  /** The names of nine invented people; the last ones write least. */
+  const NINE_NAMES = ['Ana', 'Bob', 'Carla', 'Dani', 'Elena', 'Fede', 'Gabi', 'Hugo', 'Irene'];
+
+  /**
+   * A file that runs from 14 March 2023 to 20 June 2024. "spring" is in three
+   * of its five messages: one from Ana and one from Bob in 2023, and one from
+   * Bob, who wrote alone that year, in 2024.
+   */
+  function fileAboutSpring(): File {
+    const lines = [
+      iphoneLine({ date: '14/03/2023', time: '10:00:00', sender: 'Ana', text: 'Spring plans' }),
+      iphoneLine({ date: '14/03/2023', time: '10:01:00', sender: 'Bob', text: 'spring it is' }),
+      iphoneLine({ date: '31/12/2023', time: '23:00:00', sender: 'Ana', text: 'happy new year' }),
+      iphoneLine({ date: '01/01/2024', time: '00:05:00', sender: 'Bob', text: 'same to you' }),
+      iphoneLine({ date: '20/06/2024', time: '18:00:00', sender: 'Bob', text: 'spring is over' }),
+    ];
+    return new File([exportText(lines)], 'WhatsApp Chat with Two years.txt');
+  }
+
+  /**
+   * A file in which each of the nine people writes "hello" one time fewer
+   * than the one before, so Irene, with a single message, is the least active.
+   */
+  function fileOfNinePeople(): File {
+    const lines: string[] = [];
+    for (const [index, sender] of NINE_NAMES.entries()) {
+      const messageCount = NINE_NAMES.length - index;
+      for (let messageIndex = 0; messageIndex < messageCount; messageIndex++) {
+        const minute = String(index * 6 + messageIndex).padStart(2, '0');
+        lines.push(iphoneLine({ date: '13/01/2024', time: `10:${minute}:00`, sender }));
+      }
+    }
+    return new File([exportText(lines)], 'WhatsApp Chat with The group.txt');
+  }
+
+  /** A file of two stickers and not one typed word. */
+  function fileOfStickers(): File {
+    const lines = [
+      iphoneNotTypedLine({
+        date: '13/01/2024',
+        time: '10:00:00',
+        sender: 'Ana',
+        text: 'sticker omitted',
+      }),
+      iphoneNotTypedLine({
+        date: '13/01/2024',
+        time: '10:01:00',
+        sender: 'Bob',
+        text: 'sticker omitted',
+      }),
+    ];
+    return new File([exportText(lines)], 'WhatsApp Chat with Stickers.txt');
+  }
+
+  /** The field of the report on display. */
+  function searchField(page: TestPage): HTMLInputElement {
+    const field = findElement(page.elements.reportContainer, '#word-search-input');
+    if (!(field instanceof HTMLInputElement)) {
+      throw new Error('The search field is not an input');
+    }
+    return field;
+  }
+
+  /** Types into the field the way the reader does: the text changes and an `input` event fires. */
+  function typeWords(page: TestPage, words: string): void {
+    const field = searchField(page);
+    field.value = words;
+    field.dispatchEvent(new Event('input'));
+  }
+
+  /** Types into the field and waits out the pause after which the page searches. */
+  function lookUp(page: TestPage, words: string): void {
+    vi.useFakeTimers();
+    typeWords(page, words);
+    vi.advanceTimersByTime(WORD_SEARCH_DELAY_IN_MILLISECONDS);
+    vi.useRealTimers();
+  }
+
+  /** The paragraphs under the field. */
+  function outcomeParagraphs(page: TestPage): string[] {
+    return textsOfElements(page.elements.reportContainer, '#word-search-result p');
+  }
+
+  /** The sentence that sums the search up, when there is one. */
+  function outcomeSummary(page: TestPage): string | undefined {
+    return textsOfElements(
+      page.elements.reportContainer,
+      '#word-search-result .word-search-summary',
+    )[0];
+  }
+
+  /** The names next to the bars of "Who says it most". */
+  function namesNextToBars(page: TestPage): string[] {
+    return textsOfElements(page.elements.reportContainer, '#word-search-result .bar-label');
+  }
+
+  /** Ticks or unticks a checkbox the way a click does. */
+  function setChecked(checkbox: HTMLInputElement, isChecked: boolean): void {
+    checkbox.checked = isChecked;
+    checkbox.dispatchEvent(new Event('change'));
+  }
+
+  it('starts with an empty field and a hint under it', () => {
+    const page = startTestPage();
+
+    expect(searchField(page).value).toBe('');
+    expect(outcomeParagraphs(page)).toEqual([WORD_SEARCH_HINT]);
+  });
+
+  it('searches 250 milliseconds after the last keystroke, and not before', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileAboutSpring(), 'Two years');
+    vi.useFakeTimers();
+
+    typeWords(page, 'spring');
+    vi.advanceTimersByTime(WORD_SEARCH_DELAY_IN_MILLISECONDS - 1);
+    expect(outcomeParagraphs(page)).toEqual([WORD_SEARCH_HINT]);
+
+    vi.advanceTimersByTime(1);
+    /* Three of the five messages are 60%. */
+    expect(outcomeSummary(page)).toBe('“spring” is in 3 of 5 written messages (60%).');
+  });
+
+  it('searches once for a word typed letter by letter, counting the pause from the last letter', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileAboutSpring(), 'Two years');
+    vi.useFakeTimers();
+
+    typeWords(page, 'spr');
+    vi.advanceTimersByTime(WORD_SEARCH_DELAY_IN_MILLISECONDS - 1);
+    typeWords(page, 'spring');
+    vi.advanceTimersByTime(WORD_SEARCH_DELAY_IN_MILLISECONDS - 1);
+    expect(outcomeParagraphs(page)).toEqual([WORD_SEARCH_HINT]);
+
+    vi.advanceTimersByTime(1);
+    expect(outcomeSummary(page)).toBe('“spring” is in 3 of 5 written messages (60%).');
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('shows who says it most and how its use changed', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileAboutSpring(), 'Two years');
+
+    lookUp(page, 'spring');
+
+    const outcome = findElement(page.elements.reportContainer, '#word-search-result');
+    expect(namesNextToBars(page)).toEqual(['Bob', 'Ana']);
+    /* March 2023 to June 2024 are sixteen months, one bar each. */
+    expect(outcome.querySelectorAll('.bar-strip-column')).toHaveLength(16);
+    expect(outcome.textContent).toContain('Written most in Mar 2023: 2 messages.');
+  });
+
+  it('does not read the file again, and leaves the field and the rest of the report in place', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileAboutSpring(), 'Two years');
+    const fieldBefore = searchField(page);
+    const headingBefore = findElement(page.elements.reportContainer, '.chat-heading');
+
+    lookUp(page, 'spring');
+
+    expect(searchField(page)).toBe(fieldBefore);
+    expect(findElement(page.elements.reportContainer, '.chat-heading')).toBe(headingBefore);
+    expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+  });
+
+  it('says so when no message contains the word', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileAboutSpring(), 'Two years');
+
+    lookUp(page, 'autumn');
+
+    expect(outcomeParagraphs(page)).toEqual([
+      'No message contains “autumn”. 5 written messages were searched.',
+    ]);
+  });
+
+  it('shows the hint again when the field is emptied', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileAboutSpring(), 'Two years');
+    lookUp(page, 'spring');
+
+    lookUp(page, '');
+
+    expect(outcomeParagraphs(page)).toEqual([WORD_SEARCH_HINT]);
+  });
+
+  it('shows typed markup as text', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileAboutSpring(), 'Two years');
+
+    lookUp(page, '<img src=x onerror=alert(1)>');
+
+    const outcome = findElement(page.elements.reportContainer, '#word-search-result');
+    expect(outcome.querySelectorAll('img')).toHaveLength(0);
+    expect(outcome.textContent).toContain('No message contains “img src x onerror alert”.');
+  });
+
+  it('keeps nothing of what was typed in the storage of the browser', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem');
+    const page = startTestPage();
+    await loadFile(page, fileAboutSpring(), 'Two years');
+
+    lookUp(page, 'spring');
+
+    expect(outcomeSummary(page)).toContain('“spring”');
+    expect(setItem).not.toHaveBeenCalled();
+    expect(window.localStorage).toHaveLength(0);
+    expect(window.sessionStorage).toHaveLength(0);
+  });
+
+  describe('together with the other switches', () => {
+    it('keeps the words and labels the people when names are hidden', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileAboutSpring(), 'Two years');
+      lookUp(page, 'spring');
+
+      setChecked(page.elements.hideNamesCheckbox, true);
+
+      expect(searchField(page).value).toBe('spring');
+      expect(outcomeSummary(page)).toBe('“spring” is in 3 of 5 written messages (60%).');
+      expect(namesNextToBars(page)).toEqual(['Person A', 'Person B']);
+      expect(page.elements.reportContainer.textContent).not.toContain('Bob');
+      expect(page.elements.reportContainer.textContent).not.toContain('spring it is');
+    });
+
+    it('searches the real messages for a word typed while names are hidden', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileAboutSpring(), 'Two years');
+      setChecked(page.elements.hideNamesCheckbox, true);
+
+      lookUp(page, 'spring');
+
+      expect(outcomeSummary(page)).toBe('“spring” is in 3 of 5 written messages (60%).');
+      expect(namesNextToBars(page)).toEqual(['Person A', 'Person B']);
+    });
+
+    it('shows the names next to the bars again when they come back', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileAboutSpring(), 'Two years');
+      setChecked(page.elements.hideNamesCheckbox, true);
+      lookUp(page, 'spring');
+
+      setChecked(page.elements.hideNamesCheckbox, false);
+
+      expect(namesNextToBars(page)).toEqual(['Bob', 'Ana']);
+    });
+
+    it('lists the most active people, and everyone once that is ticked', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileOfNinePeople(), 'The group');
+      lookUp(page, 'hello');
+      expect(namesNextToBars(page)).toEqual(NINE_NAMES.slice(0, 8));
+      expect(outcomeParagraphs(page)).toContain(
+        '1 more message with it is from people who are not listed.',
+      );
+
+      setChecked(page.elements.showEveryoneCheckbox, true);
+
+      expect(searchField(page).value).toBe('hello');
+      expect(namesNextToBars(page)).toEqual(NINE_NAMES);
+    });
+
+    it('searches the period on display, not the whole chat', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileAboutSpring(), 'Two years');
+      lookUp(page, 'spring');
+
+      page.elements.periodSelect.value = 'year-2023';
+      page.elements.periodSelect.dispatchEvent(new Event('change'));
+      await vi.waitFor(() => {
+        expect(reportPeriod(page)).toBe('14 Mar 2023 to 31 Dec 2023 · 293 days');
+      });
+
+      /* In 2023 "spring" is in two of the three messages, one from each. */
+      expect(searchField(page).value).toBe('spring');
+      expect(outcomeSummary(page)).toBe('“spring” is in 2 of 3 written messages (67%).');
+      expect(namesNextToBars(page)).toEqual(['Ana', 'Bob']);
+    });
+
+    it('searches the period for a word typed after the period was chosen', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileAboutSpring(), 'Two years');
+      page.elements.periodSelect.value = 'year-2024';
+      page.elements.periodSelect.dispatchEvent(new Event('change'));
+      await vi.waitFor(() => {
+        expect(reportPeriod(page)).toBe('1 Jan 2024 to 20 Jun 2024 · 172 days');
+      });
+
+      lookUp(page, 'spring');
+
+      /* In 2024 Bob wrote alone: two messages, one with "spring", and nobody to compare him with. */
+      expect(outcomeSummary(page)).toBe('“spring” is in 1 of 2 written messages (50%).');
+      expect(namesNextToBars(page)).toEqual([]);
+    });
+
+    it('draws the outcome at once, and only once, when the report is redrawn before the pause is over', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileAboutSpring(), 'Two years');
+      vi.useFakeTimers();
+      typeWords(page, 'spring');
+
+      setChecked(page.elements.hideNamesCheckbox, true);
+
+      expect(outcomeSummary(page)).toBe('“spring” is in 3 of 5 written messages (60%).');
+      expect(vi.getTimerCount()).toBe(0);
+    });
+  });
+
+  describe('when the chat on display changes', () => {
+    it('empties the field for the next file that is loaded', async () => {
+      const page = startTestPage();
+      await loadFile(page, fileAboutSpring(), 'Two years');
+      lookUp(page, 'spring');
+
+      await loadFile(page, fileOfAna(), 'Ana');
+
+      expect(searchField(page).value).toBe('');
+      expect(outcomeParagraphs(page)).toEqual([WORD_SEARCH_HINT]);
+    });
+
+    it('has no field, and nothing to connect, for a chat without a typed word', async () => {
+      const page = startTestPage();
+
+      await loadFile(page, fileOfStickers(), 'Stickers');
+
+      expect(page.elements.reportContainer.querySelector('#word-search-input')).toBeNull();
+      expect(textsOfElements(page.elements.reportContainer, 'h2')).not.toContain('Look up a word');
+    });
   });
 });

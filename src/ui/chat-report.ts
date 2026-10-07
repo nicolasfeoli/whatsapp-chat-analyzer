@@ -39,6 +39,7 @@ import { renderTextingStyleSection } from './sections/texting-style';
 import { renderThenAndNowSection } from './sections/then-and-now';
 import { renderTimelineSection } from './sections/timeline';
 import { renderWhoIsStillHereSection } from './sections/who-is-still-here';
+import { renderWordSearchSection } from './sections/word-search';
 import { renderWordsAndEmojisSection } from './sections/words-and-emojis';
 
 /** The report as markup, plus the data the page needs to draw the timeline into it. */
@@ -87,6 +88,7 @@ export function renderChatReport(
     renderConversationEndingsSection(analysis, personColours, peopleShown),
     renderTextingStyleSection(analysis, personColours, peopleShown),
     renderWordsAndEmojisSection(analysis, personColours, peopleShown),
+    renderWordSearchSection(analysis),
     renderSharedSitesSection(analysis, personColours, peopleShown),
     renderPersonProfileSection(analysis, personColours, profiledPersonIndex),
     renderMilestonesSection(analysis, personColours),

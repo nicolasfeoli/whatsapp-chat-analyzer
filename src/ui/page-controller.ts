@@ -1,8 +1,8 @@
 /**
  * What happens on the page, and when: connects the file picker, drag and
  * drop, the date-order switch, the display switches, the period row, the list
- * of people in "One person up close" and the window events to the analysis
- * and the report.
+ * of people in "One person up close", the field of "Look up a word" and the
+ * window events to the analysis and the report.
  *
  * The modules this file draws on are pure wherever possible; the DOM work is
  * gathered here so there is one place to look for "what happens when".
@@ -56,6 +56,11 @@ import {
   renderPersonProfile,
 } from './sections/person-profile';
 import { TIMELINE_CONTAINER_ID } from './sections/timeline';
+import {
+  WORD_SEARCH_INPUT_ID,
+  WORD_SEARCH_RESULT_ID,
+  renderWordSearchOutcome,
+} from './sections/word-search';
 import type { Tooltip } from './tooltip';
 
 /**
@@ -77,6 +82,13 @@ export const ANALYSING_PERIOD_STATUS = 'Counting the messages of that period …
  * is first given time to paint the status line.
  */
 export const PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS = 30;
+
+/**
+ * How long the page waits after the last keystroke in "Look up a word" before
+ * it searches. The search runs on the main thread, so it starts once the
+ * reader pauses, not on every letter of a word.
+ */
+export const WORD_SEARCH_DELAY_IN_MILLISECONDS = 250;
 
 /** Shown when the file was read but held nothing that looks like a message. */
 export const NO_MESSAGES_FOUND_STATUS =
@@ -185,6 +197,17 @@ class PageController {
    */
   private profiledPersonName: string | null = null;
 
+  /**
+   * What the reader typed into "Look up a word", kept so the search is run
+   * again when the report is redrawn without names, with everyone or for
+   * another period. It lives in this object only: it is never written to
+   * storage and is forgotten with the chat.
+   */
+  private wordSearchQuery = '';
+
+  /** The timer of a search that waits for the reader to stop typing. */
+  private wordSearchTimer: number | undefined = undefined;
+
   public constructor(dependencies: PageDependencies) {
     this.pageElements = dependencies.pageElements;
     this.tooltip = dependencies.tooltip;
@@ -282,6 +305,7 @@ class PageController {
     attachHeatmapTooltips(this.pageElements.reportContainer, this.tooltip);
     attachCalendarTooltips(this.pageElements.reportContainer, this.tooltip);
     this.connectPersonProfileChooser(analysis, drawnAnalysis);
+    this.connectWordSearch(analysis, drawnAnalysis, peopleShown);
   }
 
   /**
@@ -337,6 +361,65 @@ class PageController {
   }
 
   /**
+   * Connects the field of "Look up a word" in the report that was just drawn.
+   * Typing searches the messages the page already holds, once the reader has
+   * paused, and draws the outcome under the field. A redrawn report gets the
+   * words of the one before back, searched in the messages now on display. A
+   * report without the section has nothing to connect.
+   *
+   * @param analysis - The analysis whose messages are searched: the period on
+   *   display, with its real texts and names.
+   * @param drawnAnalysis - The analysis the report was drawn from: the same
+   *   one, or its copy without names.
+   * @param peopleShown - Whom the report lists.
+   */
+  private connectWordSearch(
+    analysis: ChatAnalysis,
+    drawnAnalysis: ChatAnalysis,
+    peopleShown: PeopleShown,
+  ): void {
+    /* A search that was waiting belongs to the field of the report that was just replaced. */
+    this.browserWindow.clearTimeout(this.wordSearchTimer);
+    this.wordSearchTimer = undefined;
+
+    const { reportContainer } = this.pageElements;
+    const searchField = reportContainer.querySelector<HTMLInputElement>(`#${WORD_SEARCH_INPUT_ID}`);
+    const resultContainer = reportContainer.querySelector<HTMLElement>(`#${WORD_SEARCH_RESULT_ID}`);
+    if (searchField === null || resultContainer === null) {
+      return;
+    }
+
+    const showOutcome = (): void => {
+      this.wordSearchTimer = undefined;
+      const personColours = assignPersonColours(drawnAnalysis.people);
+      setInnerHtml(
+        resultContainer,
+        renderWordSearchOutcome(
+          this.wordSearchQuery,
+          analysis,
+          drawnAnalysis,
+          personColours,
+          peopleShown,
+        ),
+      );
+    };
+
+    searchField.value = this.wordSearchQuery;
+    if (this.wordSearchQuery !== '') {
+      showOutcome();
+    }
+
+    searchField.addEventListener('input', (): void => {
+      this.wordSearchQuery = searchField.value;
+      this.browserWindow.clearTimeout(this.wordSearchTimer);
+      this.wordSearchTimer = this.browserWindow.setTimeout(
+        showOutcome,
+        WORD_SEARCH_DELAY_IN_MILLISECONDS,
+      );
+    });
+  }
+
+  /**
    * Shows the row that offers to switch the date order, when the file's dates
    * can be read two ways. The example chat never offers it.
    */
@@ -361,6 +444,9 @@ class PageController {
 
     /* Another chat has other people; its profile starts with the most active one again. */
     this.profiledPersonName = null;
+
+    /* What was looked up in the previous chat is not asked of this one. */
+    this.wordSearchQuery = '';
 
     const wholeChat = wholeChatPeriod(result.analysis);
     const periodPresets = listPeriodPresets(result.analysis);

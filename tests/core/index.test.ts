@@ -498,6 +498,7 @@ describe('public API', () => {
       'analyseMessageText',
       'calendarDaysBetween',
       'countLinks',
+      'countOccurrencesInText',
       'dateFromDayKey',
       'dayKeyFromDate',
       'describeThrownValue',
@@ -509,10 +510,15 @@ describe('public API', () => {
       'isStopWord',
       'median',
       'mondayFirstWeekdayIndexOf',
+      'monthKeyFromDate',
+      'normaliseForSearch',
       'parseChat',
+      'parseSearchQuery',
       'removeLinks',
+      'searchMessages',
       'sortableDayNumber',
       'startOfDay',
+      'yearFromMonthKey',
     ]);
   });
 });
