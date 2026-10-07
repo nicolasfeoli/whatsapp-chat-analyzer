@@ -1512,3 +1512,225 @@ describe('resizing the window', () => {
     expect(page.elements.reportContainer.innerHTML).toBe('');
   });
 });
+
+describe('looking at one person up close', () => {
+  /** The names of nine invented people; the last ones write least. */
+  const NINE_NAMES = ['Ana', 'Bob', 'Carla', 'Dani', 'Elena', 'Fede', 'Gabi', 'Hugo', 'Irene'];
+
+  /** The position of Irene, who writes least and is left out of the other sections. */
+  const IRENE_INDEX = 8;
+
+  /**
+   * A file in which each of the nine people writes one message fewer than the
+   * one before, so Irene, with a single message, is the least active.
+   */
+  function fileOfNinePeople(): File {
+    const lines: string[] = [];
+    for (const [index, sender] of NINE_NAMES.entries()) {
+      const messageCount = NINE_NAMES.length - index;
+      for (let messageIndex = 0; messageIndex < messageCount; messageIndex++) {
+        const minute = String(index * 6 + messageIndex).padStart(2, '0');
+        lines.push(iphoneLine({ date: '13/01/2024', time: `10:${minute}:00`, sender }));
+      }
+    }
+    return new File([exportText(lines)], 'WhatsApp Chat with The group.txt');
+  }
+
+  /**
+   * A file that runs from 14 March 2023 to 20 June 2024. Bob wrote most
+   * overall, Ana wrote most in 2023, and in 2024 Bob wrote alone.
+   */
+  function fileOverTwoYears(): File {
+    const lines = [
+      iphoneLine({ date: '14/03/2023', time: '10:00:00', sender: 'Ana', text: 'spring plans' }),
+      iphoneLine({ date: '14/03/2023', time: '10:01:00', sender: 'Bob', text: 'count me in' }),
+      iphoneLine({ date: '31/12/2023', time: '23:00:00', sender: 'Ana', text: 'happy new year' }),
+      iphoneLine({ date: '01/01/2024', time: '00:05:00', sender: 'Bob', text: 'same to you' }),
+      iphoneLine({ date: '20/06/2024', time: '18:00:00', sender: 'Bob', text: 'anybody there' }),
+    ];
+    return new File([exportText(lines)], 'WhatsApp Chat with Two years.txt');
+  }
+
+  /** The list of people in the report on display. */
+  function personSelect(page: TestPage): HTMLSelectElement {
+    const select = findElement(page.elements.reportContainer, '#person-profile-select');
+    if (!(select instanceof HTMLSelectElement)) {
+      throw new Error('The list of people is not a select');
+    }
+    return select;
+  }
+
+  /** Picks a person in the list the way the reader does. */
+  function choosePerson(page: TestPage, personIndex: number): void {
+    const select = personSelect(page);
+    select.value = String(personIndex);
+    select.dispatchEvent(new Event('change'));
+  }
+
+  /** The name at the top of the profile on display. */
+  function profiledName(page: TestPage): string | undefined {
+    return textsOfElements(page.elements.reportContainer, '#person-profile .profile-name b')[0];
+  }
+
+  /** Picks an entry of the period list and waits for the report of that period. */
+  async function showPeriod(page: TestPage, value: string, expectedPeriod: string): Promise<void> {
+    page.elements.periodSelect.value = value;
+    page.elements.periodSelect.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      expect(reportPeriod(page)).toBe(expectedPeriod);
+    });
+  }
+
+  it('starts with the most active person of the example chat, and offers both', () => {
+    const page = startTestPage();
+
+    const options = textsOfElements(personSelect(page), 'option');
+
+    expect(options).toHaveLength(2);
+    expect(options[0]).toContain(profiledName(page));
+    expect(personSelect(page).value).toBe('0');
+  });
+
+  it('offers everyone in a large group, whatever the other sections list', async () => {
+    const page = startTestPage();
+
+    await loadFile(page, fileOfNinePeople(), 'The group');
+
+    expect(page.elements.showEveryoneCheckbox.checked).toBe(false);
+    expect(textsOfElements(personSelect(page), 'option')).toEqual([
+      'Ana (9 messages)',
+      'Bob (8 messages)',
+      'Carla (7 messages)',
+      'Dani (6 messages)',
+      'Elena (5 messages)',
+      'Fede (4 messages)',
+      'Gabi (3 messages)',
+      'Hugo (2 messages)',
+      'Irene (1 message)',
+    ]);
+  });
+
+  it('draws the profile of the person picked, without reading the file again', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+
+    choosePerson(page, IRENE_INDEX);
+
+    const profile = findElement(page.elements.reportContainer, '#person-profile');
+    expect(profiledName(page)).toBe('Irene');
+    expect(profile.textContent).toContain('Rank 9 of 9 by messages sent');
+    expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+  });
+
+  it('leaves the rest of the report, and the list itself, in place', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    const selectBefore = personSelect(page);
+    const headingBefore = findElement(page.elements.reportContainer, '.chat-heading');
+
+    choosePerson(page, IRENE_INDEX);
+
+    expect(personSelect(page)).toBe(selectBefore);
+    expect(findElement(page.elements.reportContainer, '.chat-heading')).toBe(headingBefore);
+  });
+
+  it('keeps the person picked on display when everyone is listed', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    choosePerson(page, IRENE_INDEX);
+
+    page.elements.showEveryoneCheckbox.checked = true;
+    page.elements.showEveryoneCheckbox.dispatchEvent(new Event('change'));
+
+    expect(profiledName(page)).toBe('Irene');
+    expect(personSelect(page).value).toBe(String(IRENE_INDEX));
+  });
+
+  it('relabels the list and the profile when names are hidden, keeping the person picked', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    choosePerson(page, IRENE_INDEX);
+
+    page.elements.hideNamesCheckbox.checked = true;
+    page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+
+    expect(profiledName(page)).toBe('Person I');
+    expect(textsOfElements(personSelect(page), 'option')[IRENE_INDEX]).toBe('Person I (1 message)');
+    expect(page.elements.reportContainer.textContent).not.toContain('Irene');
+  });
+
+  it('shows a label, not a name, for a person picked while names are hidden', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    page.elements.hideNamesCheckbox.checked = true;
+    page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+
+    choosePerson(page, 1);
+
+    expect(profiledName(page)).toBe('Person B');
+    expect(page.elements.reportContainer.textContent).not.toContain('Bob');
+  });
+
+  it('shows the same person by name again when the names come back', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    page.elements.hideNamesCheckbox.checked = true;
+    page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+    choosePerson(page, 1);
+
+    page.elements.hideNamesCheckbox.checked = false;
+    page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+
+    expect(profiledName(page)).toBe('Bob');
+  });
+
+  it('goes back to the most active person when another file is loaded', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    choosePerson(page, 1);
+
+    await loadFile(page, fileOfAna(), 'Ana');
+
+    expect(profiledName(page)).toBe('Ana');
+    expect(personSelect(page).value).toBe('0');
+  });
+
+  it('follows the person picked into a period in which they rank differently', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOverTwoYears(), 'Two years');
+    /* Over the whole file Bob wrote three messages and Ana two, so Ana is second. */
+    choosePerson(page, 1);
+    expect(profiledName(page)).toBe('Ana');
+
+    await showPeriod(page, 'year-2023', '14 Mar 2023 to 31 Dec 2023 · 293 days');
+
+    /* In 2023 Ana wrote two messages and Bob one, so Ana is first. */
+    expect(profiledName(page)).toBe('Ana');
+    expect(personSelect(page).value).toBe('0');
+  });
+
+  it('remembers the person picked across a period in which only one person wrote', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOverTwoYears(), 'Two years');
+    choosePerson(page, 1);
+
+    await showPeriod(page, 'year-2024', '1 Jan 2024 to 20 Jun 2024 · 172 days');
+
+    expect(page.elements.reportContainer.querySelector('#person-profile-select')).toBeNull();
+
+    await showPeriod(page, 'whole-chat', '14 Mar 2023 to 20 Jun 2024 · 465 days');
+
+    expect(profiledName(page)).toBe('Ana');
+  });
+
+  it('leaves the profile as it is for a choice that stands for nobody', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfNinePeople(), 'The group');
+    const select = personSelect(page);
+    select.append(new Option('Nobody', '99'));
+
+    choosePerson(page, 99);
+
+    expect(profiledName(page)).toBe('Ana');
+  });
+});

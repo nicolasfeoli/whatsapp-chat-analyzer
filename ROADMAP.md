@@ -75,6 +75,10 @@ Each fix has a test (now under `tests/core`, run `npm test`), and the page was c
 - With "Hide names", the labels follow the ranking inside the period, so "Person A" of one year can be somebody else in the next.
 - The period row is not offered for a chat shorter than sixty days that lies within one calendar year. The line that says what was read always describes the whole file.
 - "Hide names" replaces names and hides message text, and takes the words of the names out of the word lists. Nicknames, the remaining words and the dates are still shown, so a screenshot can still give a chat away to somebody who knows it.
+- "One person up close" is left out of a chat with a single sender. It shows one person at a time; two people cannot be put side by side, and the choice is not kept when another file is loaded or the date order is switched.
+- The profile shows a person's hours and their weekdays as two separate strips, in the local time of the device that runs the analysis; it does not say at which hour of which weekday they write. Each strip is scaled to that person's own busiest slot, so the heights of two people's strips cannot be compared. The count of a bar is only in its hover text; a screen reader is told the busiest hour and weekday, not all thirty-one numbers.
+- "Answers most" and "Answered most by" rest on the same guess as "who answers whom" (a reply counts towards whoever wrote just before it), list three people at most, and are left out of a chat of two. "Mentions most" exists for iPhone exports only. The typical reply time needs five replies, and the shares of night messages and of unanswered questions are only written from twenty messages and ten questions on.
+- While a period is chosen, the profile and its list of people cover that period only: somebody who wrote nothing in it cannot be picked until the period is widened again.
 - A typed continuation line that itself starts like a timestamp (`01/01/24 10:00 - breakfast with Bob: yes`) becomes a message from an invented sender.
 - A participant whose only messages are dated more than ten minutes before the message above them is folded away as pasted text. A line pasted after a media message is counted as folded but its text is not kept.
 - Media is split by type only when the placeholder names it. An Android export made without media writes the same `<Media omitted>` for everything, so its media stays one number. An attached document whose file name contains a word such as "video" is counted under that word.
@@ -140,7 +144,7 @@ These need a decision rather than more code.
 - Ready-made periods for single months or quarters, and analysing a period in the worker.
 - Shareable summary card rendered to an image, with an anonymise toggle (Person A, Person B) and message text hidden by default.
 - "Wrapped"-style year recap view.
-- Per-person heatmaps; who is active at which hours.
+- Per-person heatmaps of weekday by hour, and two people side by side. (A profile already shows one person's hours and weekdays as separate strips.)
 - Reply-time distribution rather than a single median; "left on read" longest waits.
 - Who-replies-to-whom matrix for groups.
 - Media breakdown by type (photos, voice notes, stickers), and most shared link domains.

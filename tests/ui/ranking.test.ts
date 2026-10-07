@@ -1,6 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
-import { ratioWhenAtLeast, selectMostFrequent, sumOf } from '../../src/ui/ranking';
+import {
+  findIndexOfLargest,
+  ratioWhenAtLeast,
+  selectMostFrequent,
+  sumOf,
+} from '../../src/ui/ranking';
 
 describe('selectMostFrequent', () => {
   it('orders entries by count, highest first', () => {
@@ -59,6 +64,24 @@ describe('selectMostFrequent', () => {
     selectMostFrequent(counts, 2);
 
     expect([...counts.keys()]).toEqual(['pizza', 'beach']);
+  });
+});
+
+describe('findIndexOfLargest', () => {
+  it('returns where the largest number stands', () => {
+    expect(findIndexOfLargest([2, 9, 4])).toBe(1);
+  });
+
+  it('prefers the earliest of equally large numbers', () => {
+    expect(findIndexOfLargest([0, 7, 3, 7])).toBe(1);
+  });
+
+  it('returns null when every number is zero, because nothing stands out', () => {
+    expect(findIndexOfLargest([0, 0, 0])).toBeNull();
+  });
+
+  it('returns null for an empty list', () => {
+    expect(findIndexOfLargest([])).toBeNull();
   });
 });
 

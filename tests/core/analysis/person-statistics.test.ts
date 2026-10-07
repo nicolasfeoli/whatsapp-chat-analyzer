@@ -4,6 +4,7 @@ import {
   createPersonStatisticsAccumulator,
   incrementCount,
   recordCaption,
+  recordHourAndWeekday,
   recordTextMessage,
   sortPeopleByMessageCount,
 } from '../../../src/core/analysis/person-statistics';
@@ -49,6 +50,8 @@ describe('createPersonStatisticsAccumulator', () => {
       linkCount: 0,
       laughingMessageCount: 0,
       nightMessageCount: 0,
+      messageCountsByHour: new Array<number>(24).fill(0),
+      messageCountsByWeekday: new Array<number>(7).fill(0),
       replyDelaysInMilliseconds: [],
       mentionCountsByName: new Map<string, number>(),
       signaturePhrases: [],
@@ -73,6 +76,50 @@ describe('createPersonStatisticsAccumulator', () => {
 
     expect(bob.replyDelaysInMilliseconds).toEqual([]);
     expect(bob.wordCounts.size).toBe(0);
+  });
+
+  it('gives every participant their own hours and weekdays', () => {
+    const ana = createPersonStatisticsAccumulator('Ana');
+    const bob = createPersonStatisticsAccumulator('Bob');
+
+    recordHourAndWeekday(ana, 9, 0);
+
+    expect(bob.messageCountsByHour[9]).toBe(0);
+    expect(bob.messageCountsByWeekday[0]).toBe(0);
+  });
+});
+
+describe('recordHourAndWeekday', () => {
+  /** The index of Saturday in a week that starts on Monday. */
+  const SATURDAY_INDEX = 5;
+
+  it('counts the message in its hour and on its weekday', () => {
+    const person = createPersonStatisticsAccumulator('Ana');
+
+    recordHourAndWeekday(person, 22, SATURDAY_INDEX);
+
+    expect(person.messageCountsByHour[22]).toBe(1);
+    expect(person.messageCountsByWeekday[SATURDAY_INDEX]).toBe(1);
+  });
+
+  it('adds up the messages of the same hour on different weekdays', () => {
+    const person = createPersonStatisticsAccumulator('Ana');
+
+    recordHourAndWeekday(person, 22, SATURDAY_INDEX);
+    recordHourAndWeekday(person, 22, 0);
+
+    expect(person.messageCountsByHour[22]).toBe(2);
+    expect(person.messageCountsByWeekday).toEqual([1, 0, 0, 0, 0, 1, 0]);
+  });
+
+  it('leaves the other hours at zero and keeps twenty-four of them', () => {
+    const person = createPersonStatisticsAccumulator('Ana');
+
+    recordHourAndWeekday(person, 0, 6);
+    recordHourAndWeekday(person, 23, 6);
+
+    expect(person.messageCountsByHour).toHaveLength(24);
+    expect(person.messageCountsByHour.filter((count) => count > 0)).toEqual([1, 1]);
   });
 });
 

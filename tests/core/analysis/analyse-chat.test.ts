@@ -383,6 +383,55 @@ describe('analyseChat', () => {
     });
   });
 
+  describe("each person's hours and weekdays", () => {
+    it('counts the messages of each person by the hour they were sent in', () => {
+      const analysis = analyseMessages([
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 09:05' }),
+        mediaMessage({ sender: 'Ana', sentAt: '2024-01-14 09:55' }),
+        deletedMessage({ sender: 'Ana', sentAt: '2024-01-13 23:59' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 09:30' }),
+      ]);
+
+      const { messageCountsByHour } = findPerson(analysis, 'Ana');
+
+      expect(messageCountsByHour).toHaveLength(24);
+      expect(messageCountsByHour[9]).toBe(2);
+      expect(messageCountsByHour[23]).toBe(1);
+      expect(findPerson(analysis, 'Bob').messageCountsByHour[9]).toBe(1);
+    });
+
+    it('counts the messages of each person by weekday, Monday first', () => {
+      const analysis = analyseMessages([
+        textMessage({ sender: 'Ana', sentAt: '2024-01-01 09:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-08 21:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-14 00:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 12:00' }),
+      ]);
+
+      expect(findPerson(analysis, 'Ana').messageCountsByWeekday).toEqual([2, 0, 0, 0, 0, 0, 1]);
+      expect(findPerson(analysis, 'Bob').messageCountsByWeekday[SATURDAY_ROW]).toBe(1);
+    });
+
+    it('adds up to the messages of the person, and across people to the heatmap', () => {
+      const analysis = analyseMessages([
+        textMessage({ sender: 'Ana', sentAt: '2024-01-01 09:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-01 09:10' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-02 18:00' }),
+      ]);
+      const sum = (counts: readonly number[]): number =>
+        counts.reduce((total, count) => total + count, 0);
+
+      const ana = findPerson(analysis, 'Ana');
+      const bob = findPerson(analysis, 'Bob');
+
+      expect(sum(ana.messageCountsByHour)).toBe(ana.messageCount);
+      expect(sum(ana.messageCountsByWeekday)).toBe(ana.messageCount);
+      expect((ana.messageCountsByHour[9] ?? 0) + (bob.messageCountsByHour[9] ?? 0)).toBe(
+        analysis.weekdayHourHeatmap[MONDAY_ROW]?.[9],
+      );
+    });
+  });
+
   describe('heatmap of weekday and hour', () => {
     it('has seven rows of twenty-four hours', () => {
       const { weekdayHourHeatmap } = analyseMessages([textMessage()]);

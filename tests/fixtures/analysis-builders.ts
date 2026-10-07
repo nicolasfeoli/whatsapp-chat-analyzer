@@ -43,6 +43,8 @@ export function personStatistics(parts: PersonStatisticsParts): PersonStatistics
     linkCount: 0,
     laughingMessageCount: 0,
     nightMessageCount: 0,
+    messageCountsByHour: new Array<number>(HOUR_COUNT).fill(0),
+    messageCountsByWeekday: new Array<number>(WEEKDAY_COUNT).fill(0),
     replyDelaysInMilliseconds: [],
     mentionCountsByName: new Map<string, number>(),
     signaturePhrases: [],

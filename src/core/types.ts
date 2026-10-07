@@ -192,6 +192,20 @@ export interface PersonStatistics {
   /** Messages sent between midnight and 04:59. */
   readonly nightMessageCount: number;
   /**
+   * This person's messages of every kind by the hour of the day they were
+   * sent in: twenty-four counts, index 0 for 00:00 to 00:59 up to index 23
+   * for 23:00 to 23:59, in the local time zone of the device running the
+   * analysis. The counts add up to {@link PersonStatistics.messageCount}.
+   */
+  readonly messageCountsByHour: readonly number[];
+  /**
+   * This person's messages of every kind by the weekday they were sent on:
+   * seven counts, index 0 for Monday up to index 6 for Sunday, like the rows
+   * of {@link WeekdayHourHeatmap}. The counts add up to
+   * {@link PersonStatistics.messageCount}.
+   */
+  readonly messageCountsByWeekday: readonly number[];
+  /**
    * One entry per reply: the time in milliseconds between someone else's
    * message and this person's answer, when it came within twelve hours.
    * Feed it to `median` for the typical reply time.

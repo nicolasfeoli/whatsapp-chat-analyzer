@@ -28,16 +28,23 @@ const TIMELINE_WIDTH_IN_PIXELS = 800;
  */
 const ELEMENTS_THE_REPORT_IS_BUILT_FROM: readonly string[] = [
   'b',
+  'dd',
   'div',
+  'dl',
+  'dt',
   'h2',
   'h3',
   'i',
+  'label',
   'li',
   'line',
+  'ol',
+  'option',
   'p',
   'path',
   'rect',
   'section',
+  'select',
   'small',
   'span',
   'svg',
@@ -134,6 +141,7 @@ describe('renderChatReport', () => {
         'When the chat is alive',
         'Replies and openings',
         'Words and emojis',
+        'One person up close',
         'From the record',
       ]);
     });
@@ -146,6 +154,7 @@ describe('renderChatReport', () => {
       expect(outline).toEqual([
         'chat-heading',
         'headline-statistics',
+        'SECTION',
         'SECTION',
         'SECTION',
         'SECTION',
@@ -268,8 +277,19 @@ describe('renderChatReport', () => {
         'Who mentions whom',
         'How conversations end',
         'Words and emojis',
+        'One person up close',
         'From the record',
       ]);
+    });
+
+    it('starts "One person up close" with the most active person unless told otherwise', () => {
+      const page = parseMarkup(renderChatReport(analysis, 'Ana and Bob').html);
+      const pageAboutBob = parseMarkup(
+        renderChatReport(analysis, 'Ana and Bob', 'most-active', 1).html,
+      );
+
+      expect(textsOfElements(page, '.profile-name b')).toEqual(['Ana']);
+      expect(textsOfElements(pageAboutBob, '.profile-name b')).toEqual(['Bob']);
     });
 
     it('leaves out who answers whom for a chat of two', () => {
@@ -284,6 +304,7 @@ describe('renderChatReport', () => {
       const page = parseMarkup(renderChatReport(monologue, 'Notes').html);
 
       expect(textsOfElements(page, 'h2')).not.toContain('Replies and openings');
+      expect(textsOfElements(page, 'h2')).not.toContain('One person up close');
       expect(page.querySelectorAll('section')).toHaveLength(6);
     });
   });

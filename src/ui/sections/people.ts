@@ -62,8 +62,12 @@ function buildMessageCountBar(
 
 /**
  * Writes the average number of words in a person's typed messages.
+ *
+ * @param person - The person's statistics.
+ * @returns The average with one decimal, for example `"6.4"`; `"0"` for
+ *   somebody who never typed a message.
  */
-function formatWordsPerMessage(person: PersonStatistics): string {
+export function formatWordsPerMessage(person: PersonStatistics): string {
   if (person.textMessageCount === 0) {
     return '0';
   }

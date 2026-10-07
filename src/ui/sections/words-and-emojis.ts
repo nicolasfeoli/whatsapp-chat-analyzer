@@ -104,8 +104,9 @@ export function findSignatureWords(
  *
  * @param label - The word or emoji; untrusted, it is escaped here.
  * @param formattedCount - The count as it should be shown; escaped here.
+ * @returns A `<span class="chip">` element as markup.
  */
-function renderChip(label: string, formattedCount: string): SafeHtml {
+export function renderChip(label: string, formattedCount: string): SafeHtml {
   return html`<span class="chip">${escapeHtml(label)}<small>${escapeHtml(formattedCount)}</small></span>`;
 }
 

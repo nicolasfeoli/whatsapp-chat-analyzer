@@ -22,6 +22,7 @@ import {
   createPersonStatisticsAccumulator,
   incrementCount,
   recordCaption,
+  recordHourAndWeekday,
   recordTextMessage,
   sortPeopleByMessageCount,
 } from './person-statistics';
@@ -238,7 +239,7 @@ function recordTypedTextInChatTables(
 
 /**
  * Counts a message towards the hour of the week and the calendar day it was
- * sent on, and towards its sender's night messages.
+ * sent on, and towards its sender's hours, weekdays and night messages.
  */
 function recordWhenMessageWasSent(
   totals: ChatTotals,
@@ -246,11 +247,13 @@ function recordWhenMessageWasSent(
   timestamp: Date,
 ): void {
   const hour = timestamp.getHours();
+  const weekdayIndex = mondayFirstWeekdayIndexOf(timestamp);
 
-  const weekdayRow = totals.weekdayHourHeatmap[mondayFirstWeekdayIndexOf(timestamp)];
+  const weekdayRow = totals.weekdayHourHeatmap[weekdayIndex];
   if (weekdayRow !== undefined) {
     weekdayRow[hour] = (weekdayRow[hour] ?? 0) + 1;
   }
+  recordHourAndWeekday(person, hour, weekdayIndex);
   if (hour < NIGHT_END_HOUR) {
     person.nightMessageCount += 1;
   }

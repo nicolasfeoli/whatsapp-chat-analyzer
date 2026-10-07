@@ -7,6 +7,8 @@ import {
   anonymousLabelOf,
 } from '../../src/ui/anonymise';
 import type { ChatAnalysis } from '../../src/core/types';
+import { assignPersonColours } from '../../src/ui/person-colours';
+import { renderPersonProfileSection } from '../../src/ui/sections/person-profile';
 import { chatAnalysis, personStatistics } from '../fixtures/analysis-builders';
 import { mediaMessage, textMessage } from '../fixtures/messages';
 
@@ -41,6 +43,8 @@ const namedChat: ChatAnalysis = chatAnalysis({
     personStatistics({
       name: 'Ana',
       messageCount: 30,
+      messageCountsByHour: [...new Array<number>(23).fill(0), 30],
+      messageCountsByWeekday: [0, 0, 0, 0, 0, 30, 0],
       replyCountsByRecipient: new Map([
         ['Bob Vega', 7],
         ['~ Carla', 2],
@@ -106,6 +110,11 @@ describe('anonymiseAnalysis', () => {
     expect(hiddenChat.people.map((person) => person.messageCount)).toEqual([30, 20, 10]);
     expect(hiddenChat.totalMessageCount).toBe(namedChat.totalMessageCount);
     expect(hiddenChat.longestMessageWordCount).toBe(9);
+  });
+
+  it('keeps the hours and the weekdays each person writes in', () => {
+    expect(hiddenPerson(0).messageCountsByHour[23]).toBe(30);
+    expect(hiddenPerson(0).messageCountsByWeekday).toEqual([0, 0, 0, 0, 0, 30, 0]);
   });
 
   it('relabels the people somebody replied to', () => {
@@ -199,6 +208,34 @@ describe('anonymiseAnalysis', () => {
 
     expect(hidden.people[0]?.name).toBe('Person A');
     expect([...hidden.wordCounts.keys()]).toEqual(['hello']);
+  });
+
+  it.each([
+    { index: 0, label: 'Person A' },
+    { index: 1, label: 'Person B' },
+    { index: 2, label: 'Person C' },
+  ])('leaves no name in "One person up close" when it shows $label', ({ index, label }) => {
+    const sectionHtml = renderPersonProfileSection(
+      hiddenChat,
+      assignPersonColours(hiddenChat.people),
+      index,
+    );
+
+    expect(sectionHtml).toContain(`<option value="${String(index)}" selected>${label} (`);
+    for (const nameWord of ['Ana', 'Bob', 'Vega', 'Carla', 'Dani', 'stranger', 'bob']) {
+      expect(sectionHtml).not.toContain(nameWord);
+    }
+  });
+
+  it('shows whom a person answers and mentions under their labels in "One person up close"', () => {
+    const sectionHtml = renderPersonProfileSection(
+      hiddenChat,
+      assignPersonColours(hiddenChat.people),
+    );
+
+    expect(sectionHtml).toContain('Person B</span><small>7 replies</small>');
+    expect(sectionHtml).toContain('Somebody else</span><small>5 mentions</small>');
+    expect(sectionHtml).toContain('dinner<small>3</small>');
   });
 
   it('does not change the analysis it was given', () => {
