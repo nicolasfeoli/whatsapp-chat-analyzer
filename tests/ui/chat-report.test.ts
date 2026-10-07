@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest';
 
 import { analyseChatExport } from '../../src/core/index';
 import type { ChatAnalysis } from '../../src/core/index';
+import { renderCalendarTooltip } from '../../src/ui/charts/calendar';
 import { renderHeatmapTooltip } from '../../src/ui/charts/heatmap';
 import { renderTimelineSvg, renderTimelineTooltip } from '../../src/ui/charts/timeline';
 import { renderChatReport } from '../../src/ui/chat-report';
@@ -76,7 +77,7 @@ function analyseExport(rawText: string): ChatAnalysis {
 /**
  * Puts everything the page would show for a chat into one container: the
  * report, the timeline drawn into its placeholder, and the tooltip of every
- * timeline bar and of one heatmap square.
+ * timeline bar, of one heatmap square and of one calendar square.
  */
 function renderWholePage(analysis: ChatAnalysis, title: string): HTMLDivElement {
   const report = renderChatReport(analysis, title);
@@ -92,6 +93,7 @@ function renderWholePage(analysis: ChatAnalysis, title: string): HTMLDivElement 
     tooltips.innerHTML += renderTimelineTooltip(report.timeline, bucketIndex);
   });
   tooltips.innerHTML += renderHeatmapTooltip({ weekdayIndex: 0, hour: 0, messageCount: 1 });
+  tooltips.innerHTML += renderCalendarTooltip({ dayKey: 20240113, messageCount: 1 });
   page.append(tooltips);
 
   return page;
@@ -344,7 +346,7 @@ describe('renderChatReport', () => {
       expect([...withStickers.wordCounts.keys()]).toEqual(['pizza', 'tonight']);
     });
 
-    it('adds then and now, who is still here, who mentions whom and the milestones for a long group chat with mentions', () => {
+    it('adds the calendar, then and now, who is still here, who mentions whom and the milestones for a long group chat with mentions', () => {
       const group = analyseExport(
         exportText([
           iphoneLine({ date: '13/01/2022', time: '10:00:00', sender: 'Ana', text: 'dinner?' }),
@@ -366,6 +368,7 @@ describe('renderChatReport', () => {
         'What stands out',
         'Who says what',
         'Activity over time',
+        'Day by day',
         'Then and now',
         'Who is still here',
         'When the chat is alive',

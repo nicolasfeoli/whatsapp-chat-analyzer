@@ -450,6 +450,35 @@ describe('the tooltip of the charts', () => {
     expect(page.elements.tooltip.textContent).toContain('22:00 to 22:59');
   });
 
+  it('appears over a square of the calendar under the pointer', () => {
+    const page = startTestPage();
+    /* The example chat begins on Monday 5 January 2026. */
+    const firstDay = findElement(
+      page.elements.reportContainer,
+      '.calendar .calendar-day[data-day-key="20260105"]',
+    );
+
+    firstDay.dispatchEvent(
+      new MouseEvent('pointermove', { bubbles: true, clientX: 50, clientY: 50 }),
+    );
+
+    expect(page.elements.tooltip.hidden).toBe(false);
+    expect(page.elements.tooltip.textContent).toContain('Monday, 5 Jan 2026');
+  });
+
+  it('follows the pointer to the calendar that a redraw put in place of the old one', () => {
+    const page = startTestPage();
+    page.elements.hideNamesCheckbox.click();
+
+    const firstDay = findElement(
+      page.elements.reportContainer,
+      '.calendar .calendar-day[data-day-key="20260105"]',
+    );
+    firstDay.dispatchEvent(new MouseEvent('pointermove', { bubbles: true }));
+
+    expect(page.elements.tooltip.textContent).toContain('Monday, 5 Jan 2026');
+  });
+
   it('is hidden when the page is scrolled, because it would no longer sit over its square', async () => {
     const page = await loadFileAndPointAtBusiestSquare();
 
