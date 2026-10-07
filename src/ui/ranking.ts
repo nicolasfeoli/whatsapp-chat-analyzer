@@ -35,6 +35,26 @@ export function selectMostFrequent<Key>(
 }
 
 /**
+ * Finds where the largest number of a list stands; the earliest one wins a
+ * tie. Used for the hour and the weekday in which a person writes most.
+ *
+ * @param values - The numbers to compare, none of them negative.
+ * @returns The index of the largest number, or `null` for an empty list and
+ *   for one that holds nothing but zeros, where no entry stands out.
+ */
+export function findIndexOfLargest(values: readonly number[]): number | null {
+  let indexOfLargest: number | null = null;
+  let largestValue = 0;
+  for (const [index, value] of values.entries()) {
+    if (value > largestValue) {
+      largestValue = value;
+      indexOfLargest = index;
+    }
+  }
+  return indexOfLargest;
+}
+
+/**
  * Adds up a list of numbers.
  *
  * @param values - The numbers to add.

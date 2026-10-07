@@ -1,7 +1,8 @@
 /**
  * What happens on the page, and when: connects the file picker, drag and
- * drop, the date-order switch, the display switches, the period row and the
- * window events to the analysis and the report.
+ * drop, the date-order switch, the display switches, the period row, the list
+ * of people in "One person up close" and the window events to the analysis
+ * and the report.
  *
  * The modules this file draws on are pure wherever possible; the DOM work is
  * gathered here so there is one place to look for "what happens when".
@@ -16,6 +17,7 @@ import type {
   AnalysedChatExportResult,
   ChatAnalysis,
   DateOrder,
+  PersonStatistics,
 } from '../core/index';
 import { ANONYMOUS_CHAT_TITLE, anonymiseAnalysis } from './anonymise';
 import type { AnalysisClient, AnalysisOutcome, MainThreadAnalysis } from './analysis-client';
@@ -24,7 +26,7 @@ import { drawTimeline } from './charts/timeline';
 import type { TimelineData } from './charts/timeline-buckets';
 import { renderChatReport } from './chat-report';
 import type { PageElements } from './dom';
-import { COLOURED_PEOPLE_LIMIT } from './person-colours';
+import { COLOURED_PEOPLE_LIMIT, assignPersonColours } from './person-colours';
 import { cleanChatTitle, describeFileLoadingFailure, readChatTextFromFile } from './file-loading';
 import { setInnerHtml } from './html';
 import { describeAmbiguousDateOrder, summariseParseReport } from './parse-report';
@@ -46,6 +48,12 @@ import {
 } from './period-control';
 import { SAMPLE_CHAT_TITLE, generateSampleChatText } from './sample-chat';
 import type { PeopleShown } from './sections/featured-people';
+import {
+  DEFAULT_PROFILED_PERSON_INDEX,
+  PERSON_PROFILE_CONTAINER_ID,
+  PERSON_PROFILE_SELECT_ID,
+  renderPersonProfile,
+} from './sections/person-profile';
 import { TIMELINE_CONTAINER_ID } from './sections/timeline';
 import type { Tooltip } from './tooltip';
 
@@ -167,6 +175,15 @@ class PageController {
   /** The timer of a period that was chosen but is not analysed yet. */
   private periodAnalysisTimer: number | undefined = undefined;
 
+  /**
+   * The name, as the export wrote it, of the person the reader picked in "One
+   * person up close"; `null` until they pick somebody, which shows the most
+   * active person. It is kept by name so the same person stays on display
+   * when the report is redrawn without names, with everyone, or for a period
+   * in which the ranking is another.
+   */
+  private profiledPersonName: string | null = null;
+
   public constructor(dependencies: PageDependencies) {
     this.pageElements = dependencies.pageElements;
     this.tooltip = dependencies.tooltip;
@@ -237,7 +254,8 @@ class PageController {
    * "show everyone" row is offered when the chat has more people than the
    * report lists by default, and decides whom the sections list. While
    * "hide names" is ticked, the report is drawn from a copy of the analysis
-   * without names or message text, under a neutral title.
+   * without names or message text, under a neutral title. "One person up
+   * close" starts with the person the reader picked last, if any.
    */
   private showChatReport(analysis: ChatAnalysis, title: string): void {
     const { hideNamesCheckbox, showEveryoneCheckbox, showEveryoneRow } = this.pageElements;
@@ -247,14 +265,73 @@ class PageController {
     const peopleShown: PeopleShown =
       hasPeopleLeftOut && showEveryoneCheckbox.checked ? 'everyone' : 'most-active';
 
-    const renderedReport = hideNamesCheckbox.checked
-      ? renderChatReport(anonymiseAnalysis(analysis), ANONYMOUS_CHAT_TITLE, peopleShown)
-      : renderChatReport(analysis, title, peopleShown);
+    /* The copy without names lists the people in the same order, so a position means the same person in both. */
+    const drawnAnalysis = hideNamesCheckbox.checked ? anonymiseAnalysis(analysis) : analysis;
+    const drawnTitle = hideNamesCheckbox.checked ? ANONYMOUS_CHAT_TITLE : title;
+    const renderedReport = renderChatReport(
+      drawnAnalysis,
+      drawnTitle,
+      peopleShown,
+      this.findProfiledPersonIndex(analysis),
+    );
     this.displayedTimeline = renderedReport.timeline;
     setInnerHtml(this.pageElements.reportContainer, renderedReport.html);
 
     this.drawDisplayedTimeline();
     attachHeatmapTooltips(this.pageElements.reportContainer, this.tooltip);
+    this.connectPersonProfileChooser(analysis, drawnAnalysis);
+  }
+
+  /**
+   * Finds the person the reader picked in "One person up close" among the
+   * people of an analysis.
+   *
+   * @returns Their position in the ranking; that of the most active person
+   *   when nobody was picked or the person wrote nothing in this period.
+   */
+  private findProfiledPersonIndex(analysis: ChatAnalysis): number {
+    const personIndex = analysis.people.findIndex(
+      (person: PersonStatistics): boolean => person.name === this.profiledPersonName,
+    );
+    return personIndex === -1 ? DEFAULT_PROFILED_PERSON_INDEX : personIndex;
+  }
+
+  /**
+   * Connects the list of people in the report that was just drawn: picking
+   * somebody draws their profile in place of the one on display, from the
+   * analysis the page already holds. A report without the section, as for a
+   * chat with a single sender, has nothing to connect.
+   *
+   * @param analysis - The analysis with the real names, to remember who was picked.
+   * @param drawnAnalysis - The analysis the report was drawn from: the same
+   *   one, or its copy without names.
+   */
+  private connectPersonProfileChooser(analysis: ChatAnalysis, drawnAnalysis: ChatAnalysis): void {
+    const { reportContainer } = this.pageElements;
+    const personSelect = reportContainer.querySelector<HTMLSelectElement>(
+      `#${PERSON_PROFILE_SELECT_ID}`,
+    );
+    const profileContainer = reportContainer.querySelector<HTMLElement>(
+      `#${PERSON_PROFILE_CONTAINER_ID}`,
+    );
+    if (personSelect === null || profileContainer === null) {
+      return;
+    }
+
+    personSelect.addEventListener('change', (): void => {
+      const personIndex = Number(personSelect.value);
+      const pickedPerson = analysis.people[personIndex];
+      const drawnPerson = drawnAnalysis.people[personIndex];
+      if (pickedPerson === undefined || drawnPerson === undefined) {
+        return;
+      }
+      this.profiledPersonName = pickedPerson.name;
+      const personColours = assignPersonColours(drawnAnalysis.people);
+      setInnerHtml(
+        profileContainer,
+        renderPersonProfile(drawnAnalysis, personColours, drawnPerson),
+      );
+    });
   }
 
   /**
@@ -279,6 +356,9 @@ class PageController {
     /* A period of the previous chat that is still waiting must not be drawn over this one. */
     this.browserWindow.clearTimeout(this.periodAnalysisTimer);
     this.periodAnalysisTimer = undefined;
+
+    /* Another chat has other people; its profile starts with the most active one again. */
+    this.profiledPersonName = null;
 
     const wholeChat = wholeChatPeriod(result.analysis);
     const periodPresets = listPeriodPresets(result.analysis);

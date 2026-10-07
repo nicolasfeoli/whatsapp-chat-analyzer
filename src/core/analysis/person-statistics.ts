@@ -4,6 +4,7 @@
  */
 
 import type { Mutable } from '../mutable';
+import { DAYS_PER_WEEK, HOURS_PER_DAY } from '../time-constants';
 import type { MediaType, PersonStatistics } from '../types';
 import type { MessageTextStatistics } from './text-statistics';
 
@@ -34,6 +35,8 @@ export function createPersonStatisticsAccumulator(name: string): PersonStatistic
     linkCount: 0,
     laughingMessageCount: 0,
     nightMessageCount: 0,
+    messageCountsByHour: new Array<number>(HOURS_PER_DAY).fill(0),
+    messageCountsByWeekday: new Array<number>(DAYS_PER_WEEK).fill(0),
     replyDelaysInMilliseconds: [],
     mentionCountsByName: new Map<string, number>(),
     signaturePhrases: [],
@@ -59,6 +62,24 @@ export function createPersonStatisticsAccumulator(name: string): PersonStatistic
 export function incrementCount<Key>(counts: Map<Key, number>, key: Key): void {
   const currentCount = counts.get(key) ?? 0;
   counts.set(key, currentCount + 1);
+}
+
+/**
+ * Counts a message towards the hour of the day and the weekday its sender
+ * wrote it in.
+ *
+ * @param person - The totals of the message's sender.
+ * @param hour - The hour of the day the message was sent in, 0 to 23.
+ * @param weekdayIndex - 0 for Monday up to 6 for Sunday.
+ */
+export function recordHourAndWeekday(
+  person: PersonStatisticsAccumulator,
+  hour: number,
+  weekdayIndex: number,
+): void {
+  person.messageCountsByHour[hour] = (person.messageCountsByHour[hour] ?? 0) + 1;
+  person.messageCountsByWeekday[weekdayIndex] =
+    (person.messageCountsByWeekday[weekdayIndex] ?? 0) + 1;
 }
 
 /**

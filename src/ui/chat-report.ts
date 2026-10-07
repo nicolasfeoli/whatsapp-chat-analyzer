@@ -21,6 +21,10 @@ import { renderInsightsSection } from './sections/insights';
 import { renderMediaTypesSection } from './sections/media-types';
 import { renderMentionsSection } from './sections/mentions';
 import { renderPeopleSection } from './sections/people';
+import {
+  DEFAULT_PROFILED_PERSON_INDEX,
+  renderPersonProfileSection,
+} from './sections/person-profile';
 import { renderRecordsSection } from './sections/records';
 import { renderRepliesSection } from './sections/replies';
 import { renderReplyPairsSection } from './sections/reply-pairs';
@@ -43,12 +47,15 @@ export interface RenderedChatReport {
  * @param analysis - The analysed chat.
  * @param title - The name of the chat, usually taken from the file name; untrusted.
  * @param peopleShown - Whether the sections that compare people list the most active only, or everyone.
+ * @param profiledPersonIndex - The position, in `analysis.people`, of the person
+ *   "One person up close" starts with; the most active one unless stated.
  * @returns The markup and the timeline data.
  */
 export function renderChatReport(
   analysis: ChatAnalysis,
   title: string,
   peopleShown: PeopleShown = DEFAULT_PEOPLE_SHOWN,
+  profiledPersonIndex: number = DEFAULT_PROFILED_PERSON_INDEX,
 ): RenderedChatReport {
   const personColours = assignPersonColours(analysis.people);
   const timeline = buildTimelineData(analysis, personColours);
@@ -66,6 +73,7 @@ export function renderChatReport(
     renderMentionsSection(analysis, personColours, peopleShown),
     renderConversationEndingsSection(analysis, personColours, peopleShown),
     renderWordsAndEmojisSection(analysis, personColours, peopleShown),
+    renderPersonProfileSection(analysis, personColours, profiledPersonIndex),
     renderRecordsSection(analysis, personColours),
   ];
 
