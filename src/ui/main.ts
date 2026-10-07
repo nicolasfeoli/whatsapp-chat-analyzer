@@ -14,6 +14,7 @@ import { areWorkersSupported, startBrowserAnalysisWorker } from './browser-analy
 import { findPageElements } from './dom';
 import { startPage } from './page-controller';
 import type { ProgressListener } from './page-controller';
+import { createSummaryImageServices } from './summary-card/browser-services';
 import { createTooltip } from './tooltip';
 
 /**
@@ -57,4 +58,13 @@ startPage({
   getLocale: readBrowserLocale,
   analyseOnMainThread: analyseChatExport,
   createAnalysisClient: createBrowserAnalysisClient,
+  summaryImageServices: createSummaryImageServices({
+    document,
+    createObjectUrl: (picture: Blob): string => URL.createObjectURL(picture),
+    revokeObjectUrl: (objectUrl: string): void => {
+      URL.revokeObjectURL(objectUrl);
+    },
+    setTimeout: (task: () => void, delayInMilliseconds: number): number =>
+      window.setTimeout(task, delayInMilliseconds),
+  }),
 });

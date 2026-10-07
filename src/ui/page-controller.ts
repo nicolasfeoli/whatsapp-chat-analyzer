@@ -1,8 +1,9 @@
 /**
  * What happens on the page, and when: connects the file picker, drag and
  * drop, the date-order switch, the display switches, the period row, the list
- * of people in "One person up close", the field of "Look up a word" and the
- * window events to the analysis and the report.
+ * of people in "One person up close", the field of "Look up a word", the
+ * button that saves the summary image and the window events to the analysis
+ * and the report.
  *
  * The modules this file draws on are pure wherever possible; the DOM work is
  * gathered here so there is one place to look for "what happens when".
@@ -49,6 +50,9 @@ import {
 } from './period-control';
 import { SAMPLE_CHAT_TITLE, generateSampleChatText } from './sample-chat';
 import type { PeopleShown } from './sections/featured-people';
+import { collectSummaryCardContent } from './summary-card/content';
+import { saveSummaryImage } from './summary-card/save-summary-image';
+import type { SummaryImageServices } from './summary-card/save-summary-image';
 import {
   DEFAULT_PROFILED_PERSON_INDEX,
   PERSON_PROFILE_CONTAINER_ID,
@@ -94,6 +98,13 @@ export const WORD_SEARCH_DELAY_IN_MILLISECONDS = 250;
 export const NO_MESSAGES_FOUND_STATUS =
   'No messages found in that file. Check that it is a WhatsApp chat export (.txt or .zip).';
 
+/** Shown while the summary image is drawn. */
+export const DRAWING_SUMMARY_IMAGE_STATUS = 'Drawing the summary image …';
+
+/** Shown when the browser could not draw the summary image or turn it into a file. */
+export const SUMMARY_IMAGE_FAILED_STATUS =
+  'This browser could not draw the summary image. Nothing was saved.';
+
 /** The CSS class that makes the status line show its "work in progress" colour. */
 const BUSY_STATUS_CLASS = 'busy';
 
@@ -138,6 +149,18 @@ export interface PageDependencies {
    * listener that puts the client's progress messages in the status line.
    */
   readonly createAnalysisClient: (onProgress: ProgressListener) => AnalysisClient;
+  /** The canvas, the fonts and the download the summary image is made with. */
+  readonly summaryImageServices: SummaryImageServices;
+}
+
+/** What is put in front of the reader for an analysis: the report, and the summary image. */
+interface DrawnChat {
+  /** The analysis that is drawn: the one given, or its copy without names while "hide names" is ticked. */
+  readonly analysis: ChatAnalysis;
+  /** The title that is drawn: the chat's own, or a neutral one while "hide names" is ticked. */
+  readonly title: string;
+  /** Whom the sections that compare people list. */
+  readonly peopleShown: PeopleShown;
 }
 
 /** What the page remembers about the chat on display. */
@@ -175,6 +198,7 @@ class PageController {
   private readonly getLocale: () => string | null;
   private readonly analyseOnMainThread: MainThreadAnalysis;
   private readonly analysisClient: AnalysisClient;
+  private readonly summaryImageServices: SummaryImageServices;
 
   /** The chat on display; `null` until the first one has been rendered. */
   private displayedChat: DisplayedChat | null = null;
@@ -214,6 +238,7 @@ class PageController {
     this.browserWindow = dependencies.browserWindow;
     this.getLocale = dependencies.getLocale;
     this.analyseOnMainThread = dependencies.analyseOnMainThread;
+    this.summaryImageServices = dependencies.summaryImageServices;
     this.analysisClient = dependencies.createAnalysisClient((statusMessage: string): void => {
       this.showStatus(statusMessage, true);
     });
@@ -228,6 +253,7 @@ class PageController {
     this.connectDateOrderSwitch();
     this.connectDisplaySwitches();
     this.connectPeriodControl();
+    this.connectSummaryImageButton();
     this.connectWindowEvents();
     this.showSampleChat();
   }
@@ -274,6 +300,23 @@ class PageController {
   }
 
   /**
+   * Works out what the two display switches make of an analysis. "Show
+   * everyone" only changes a chat with more people than the report lists by
+   * default. While "hide names" is ticked, a copy of the analysis without
+   * names or message text is drawn, under a neutral title.
+   */
+  private chooseWhatIsDrawn(analysis: ChatAnalysis, title: string): DrawnChat {
+    const { hideNamesCheckbox, showEveryoneCheckbox } = this.pageElements;
+    const hasPeopleLeftOut = analysis.people.length > COLOURED_PEOPLE_LIMIT;
+    /* The copy without names lists the people in the same order, so a position means the same person in both. */
+    return {
+      analysis: hideNamesCheckbox.checked ? anonymiseAnalysis(analysis) : analysis,
+      title: hideNamesCheckbox.checked ? ANONYMOUS_CHAT_TITLE : title,
+      peopleShown: hasPeopleLeftOut && showEveryoneCheckbox.checked ? 'everyone' : 'most-active',
+    };
+  }
+
+  /**
    * Renders the report into the page and connects its interactive parts. The
    * "show everyone" row is offered when the chat has more people than the
    * report lists by default, and decides whom the sections list. While
@@ -282,16 +325,12 @@ class PageController {
    * close" starts with the person the reader picked last, if any.
    */
   private showChatReport(analysis: ChatAnalysis, title: string): void {
-    const { hideNamesCheckbox, showEveryoneCheckbox, showEveryoneRow } = this.pageElements;
-    /* The choice only changes a chat with more people than the report lists by default. */
-    const hasPeopleLeftOut = analysis.people.length > COLOURED_PEOPLE_LIMIT;
-    showEveryoneRow.hidden = !hasPeopleLeftOut;
-    const peopleShown: PeopleShown =
-      hasPeopleLeftOut && showEveryoneCheckbox.checked ? 'everyone' : 'most-active';
-
-    /* The copy without names lists the people in the same order, so a position means the same person in both. */
-    const drawnAnalysis = hideNamesCheckbox.checked ? anonymiseAnalysis(analysis) : analysis;
-    const drawnTitle = hideNamesCheckbox.checked ? ANONYMOUS_CHAT_TITLE : title;
+    this.pageElements.showEveryoneRow.hidden = analysis.people.length <= COLOURED_PEOPLE_LIMIT;
+    const {
+      analysis: drawnAnalysis,
+      title: drawnTitle,
+      peopleShown,
+    } = this.chooseWhatIsDrawn(analysis, title);
     const renderedReport = renderChatReport(
       drawnAnalysis,
       drawnTitle,
@@ -727,6 +766,41 @@ class PageController {
         this.changePeriod();
       });
     }
+  }
+
+  /**
+   * Draws the summary image of the report on display and offers it as a
+   * file. The image says what the report says: it is made from the period on
+   * display, and without names while "hide names" is ticked. Every failure
+   * ends up in the status line; this method does not throw.
+   */
+  private async saveDisplayedSummaryImage(): Promise<void> {
+    if (this.displayedChat === null) {
+      return;
+    }
+    const { periodAnalysis, title } = this.displayedChat;
+    const drawnChat = this.chooseWhatIsDrawn(periodAnalysis, title);
+    const content = collectSummaryCardContent(
+      drawnChat.analysis,
+      drawnChat.title,
+      drawnChat.peopleShown,
+    );
+    try {
+      this.showStatus(DRAWING_SUMMARY_IMAGE_STATUS, true);
+      const outcome = await saveSummaryImage(content, this.summaryImageServices);
+      this.showStatus(outcome === 'saved' ? '' : SUMMARY_IMAGE_FAILED_STATUS, false);
+    } catch {
+      this.showStatus(SUMMARY_IMAGE_FAILED_STATUS, false);
+    }
+  }
+
+  /**
+   * Connects the "Save a summary image" button.
+   */
+  private connectSummaryImageButton(): void {
+    this.pageElements.saveSummaryImageButton.addEventListener('click', (): void => {
+      void this.saveDisplayedSummaryImage();
+    });
   }
 
   /**

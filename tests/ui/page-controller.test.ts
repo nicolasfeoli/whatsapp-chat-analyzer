@@ -24,9 +24,11 @@ import { findPageElements } from '../../src/ui/dom';
 import type { PageElements } from '../../src/ui/dom';
 import {
   ANALYSING_PERIOD_STATUS,
+  DRAWING_SUMMARY_IMAGE_STATUS,
   NO_MESSAGES_FOUND_STATUS,
   PERIOD_ANALYSIS_DELAY_IN_MILLISECONDS,
   READING_MESSAGES_STATUS,
+  SUMMARY_IMAGE_FAILED_STATUS,
   TIMELINE_REDRAW_DELAY_IN_MILLISECONDS,
   WORD_SEARCH_DELAY_IN_MILLISECONDS,
   startPage,
@@ -42,6 +44,11 @@ import { analysedResult } from '../fixtures/analysis-builders';
 import { androidLine, exportText, iphoneLine, iphoneNotTypedLine } from '../fixtures/export-lines';
 import { findElement, textsOfElements } from '../fixtures/markup';
 import { loadIndexHtmlBody } from '../fixtures/page';
+import { createRecordingSummaryImageServices } from '../fixtures/summary-image';
+import type {
+  RecordingServicesOptions,
+  RecordingSummaryImageServices,
+} from '../fixtures/summary-image';
 import { buildZipFile } from '../fixtures/zip-files';
 
 /** An invented export whose dates can only be read day first. */
@@ -101,6 +108,8 @@ interface TestPageOptions {
   readonly analyseOnMainThread?: MainThreadAnalysis;
   /** A client the test scripts; without it, loaded files go through the real analysis. */
   readonly scriptedClient?: ScriptedAnalysisClient;
+  /** What the browser cannot do when it is asked for the summary image; it can do everything unless stated. */
+  readonly summaryImage?: RecordingServicesOptions;
 }
 
 /** A started page and the handles a test acts on it through. */
@@ -111,6 +120,8 @@ interface TestPage {
   readonly reportProgress: ProgressListener;
   /** The analysis the page was given for the example chat. */
   readonly analyseOnMainThread: ReturnType<typeof vi.fn<MainThreadAnalysis>>;
+  /** The stand-in the page draws its summary image on, and what it drew and saved. */
+  readonly summaryImage: RecordingSummaryImageServices;
 }
 
 /**
@@ -136,8 +147,10 @@ function startTestPage(options: TestPageOptions = {}): TestPage {
     options.analyseOnMainThread ?? analyseChatExport,
   );
   let reportProgress: ProgressListener = () => undefined;
+  const summaryImage = createRecordingSummaryImageServices(options.summaryImage);
 
   startPage({
+    summaryImageServices: summaryImage.services,
     pageElements: elements,
     tooltip: createTooltip(elements.tooltip),
     browserWindow,
@@ -167,6 +180,7 @@ function startTestPage(options: TestPageOptions = {}): TestPage {
       reportProgress(statusMessage);
     },
     analyseOnMainThread,
+    summaryImage,
   };
 }
 
@@ -1458,6 +1472,211 @@ describe('choosing a period', () => {
 
     expect(page.elements.statusLine.textContent).toBe(NO_MESSAGES_FOUND_STATUS);
     expect(page.elements.reportContainer.textContent).toBe('');
+  });
+});
+
+describe('saving a summary image', () => {
+  /** Presses the button and waits until the page has handed a file to the browser. */
+  async function saveImage(page: TestPage): Promise<void> {
+    const savedBefore = page.summaryImage.savedFiles.length;
+    page.elements.saveSummaryImageButton.click();
+    await vi.waitFor(() => {
+      expect(page.summaryImage.savedFiles).toHaveLength(savedBefore + 1);
+    });
+  }
+
+  /** The texts the page wrote on the image. */
+  function imageTexts(page: TestPage): string[] {
+    return page.summaryImage.context.writtenTexts();
+  }
+
+  /** Ticks or unticks "hide names" the way a click does. */
+  function setHideNames(page: TestPage, isChecked: boolean): void {
+    page.elements.hideNamesCheckbox.checked = isChecked;
+    page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+  }
+
+  /**
+   * A file that runs from 14 March 2023 to 20 June 2024. Ana and Bob both
+   * wrote in 2023; in 2024 Bob wrote alone.
+   */
+  function fileOverTwoYears(): File {
+    const lines = [
+      iphoneLine({ date: '14/03/2023', time: '10:00:00', sender: 'Ana', text: 'spring plans' }),
+      iphoneLine({ date: '14/03/2023', time: '10:01:00', sender: 'Bob', text: 'count me in' }),
+      iphoneLine({ date: '31/12/2023', time: '23:00:00', sender: 'Ana', text: 'happy new year' }),
+      iphoneLine({ date: '01/01/2024', time: '00:05:00', sender: 'Bob', text: 'same to you' }),
+      iphoneLine({ date: '20/06/2024', time: '18:00:00', sender: 'Bob', text: 'anybody there' }),
+    ];
+    return new File([exportText(lines)], 'WhatsApp Chat with Two years.txt');
+  }
+
+  it('draws nothing until the button is pressed', () => {
+    const page = startTestPage();
+
+    expect(page.summaryImage.surfaceSizes).toEqual([]);
+    expect(page.summaryImage.savedFiles).toEqual([]);
+  });
+
+  it('saves one PNG file of the chat on display, the example at first', async () => {
+    const page = startTestPage();
+
+    await saveImage(page);
+
+    expect(page.summaryImage.savedFiles.map((savedFile) => savedFile.fileName)).toEqual([
+      'chat-summary.png',
+    ]);
+    expect(page.summaryImage.surfaceSizes).toEqual([[1080, 1350]]);
+    expect(imageTexts(page)).toEqual(
+      expect.arrayContaining(['Marta and Diego (example)', 'Marta', 'Diego', 'MOST ACTIVE']),
+    );
+  });
+
+  it('writes the title, the period, the total and the people of a loaded file', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfAna(), 'Ana');
+
+    await saveImage(page);
+
+    expect(imageTexts(page)).toEqual(
+      expect.arrayContaining([
+        'Ana',
+        '31 Dec 2023 to 31 Dec 2023 · 1 day',
+        '2',
+        'messages',
+        '1 · 50%',
+        'Bob',
+        'BUSIEST DAY',
+        '31 Dec 2023',
+        '2 messages',
+      ]),
+    );
+  });
+
+  it('does not read the file again', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfAna(), 'Ana');
+
+    await saveImage(page);
+
+    expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+  });
+
+  it('leaves the status line empty once the file is saved', async () => {
+    const page = startTestPage();
+
+    await saveImage(page);
+
+    await vi.waitFor(() => {
+      expect(page.elements.statusLine.hidden).toBe(true);
+    });
+  });
+
+  it('says that it is drawing while it draws', () => {
+    const page = startTestPage();
+
+    page.elements.saveSummaryImageButton.click();
+
+    expect(page.elements.statusLine.textContent).toBe(DRAWING_SUMMARY_IMAGE_STATUS);
+    expect(page.elements.statusLine.classList.contains('busy')).toBe(true);
+  });
+
+  it('writes neutral labels and a neutral title while names are hidden', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfAna(), 'Ana');
+    setHideNames(page, true);
+
+    await saveImage(page);
+
+    /* Whole words only: the footer of the image names the "Analyzer". */
+    const texts = imageTexts(page);
+    expect(texts).toEqual(expect.arrayContaining(['A chat', 'Person A', 'Person B']));
+    expect(texts.join(' ')).not.toMatch(/\b(Ana|Bob)\b/u);
+    expect(page.summaryImage.savedFiles[0]?.fileName).not.toMatch(/\b(Ana|Bob)\b/u);
+  });
+
+  it('asks for the fonts with the labels, not with the names, while names are hidden', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfAna(), 'Ana');
+    setHideNames(page, true);
+
+    await saveImage(page);
+
+    const requestedTexts = page.summaryImage.fontRequests.map((fontRequest) => fontRequest.text);
+    expect(requestedTexts.join(' ')).toContain('Person A');
+    expect(requestedTexts.join(' ')).not.toMatch(/\b(Ana|Bob)\b/u);
+  });
+
+  it('writes the names again once they are shown again', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfAna(), 'Ana');
+    setHideNames(page, true);
+    setHideNames(page, false);
+
+    await saveImage(page);
+
+    expect(imageTexts(page)).toEqual(expect.arrayContaining(['Ana', 'Bob']));
+    expect(imageTexts(page)).not.toContain('Person A');
+  });
+
+  it('draws the period on display, not the whole chat', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOverTwoYears(), 'Two years');
+    page.elements.periodSelect.value = 'year-2024';
+    page.elements.periodSelect.dispatchEvent(new Event('change'));
+    await vi.waitFor(() => {
+      expect(reportPeriod(page)).toBe('1 Jan 2024 to 20 Jun 2024 · 172 days');
+    });
+
+    await saveImage(page);
+
+    const texts = imageTexts(page);
+    expect(texts).toEqual(
+      expect.arrayContaining(['Two years', '1 Jan 2024 to 20 Jun 2024 · 172 days', 'Bob']),
+    );
+    /* Ana wrote in 2023 only. */
+    expect(texts).not.toContain('Ana');
+    expect(texts).toContain('2 · 100%');
+  });
+
+  it('draws a new image each time the button is pressed', async () => {
+    const page = startTestPage();
+
+    await saveImage(page);
+    await saveImage(page);
+
+    expect(page.summaryImage.savedFiles).toHaveLength(2);
+  });
+
+  it('says so and saves nothing in a browser that cannot draw', async () => {
+    const page = startTestPage({ summaryImage: { canDraw: false } });
+
+    page.elements.saveSummaryImageButton.click();
+
+    await waitForStatus(page, SUMMARY_IMAGE_FAILED_STATUS);
+    expect(page.elements.statusLine.classList.contains('busy')).toBe(false);
+    expect(page.summaryImage.savedFiles).toEqual([]);
+  });
+
+  it('says so when the browser refuses the download', async () => {
+    const page = startTestPage();
+    vi.spyOn(page.summaryImage.services, 'saveFile').mockImplementation(() => {
+      throw new Error('downloads are blocked');
+    });
+
+    page.elements.saveSummaryImageButton.click();
+
+    await waitForStatus(page, SUMMARY_IMAGE_FAILED_STATUS);
+  });
+
+  it('keeps the report on display whatever happens to the image', async () => {
+    const page = startTestPage({ summaryImage: { canEncode: false } });
+    await loadFile(page, fileOfAna(), 'Ana');
+
+    page.elements.saveSummaryImageButton.click();
+    await waitForStatus(page, SUMMARY_IMAGE_FAILED_STATUS);
+
+    expect(reportTitle(page)).toBe('Ana');
   });
 });
 
