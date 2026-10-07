@@ -1,17 +1,18 @@
-# Builds the page and publishes dist/ to GitHub Pages.
+# Builds the page and publishes dist/ to GitHub Pages at
+# https://nicolasfeoli.github.io/whatsapp-chat-analyzer/
 #
-# GitHub Pages is NOT enabled on this repository yet, so this workflow only runs
-# when someone starts it by hand from the Actions tab; nothing triggers it on a
-# push. Before the first run: Settings > Pages > Source > "GitHub Actions".
-# Until then the deploy job fails without publishing anything.
+# Runs on every push to main, so the live page always matches the branch, and
+# can also be started by hand from the Actions tab. The build job runs the same
+# `npm run check` gate as CI; a commit that fails it is not published.
 #
-# Read "Before going public" in ROADMAP.md first. GitHub Pages cannot send HTTP
-# headers, so the Content-Security-Policy stays a <meta> tag with the gaps
-# listed under "Known limits".
+# GitHub Pages cannot send HTTP headers, so the Content-Security-Policy stays a
+# <meta> tag with the gaps listed under "Known limits" in ROADMAP.md.
 
 name: Deploy to GitHub Pages
 
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 # Nothing is granted at the top level; each job asks for what it needs.
