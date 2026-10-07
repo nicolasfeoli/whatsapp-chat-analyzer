@@ -749,6 +749,68 @@ describe('a file with markup in its name and in its messages', () => {
   });
 });
 
+describe('hiding names for a screenshot', () => {
+  /** Ticks or unticks the checkbox the way a click does. */
+  function setHideNames(page: TestPage, isChecked: boolean): void {
+    page.elements.hideNamesCheckbox.checked = isChecked;
+    page.elements.hideNamesCheckbox.dispatchEvent(new Event('change'));
+  }
+
+  it('starts unticked, with the names on display', () => {
+    const page = startTestPage();
+
+    expect(page.elements.hideNamesCheckbox.checked).toBe(false);
+    expect(reportTitle(page)).toBe('Marta and Diego (example)');
+  });
+
+  it('replaces the title, the names and the message texts when ticked', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfAna(), 'Ana');
+
+    setHideNames(page, true);
+
+    const report = page.elements.reportContainer;
+    expect(reportTitle(page)).toBe('A chat');
+    expect(textsOfElements(report, '.legend span')).toEqual(['Person A', 'Person B']);
+    expect(textsOfElements(report, '.bubble-text')).toEqual(['Message hidden', 'Message hidden']);
+    expect(report.textContent).not.toContain('Ana');
+    expect(report.textContent).not.toContain('happy new year');
+  });
+
+  it('brings the names back when unticked, without reading the file again', async () => {
+    const page = startTestPage();
+    await loadFile(page, fileOfAna(), 'Ana');
+    setHideNames(page, true);
+
+    setHideNames(page, false);
+
+    expect(reportTitle(page)).toBe('Ana');
+    expect(textsOfElements(page.elements.reportContainer, '.legend span')).toEqual(['Ana', 'Bob']);
+    expect(page.analyseOnMainThread).toHaveBeenCalledOnce();
+  });
+
+  it('keeps hiding names for the next file that is loaded', async () => {
+    const page = startTestPage();
+    setHideNames(page, true);
+
+    chooseFile(page, fileOfAna());
+    await vi.waitFor(() => {
+      expect(page.elements.parseReport.hidden).toBe(false);
+    });
+
+    expect(reportTitle(page)).toBe('A chat');
+    expect(page.elements.reportContainer.textContent).not.toContain('Ana');
+  });
+
+  it('draws the timeline of the report without names', () => {
+    const page = startTestPage();
+
+    setHideNames(page, true);
+
+    expect(page.elements.reportContainer.querySelectorAll('#timeline svg')).toHaveLength(1);
+  });
+});
+
 describe('closing the file picker without choosing a file', () => {
   it('leaves the page as it is', () => {
     const scriptedClient = createScriptedClient();

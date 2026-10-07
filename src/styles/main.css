@@ -211,6 +211,10 @@ button {
   gap: 12px 16px;
   align-items: center;
 }
+label.loader-row {
+  gap: 8px;
+  cursor: pointer;
+}
 .button {
   background: var(--accent);
   color: var(--on-accent);
@@ -426,46 +430,53 @@ td:first-child {
   gap: 8px;
 }
 
-/* reply grid */
-.reply-grid {
+/* grid of people by people */
+.person-grid {
   width: auto;
   border-collapse: separate;
   border-spacing: 2px;
 }
-.reply-grid th,
-.reply-grid td {
+.person-grid th,
+.person-grid td {
   border-bottom: 0;
 }
-.reply-grid tbody td {
+.person-grid tbody td {
   min-width: 56px;
   border-radius: 6px;
   background: var(--surface-2);
   font-family: var(--mono);
   font-size: 13px;
 }
-.reply-grid tbody .reply-grid-own {
+.person-grid tbody .person-grid-own {
   background: none;
   color: var(--muted);
   text-align: center;
 }
-.reply-grid th {
+.person-grid th {
   text-transform: none;
   letter-spacing: 0;
   font-size: 13px;
   color: var(--ink-2);
 }
-.reply-grid .reply-grid-name {
+.person-grid .person-grid-name {
   display: block;
   max-width: 150px;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.reply-grid thead .reply-grid-name {
+.person-grid thead .person-grid-name {
   max-width: 84px;
 }
-.reply-grid .colour-swatch {
+.person-grid .colour-swatch {
   display: inline-block;
   margin-right: 8px;
+}
+
+.catchphrases {
+  margin-top: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* timeline */

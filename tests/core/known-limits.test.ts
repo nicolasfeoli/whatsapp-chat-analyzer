@@ -20,7 +20,6 @@ import { analyseChatExport } from '../../src/core/index';
 import { parseChat } from '../../src/core/parsing/parse-chat';
 import { androidLine, exportText, iphoneLine } from '../fixtures/export-lines';
 import { localTime, sendersOf, textsOf } from '../fixtures/messages';
-import { LEFT_TO_RIGHT_MARK } from '../fixtures/special-characters';
 
 /** U+2019, the curly apostrophe an iPhone keyboard types by default. */
 const RIGHT_SINGLE_QUOTATION_MARK = String.fromCodePoint(0x2019);
@@ -66,16 +65,15 @@ describe('known limits of the parser', () => {
       expect(parseChat(rawText).messages[0]?.kind).toBe('text');
     });
 
-    it('does not count the caption of a photo, on the same line or the next, as typed words', () => {
+    it('does not count a caption written on the lines after the placeholder as typed words', () => {
       const rawText = exportText([
-        `[31/12/2023, 22:00:00] Ana: happy birthday ${LEFT_TO_RIGHT_MARK}image omitted`,
-        'and many more',
+        androidLine({ sender: 'Ana', text: 'IMG-20231231-WA0001.jpg (file attached)' }),
+        'happy birthday',
       ]);
 
       const [message] = parseChat(rawText).messages;
 
-      expect(message?.kind).toBe('media');
-      expect(message?.text).toBe('image omitted');
+      expect(message).toMatchObject({ kind: 'media', caption: '' });
     });
   });
 

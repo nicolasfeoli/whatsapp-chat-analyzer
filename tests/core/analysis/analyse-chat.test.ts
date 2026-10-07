@@ -682,6 +682,235 @@ describe('analyseChat', () => {
     });
   });
 
+  describe('captions of media', () => {
+    it('counts the words and emojis of a caption for its sender and for the chat', () => {
+      const messages = [
+        mediaMessage({
+          sender: 'Ana',
+          text: 'image omitted',
+          caption: `happy birthday Bob ${PARTY_POPPER}`,
+        }),
+      ];
+
+      const analysis = analyseMessages(messages);
+      const ana = findPerson(analysis, 'Ana');
+
+      expect(ana.wordCount).toBe(3);
+      expect(ana.emojiCount).toBe(1);
+      expect([...ana.wordCounts.keys()]).toEqual(['happy', 'birthday', 'bob']);
+      expect([...analysis.wordCounts.keys()]).toEqual(['happy', 'birthday', 'bob']);
+      expect(analysis.emojiCounts).toEqual(new Map([[PARTY_POPPER, 1]]));
+    });
+
+    it('still counts the message as media and not as typed text', () => {
+      const messages = [
+        mediaMessage({ sender: 'Ana', text: 'image omitted', caption: 'happy birthday' }),
+      ];
+
+      const ana = findPerson(analyseMessages(messages), 'Ana');
+
+      expect(ana.mediaCount).toBe(1);
+      expect(ana.textMessageCount).toBe(0);
+      expect(ana.mediaCountsByType).toEqual(new Map([['photo', 1]]));
+    });
+
+    it('goes by the placeholder for the type of media, whatever the caption says', () => {
+      const messages = [
+        mediaMessage({ sender: 'Ana', text: 'image omitted', caption: 'my best video' }),
+      ];
+
+      const ana = findPerson(analyseMessages(messages), 'Ana');
+
+      expect(ana.mediaCountsByType).toEqual(new Map([['photo', 1]]));
+    });
+
+    it('does not let a caption be the longest message', () => {
+      const messages = [
+        mediaMessage({
+          sender: 'Ana',
+          sentAt: '2024-01-13 10:00',
+          text: 'image omitted',
+          caption: 'a long caption with a lot of words in it',
+        }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:01', text: 'nice one' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(analysis.longestMessage?.text).toBe('nice one');
+    });
+
+    it('counts nothing for media without a caption', () => {
+      const ana = findPerson(analyseMessages([mediaMessage({ sender: 'Ana' })]), 'Ana');
+
+      expect(ana.wordCount).toBe(0);
+    });
+  });
+
+  describe('mentions', () => {
+    it('counts whom each person mentioned, in typed messages and in captions', () => {
+      const messages = [
+        textMessage({
+          sender: 'Ana',
+          sentAt: '2024-01-13 10:00',
+          text: '@⁨Bob⁩ and @⁨Carla⁩ are you coming?',
+        }),
+        mediaMessage({
+          sender: 'Ana',
+          sentAt: '2024-01-13 10:01',
+          text: 'image omitted',
+          caption: 'look @⁨Bob⁩',
+        }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:02', text: 'yes @⁨Ana⁩' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').mentionCountsByName).toEqual(
+        new Map([
+          ['Bob', 2],
+          ['Carla', 1],
+        ]),
+      );
+      expect(findPerson(analysis, 'Bob').mentionCountsByName).toEqual(new Map([['Ana', 1]]));
+    });
+
+    it('does not count the mentioned name among the words of the chat', () => {
+      const messages = [textMessage({ sender: 'Ana', text: '@⁨Bob⁩ dinner tonight' })];
+
+      expect([...analyseMessages(messages).wordCounts.keys()]).toEqual(['dinner', 'tonight']);
+    });
+  });
+
+  describe('signature phrases', () => {
+    /** Ana keeps saying one thing, Bob another; both also say what everybody says. */
+    function messagesWithCatchphrases(): ReturnType<typeof textMessage>[] {
+      const messages: ReturnType<typeof textMessage>[] = [];
+      for (let minute = 10; minute < 40; minute += 1) {
+        const sender = minute % 2 === 0 ? 'Ana' : 'Bob';
+        const catchphrase = sender === 'Ana' ? 'count me in' : 'no way dude';
+        const text = minute % 3 === 0 ? 'good morning everybody' : catchphrase;
+        messages.push(textMessage({ sender, sentAt: `2024-01-13 10:${minute}`, text }));
+      }
+      return messages;
+    }
+
+    it('gives each person the phrases they use far more than the others', () => {
+      const analysis = analyseMessages(messagesWithCatchphrases());
+
+      expect(findPerson(analysis, 'Ana').signaturePhrases).toEqual([
+        { phrase: 'count me in', count: 10 },
+      ]);
+      expect(findPerson(analysis, 'Bob').signaturePhrases).toEqual([
+        { phrase: 'no way dude', count: 10 },
+      ]);
+    });
+
+    it('gives nobody a phrase in a chat with a single sender', () => {
+      const messages = messagesWithCatchphrases().map((message) => ({ ...message, sender: 'Ana' }));
+
+      expect(findPerson(analyseMessages(messages), 'Ana').signaturePhrases).toEqual([]);
+    });
+
+    it('gives no phrase to somebody who only sent media', () => {
+      const messages = [
+        ...messagesWithCatchphrases(),
+        mediaMessage({ sender: 'Carla', sentAt: '2024-01-13 11:00' }),
+      ];
+
+      expect(findPerson(analyseMessages(messages), 'Carla').signaturePhrases).toEqual([]);
+    });
+
+    it('builds phrases from captions too', () => {
+      const messages = messagesWithCatchphrases().map((message) =>
+        message.sender === 'Ana' && message.text === 'count me in'
+          ? mediaMessage({
+              sender: 'Ana',
+              sentAt: '2024-01-13 10:00',
+              text: 'image omitted',
+              caption: 'count me in',
+            })
+          : message,
+      );
+
+      expect(findPerson(analyseMessages(messages), 'Ana').signaturePhrases).toEqual([
+        { phrase: 'count me in', count: 10 },
+      ]);
+    });
+  });
+
+  describe('then and now', () => {
+    it('compares the first year with the latest year of a chat of two years or more', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2021-01-01 10:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2021-06-01 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2021-12-01 10:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2022-07-01 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2023-06-01 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-01 10:00' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+      const ana = findPerson(analysis, 'Ana');
+      const bob = findPerson(analysis, 'Bob');
+
+      expect(analysis.comparisonPeriodInDays).toBe(365);
+      expect([ana.earlyMessageCount, ana.recentMessageCount]).toEqual([2, 0]);
+      expect([bob.earlyMessageCount, bob.recentMessageCount]).toEqual([1, 2]);
+    });
+
+    it('splits a chat shorter than two years in two halves that do not overlap', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-01 10:00' }),
+        textMessage({ sender: 'Ana', sentAt: '2024-02-01 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-03-01 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-04-10 10:00' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+      const earlyCounts = analysis.people.map((person) => person.earlyMessageCount);
+      const recentCounts = analysis.people.map((person) => person.recentMessageCount);
+
+      expect(analysis.comparisonPeriodInDays).toBe(50);
+      expect(earlyCounts.reduce((total, count) => total + count, 0)).toBe(2);
+      expect(recentCounts.reduce((total, count) => total + count, 0)).toBe(2);
+    });
+
+    it('counts the newest message in the latest period and the oldest in the first', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-01 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-06-01 10:00' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').earlyMessageCount).toBe(1);
+      expect(findPerson(analysis, 'Bob').recentMessageCount).toBe(1);
+    });
+
+    it('does not compare a chat of less than sixty days', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-01 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-02-28 10:00' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(analysis.comparisonPeriodInDays).toBe(0);
+      expect(findPerson(analysis, 'Ana').earlyMessageCount).toBe(0);
+      expect(findPerson(analysis, 'Bob').recentMessageCount).toBe(0);
+    });
+
+    it('compares a chat of exactly sixty days', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-03-01 10:00' }),
+        textMessage({ sender: 'Bob', sentAt: '2024-04-30 10:00' }),
+      ];
+
+      expect(analyseMessages(messages).comparisonPeriodInDays).toBe(30);
+    });
+  });
+
   describe('who replies to whom', () => {
     it('credits a reply to whoever wrote the message just before it', () => {
       const messages = [

@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   createPersonStatisticsAccumulator,
   incrementCount,
+  recordCaption,
   recordTextMessage,
   sortPeopleByMessageCount,
 } from '../../../src/core/analysis/person-statistics';
@@ -22,6 +23,8 @@ function textStatistics(overrides: Partial<MessageTextStatistics> = {}): Message
     wordCount: 0,
     significantWords: [],
     containsLaugh: false,
+    mentionedNames: [],
+    phrases: [],
     ...overrides,
   };
 }
@@ -47,6 +50,10 @@ describe('createPersonStatisticsAccumulator', () => {
       laughingMessageCount: 0,
       nightMessageCount: 0,
       replyDelaysInMilliseconds: [],
+      mentionCountsByName: new Map<string, number>(),
+      signaturePhrases: [],
+      earlyMessageCount: 0,
+      recentMessageCount: 0,
       conversationsStartedCount: 0,
       conversationsEndedCount: 0,
       unansweredQuestionCount: 0,
@@ -197,6 +204,67 @@ describe('recordTextMessage', () => {
       turnCount: 0,
       conversationsStartedCount: 0,
     });
+  });
+});
+
+describe('recordCaption', () => {
+  it('adds the links, words and emojis of a caption to the totals', () => {
+    const person = createPersonStatisticsAccumulator('Ana');
+
+    recordCaption(
+      person,
+      textStatistics({
+        linkCount: 1,
+        wordCount: 3,
+        emojis: [PARTY_POPPER, PARTY_POPPER],
+        significantWords: ['happy', 'birthday'],
+      }),
+    );
+
+    expect(person.linkCount).toBe(1);
+    expect(person.wordCount).toBe(3);
+    expect(person.emojiCount).toBe(2);
+    expect(person.emojiCounts).toEqual(new Map([[PARTY_POPPER, 2]]));
+    expect(person.wordCounts).toEqual(
+      new Map([
+        ['happy', 1],
+        ['birthday', 1],
+      ]),
+    );
+  });
+
+  it('counts the people mentioned in a caption', () => {
+    const person = createPersonStatisticsAccumulator('Ana');
+
+    recordCaption(person, textStatistics({ mentionedNames: ['Bob', 'Bob', 'Carla'] }));
+
+    expect(person.mentionCountsByName).toEqual(
+      new Map([
+        ['Bob', 2],
+        ['Carla', 1],
+      ]),
+    );
+  });
+
+  it('does not count a caption as a typed message, a question or a laugh', () => {
+    const person = createPersonStatisticsAccumulator('Ana');
+
+    recordCaption(person, textStatistics({ containsQuestion: true, containsLaugh: true }));
+
+    expect(person.textMessageCount).toBe(0);
+    expect(person.questionCount).toBe(0);
+    expect(person.laughingMessageCount).toBe(0);
+  });
+});
+
+describe('recordTextMessage, mentions', () => {
+  it('counts the people mentioned in a typed message', () => {
+    const person = createPersonStatisticsAccumulator('Ana');
+
+    recordTextMessage(person, textStatistics({ mentionedNames: ['Bob'] }));
+    recordTextMessage(person, textStatistics({ mentionedNames: ['Bob'] }));
+
+    expect(person.mentionCountsByName).toEqual(new Map([['Bob', 2]]));
   });
 });
 

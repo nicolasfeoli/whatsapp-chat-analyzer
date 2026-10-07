@@ -35,6 +35,10 @@ export function createPersonStatisticsAccumulator(name: string): PersonStatistic
     laughingMessageCount: 0,
     nightMessageCount: 0,
     replyDelaysInMilliseconds: [],
+    mentionCountsByName: new Map<string, number>(),
+    signaturePhrases: [],
+    earlyMessageCount: 0,
+    recentMessageCount: 0,
     conversationsStartedCount: 0,
     conversationsEndedCount: 0,
     unansweredQuestionCount: 0,
@@ -58,6 +62,25 @@ export function incrementCount<Key>(counts: Map<Key, number>, key: Key): void {
 }
 
 /**
+ * Counts each emoji, significant word and mentioned name of a text once more
+ * in the person's tables.
+ */
+function recordEmojisWordsAndMentions(
+  person: PersonStatisticsAccumulator,
+  textStatistics: MessageTextStatistics,
+): void {
+  for (const emoji of textStatistics.emojis) {
+    incrementCount(person.emojiCounts, emoji);
+  }
+  for (const word of textStatistics.significantWords) {
+    incrementCount(person.wordCounts, word);
+  }
+  for (const mentionedName of textStatistics.mentionedNames) {
+    incrementCount(person.mentionCountsByName, mentionedName);
+  }
+}
+
+/**
  * Adds what was found in the text of one typed message to a person's totals.
  *
  * @param person - The totals of the message's sender.
@@ -78,12 +101,28 @@ export function recordTextMessage(
   if (textStatistics.containsLaugh) {
     person.laughingMessageCount += 1;
   }
-  for (const emoji of textStatistics.emojis) {
-    incrementCount(person.emojiCounts, emoji);
-  }
-  for (const word of textStatistics.significantWords) {
-    incrementCount(person.wordCounts, word);
-  }
+  recordEmojisWordsAndMentions(person, textStatistics);
+}
+
+/**
+ * Adds what was found in the caption of one media message to a person's
+ * totals: its links, words, emojis and mentions.
+ *
+ * A caption is not a message of its own, so it does not add to the number of
+ * typed messages, and it is left out of the counts measured against that
+ * number (questions and laughs), which would otherwise exceed it.
+ *
+ * @param person - The totals of the message's sender.
+ * @param captionStatistics - What `analyseMessageText` found in the caption.
+ */
+export function recordCaption(
+  person: PersonStatisticsAccumulator,
+  captionStatistics: MessageTextStatistics,
+): void {
+  person.linkCount += captionStatistics.linkCount;
+  person.wordCount += captionStatistics.wordCount;
+  person.emojiCount += captionStatistics.emojis.length;
+  recordEmojisWordsAndMentions(person, captionStatistics);
 }
 
 /**

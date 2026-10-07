@@ -29,6 +29,8 @@ export interface PageElements {
   readonly dateOrderMessage: HTMLElement;
   /** The "Switch" button that re-reads the file with the other date order. */
   readonly switchDateOrderButton: HTMLButtonElement;
+  /** The checkbox that replaces names by neutral labels and hides message text. */
+  readonly hideNamesCheckbox: HTMLInputElement;
   /** The container the report is rendered into. */
   readonly reportContainer: HTMLElement;
   /** The floating tooltip shared by the charts. */
@@ -73,6 +75,7 @@ export function findPageElements(): PageElements {
     dateOrderRow: getRequiredElement('date-order-row', HTMLElement),
     dateOrderMessage: getRequiredElement('date-order-message', HTMLElement),
     switchDateOrderButton: getRequiredElement('switch-date-order-button', HTMLButtonElement),
+    hideNamesCheckbox: getRequiredElement('hide-names-checkbox', HTMLInputElement),
     reportContainer: getRequiredElement('report', HTMLElement),
     tooltip: getRequiredElement('tooltip', HTMLElement),
   };

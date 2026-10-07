@@ -10,7 +10,7 @@ import {
 import type { ChatAnalysis } from '../../../src/core/types';
 import { chatAnalysis, personStatistics } from '../../fixtures/analysis-builders';
 import { FACE_WITH_TEARS_OF_JOY, FAMILY_MAN_WOMAN_GIRL, RED_HEART } from '../../fixtures/emojis';
-import { parseMarkup, textsOfElements } from '../../fixtures/markup';
+import { findElement, parseMarkup, textsOfElements } from '../../fixtures/markup';
 
 /**
  * Renders the section for an analysis and parses it.
@@ -382,6 +382,76 @@ describe('renderWordsAndEmojisSection', () => {
         'Person 5',
         'Person 6',
       ]);
+    });
+  });
+
+  describe('catchphrases', () => {
+    const withCatchphrases = chatAnalysis({
+      people: [
+        personStatistics({
+          name: 'Ana',
+          messageCount: 60,
+          signaturePhrases: [
+            { phrase: 'count me in', count: 1200 },
+            { phrase: 'no way', count: 8 },
+          ],
+        }),
+        personStatistics({ name: 'Bob', messageCount: 40 }),
+      ],
+    });
+
+    it('lists the phrases of each person who has some, with how often they used them', () => {
+      const block = findElement(renderSection(withCatchphrases), '.catchphrases');
+
+      expect(textsOfElements(block, 'h3')).toEqual(['Catchphrases']);
+      expect(textsOfElements(block, '.person-name')).toEqual(['Ana']);
+      expect(textsOfElements(block, '.chip')).toEqual(['count me in1,200', 'no way8']);
+    });
+
+    it('is left out when nobody has a phrase of their own', () => {
+      const withoutCatchphrases = chatAnalysis({
+        people: [
+          personStatistics({ name: 'Ana', messageCount: 60 }),
+          personStatistics({ name: 'Bob', messageCount: 40 }),
+        ],
+      });
+
+      expect(renderSection(withoutCatchphrases).querySelector('.catchphrases')).toBeNull();
+    });
+
+    it('covers the six people who have a colour and no more', () => {
+      const names = ['Ana', 'Bob', 'Carla', 'Dani', 'Eva', 'Fede', 'Gabi', 'Hugo'];
+      const largeGroup = chatAnalysis({
+        people: names.map((name, index) =>
+          personStatistics({
+            name,
+            messageCount: 100 - index,
+            signaturePhrases: [{ phrase: 'count me in', count: 5 }],
+          }),
+        ),
+      });
+
+      const block = findElement(renderSection(largeGroup), '.catchphrases');
+
+      expect(textsOfElements(block, '.person-name')).toEqual(names.slice(0, 6));
+    });
+
+    it('writes a phrase that is markup as text', () => {
+      const hostilePhrase = '<img src=x onerror=alert(1)>';
+      const hostileChat = chatAnalysis({
+        people: [
+          personStatistics({
+            name: 'Ana',
+            messageCount: 2,
+            signaturePhrases: [{ phrase: hostilePhrase, count: 5 }],
+          }),
+        ],
+      });
+
+      const block = findElement(renderSection(hostileChat), '.catchphrases');
+
+      expect(block.querySelector('img')).toBeNull();
+      expect(textsOfElements(block, '.chip')).toEqual([`${hostilePhrase}5`]);
     });
   });
 

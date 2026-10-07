@@ -68,6 +68,13 @@ export interface TextMessage extends ChatMessageBase {
 /** A placeholder for a photo, video, voice note, sticker, document, poll or location. */
 export interface MediaMessage extends ChatMessageBase {
   readonly kind: 'media';
+  /**
+   * What the sender typed to go with the media, when the export writes it in
+   * front of the placeholder as iPhone does; lines joined with `\n`. Empty
+   * when there is no caption. Its words and emojis are counted for the sender,
+   * but the message itself stays a media message.
+   */
+  readonly caption: string;
 }
 
 /** The tombstone left behind when a message was deleted. */
@@ -147,6 +154,14 @@ export interface ParsedChat {
 /* Analysis                                                                   */
 /* -------------------------------------------------------------------------- */
 
+/** A phrase that one person uses markedly more than the others. */
+export interface SignaturePhrase {
+  /** Two or three lower-cased words separated by single spaces. */
+  readonly phrase: string;
+  /** How many times the person used it. */
+  readonly count: number;
+}
+
 /** Everything counted for one participant. */
 export interface PersonStatistics {
   /** The participant's name as written in the export. */
@@ -164,13 +179,13 @@ export interface PersonStatistics {
   readonly mediaCountsByType: ReadonlyMap<MediaType, number>;
   /** Deleted-message tombstones. */
   readonly deletedCount: number;
-  /** Words typed across all text messages, links excluded. */
+  /** Words typed across all text messages and media captions, links and mentions excluded. */
   readonly wordCount: number;
-  /** Emojis used across all text messages. */
+  /** Emojis used across all text messages and media captions. */
   readonly emojiCount: number;
   /** Text messages that contain a question mark (`?` or `¿`). */
   readonly questionCount: number;
-  /** Links shared (`http://`, `https://` or `www.`). */
+  /** Links shared (`http://`, `https://` or `www.`), in text messages and media captions. */
   readonly linkCount: number;
   /** Text messages that contain at least one written laugh such as "haha" or "jaja". */
   readonly laughingMessageCount: number;
@@ -182,6 +197,21 @@ export interface PersonStatistics {
    * Feed it to `median` for the typical reply time.
    */
   readonly replyDelaysInMilliseconds: readonly number[];
+  /**
+   * How often this person mentioned each name with `@`, keyed by the name as
+   * the export wrote it, in order of first mention. Only iPhone exports mark
+   * mentions in a way that can be read; elsewhere the map is empty.
+   */
+  readonly mentionCountsByName: ReadonlyMap<string, number>;
+  /**
+   * The phrases of two or three words this person uses far more than the
+   * others do, the most distinctive first. Empty in a chat with one sender.
+   */
+  readonly signaturePhrases: readonly SignaturePhrase[];
+  /** Messages this person sent in the first comparison period of the chat; see {@link ChatAnalysis.comparisonPeriodInDays}. */
+  readonly earlyMessageCount: number;
+  /** Messages this person sent in the last comparison period of the chat. */
+  readonly recentMessageCount: number;
   /** Conversations this person opened (the first message, or the first after a long silence). */
   readonly conversationsStartedCount: number;
   /**
@@ -286,6 +316,14 @@ export interface ChatAnalysis {
   readonly conversationCount: number;
   /** Total number of messages. */
   readonly totalMessageCount: number;
+  /**
+   * The length in days of the two periods compared in "then and now": the
+   * first so many days of the chat and the last so many. It is one year for a
+   * chat of two years or more and half the chat for a shorter one. Zero when
+   * the chat is too short to compare, in which case every person's early and
+   * recent counts are zero too.
+   */
+  readonly comparisonPeriodInDays: number;
   /** Whether the export records seconds or only minutes; the page rounds reply times accordingly. */
   readonly timestampResolution: TimestampResolution;
 }

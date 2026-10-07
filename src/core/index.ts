@@ -62,6 +62,7 @@ export type {
   ParsedChat,
   ParseReport,
   PersonStatistics,
+  SignaturePhrase,
   TextMessage,
   TimestampResolution,
   WeekdayHourHeatmap,

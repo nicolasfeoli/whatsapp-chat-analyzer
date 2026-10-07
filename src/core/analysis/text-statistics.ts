@@ -19,6 +19,17 @@ export interface MessageTextStatistics {
   readonly significantWords: readonly string[];
   /** Whether at least one word is a written laugh. */
   readonly containsLaugh: boolean;
+  /**
+   * The names mentioned with `@`, in order of appearance, repeats included.
+   * A mentioned name is not counted among the words.
+   */
+  readonly mentionedNames: readonly string[];
+  /**
+   * Every run of two or three consecutive words on one line that is worth
+   * ranking as a phrase: lower-cased, no laughs, and at least one word that is
+   * significant. Repeats included.
+   */
+  readonly phrases: readonly string[];
 }
 
 /**
@@ -34,6 +45,17 @@ const SHORTEST_SIGNIFICANT_WORD_LENGTH = 3;
  * `?` inside a query string does not make the message a question.
  */
 const LINK_PATTERN = /https?:\/\/\S+|www\.\S+/gi;
+
+/**
+ * A mention as an iPhone export writes it: `@`, then the name between the
+ * invisible isolate marks U+2068 and U+2069. The name is captured. Android
+ * writes a mention as `@` and a phone number with nothing around it, which
+ * cannot be told apart from typed text and is left alone.
+ */
+const MENTION_PATTERN = /@\u2068(?<name>[^\u2068\u2069\n]+)\u2069/gu;
+
+/** Phrases are made of this many consecutive words. */
+const PHRASE_LENGTHS: readonly number[] = [2, 3];
 
 /** A question mark, including the opening one Spanish uses (`¿`). */
 const QUESTION_MARK_PATTERN = /[?¿]/;
@@ -106,6 +128,34 @@ export function removeLinks(text: string): string {
 }
 
 /**
+ * Lists the names mentioned with `@` in a text.
+ *
+ * @param text - The text of a message.
+ * @returns Every mentioned name, trimmed, in order of appearance, repeats included.
+ */
+export function extractMentionedNames(text: string): string[] {
+  const mentionedNames: string[] = [];
+  for (const mention of text.matchAll(MENTION_PATTERN)) {
+    const name = mention.groups?.['name']?.trim() ?? '';
+    if (name !== '') {
+      mentionedNames.push(name);
+    }
+  }
+  return mentionedNames;
+}
+
+/**
+ * Replaces every mention in a text with a space, so the name of the person
+ * mentioned is not counted as a word the sender likes to use.
+ *
+ * @param text - The text of a message.
+ * @returns The text without its mentions.
+ */
+export function removeMentions(text: string): string {
+  return text.replace(MENTION_PATTERN, ' ');
+}
+
+/**
  * Lists the emojis of a text, treating flags, keycaps, families and skin-tone
  * variants as one emoji each.
  *
@@ -150,14 +200,52 @@ function isSignificantWord(lowerCasedWord: string): boolean {
 }
 
 /**
- * Counts everything of interest in the text of one typed message.
+ * Tells whether a run of consecutive words is worth ranking as a phrase: it
+ * holds no laugh, and at least one of its words would be ranked on its own.
+ * "see you later" qualifies; "of the" and "haha yes" do not.
+ */
+function isPhraseWorthRanking(words: readonly string[]): boolean {
+  if (words.some(isLaugh)) {
+    return false;
+  }
+  return words.some(isSignificantWord);
+}
+
+/**
+ * Lists the phrases of a text: every run of two or three consecutive words on
+ * the same line that is worth ranking. A phrase never runs across a line
+ * break, where one thought ends and the next begins.
  *
- * @param text - The complete text of a message of kind `text`.
- * @returns Links, question, emojis, words and laughs found in it.
+ * @param text - Any text, ideally with links and mentions already removed.
+ * @returns The phrases, lower-cased with single spaces, repeats included.
+ */
+export function extractPhrases(text: string): string[] {
+  const phrases: string[] = [];
+  for (const line of text.split('\n')) {
+    const words = extractWords(line);
+    for (const phraseLength of PHRASE_LENGTHS) {
+      for (let start = 0; start + phraseLength <= words.length; start += 1) {
+        const phraseWords = words.slice(start, start + phraseLength);
+        if (isPhraseWorthRanking(phraseWords)) {
+          phrases.push(phraseWords.join(' '));
+        }
+      }
+    }
+  }
+  return phrases;
+}
+
+/**
+ * Counts everything of interest in something a person typed.
+ *
+ * @param text - The complete text of a message of kind `text`, or the caption
+ *   of a media message.
+ * @returns Links, question, emojis, words, laughs, mentions and phrases found in it.
  */
 export function analyseMessageText(text: string): MessageTextStatistics {
   const linkCount = countLinks(text);
-  const textWithoutLinks = removeLinks(text);
+  const mentionedNames = extractMentionedNames(text);
+  const textWithoutLinks = removeMentions(removeLinks(text));
   const words = extractWords(textWithoutLinks);
 
   const significantWords: string[] = [];
@@ -179,5 +267,7 @@ export function analyseMessageText(text: string): MessageTextStatistics {
     wordCount: words.length,
     significantWords,
     containsLaugh,
+    mentionedNames,
+    phrases: extractPhrases(textWithoutLinks),
   };
 }

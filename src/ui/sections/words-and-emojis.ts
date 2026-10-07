@@ -1,9 +1,10 @@
 /**
  * The "Words and emojis" section: the most used words and emojis of the whole
- * chat, and for each person the words that set them apart from the others.
+ * chat, and for each person the words and the phrases that set them apart
+ * from the others.
  */
 
-import type { ChatAnalysis, PersonStatistics } from '../../core/index';
+import type { ChatAnalysis, PersonStatistics, SignaturePhrase } from '../../core/index';
 import { renderHorizontalBars } from '../charts/horizontal-bars';
 import type { HorizontalBarRow } from '../charts/horizontal-bars';
 import { EMPTY_HTML, escapeHtml, html, joinHtml } from '../html';
@@ -189,6 +190,41 @@ function renderSignatureWords(analysis: ChatAnalysis, personColours: PersonColou
 }
 
 /**
+ * Draws the catchphrases of one person, or nothing when they have none.
+ */
+function renderCatchphraseRow(person: PersonStatistics, personColours: PersonColours): SafeHtml {
+  if (person.signaturePhrases.length === 0) {
+    return EMPTY_HTML;
+  }
+
+  const chipsHtml = joinHtml(
+    person.signaturePhrases.map((signaturePhrase: SignaturePhrase): SafeHtml =>
+      renderChip(signaturePhrase.phrase, formatWholeNumber(signaturePhrase.count)),
+    ),
+  );
+  const nameHtml = html`<div class="person-name">${renderSwatchAndName(personColours, person.name)}</div>`;
+  return html`<div class="signature-row">${nameHtml}<div class="chips">${chipsHtml}</div></div>`;
+}
+
+/**
+ * Draws the "Catchphrases" block for the coloured people. Empty when nobody
+ * has a phrase of their own, as in a chat with a single sender.
+ */
+function renderCatchphrases(analysis: ChatAnalysis, personColours: PersonColours): SafeHtml {
+  const rowsHtml = joinHtml(
+    selectColouredPeople(analysis.people).map((person: PersonStatistics): SafeHtml =>
+      renderCatchphraseRow(person, personColours),
+    ),
+  );
+  if (rowsHtml === EMPTY_HTML) {
+    return EMPTY_HTML;
+  }
+
+  const captionHtml = html`<p class="hint">Phrases of two or three words each person uses far more than the others.</p>`;
+  return html`<div class="catchphrases"><h3>Catchphrases</h3>${captionHtml}<div class="signature-words">${rowsHtml}</div></div>`;
+}
+
+/**
  * Draws the "Words and emojis" section.
  *
  * @param analysis - The analysed chat.
@@ -208,5 +244,6 @@ export function renderWordsAndEmojisSection(
 
   const wordsColumnHtml = html`<div><h3>Most used words</h3>${renderMostUsedWords(analysis)}</div>`;
   const emojisColumnHtml = html`<div><h3>Most used emojis</h3>${emojisHtml}${signatureWordsHtml}</div>`;
-  return html`<section>${headingHtml}<div class="two-columns">${wordsColumnHtml}${emojisColumnHtml}</div></section>`;
+  const catchphrasesHtml = renderCatchphrases(analysis, personColours);
+  return html`<section>${headingHtml}<div class="two-columns">${wordsColumnHtml}${emojisColumnHtml}</div>${catchphrasesHtml}</section>`;
 }
