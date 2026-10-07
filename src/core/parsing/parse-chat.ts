@@ -33,13 +33,15 @@ interface DatedMessages {
 }
 
 /**
- * Builds the final message for an entry whose timestamp is known.
+ * Builds the final message for an entry whose timestamp is known. The note of
+ * an edited message is taken out of the text and kept as a flag instead.
  */
 function createMessage(entry: ExportEntry, timestamp: Date): ChatMessage {
   const messageBase = {
     timestamp,
     sender: entry.sender,
     text: removeEditedMessageSuffix(entry.text),
+    isEdited: entry.isEdited,
   };
   if (entry.kind === 'media') {
     return { ...messageBase, kind: 'media', caption: entry.caption };

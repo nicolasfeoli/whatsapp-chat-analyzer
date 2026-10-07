@@ -5,6 +5,7 @@ import {
   classifyMessageBody,
   findTrailingMarkedPlaceholder,
   isSystemNoticeSender,
+  hasEditedMessageSuffix,
   removeEditedMessageSuffix,
   splitSenderAndText,
 } from '../../../src/core/parsing/message-classification';
@@ -510,6 +511,37 @@ describe('classifyMessageBody', () => {
 
       expect(classifyMessageBody(text, ON_ANDROID)).toBe('system-notice');
     });
+  });
+});
+
+describe('hasEditedMessageSuffix', () => {
+  it.each([
+    { language: 'English', text: 'fixed it <This message was edited>' },
+    { language: 'Spanish', text: 'fixed it <Se editó este mensaje.>' },
+    { language: 'Spanish without the full stop', text: 'fixed it <Se editó este mensaje>' },
+    { language: 'English followed by white space', text: 'fixed it <This message was edited>  ' },
+  ])('finds the note in $language', ({ text }) => {
+    expect(hasEditedMessageSuffix(text)).toBe(true);
+  });
+
+  it('finds the note at the end of the last line of several', () => {
+    expect(hasEditedMessageSuffix('first line\nsecond line <This message was edited>')).toBe(true);
+  });
+
+  it('finds none in a message nobody edited', () => {
+    expect(hasEditedMessageSuffix('nothing to see here')).toBe(false);
+  });
+
+  it('ignores the words of the note when they are not at the end', () => {
+    expect(hasEditedMessageSuffix('<This message was edited> is what it said')).toBe(false);
+  });
+
+  it('ignores the words of the note without their angle brackets', () => {
+    expect(hasEditedMessageSuffix('this message was edited')).toBe(false);
+  });
+
+  it('does not know the note of a language other than English and Spanish', () => {
+    expect(hasEditedMessageSuffix('corrigé <Ce message a été modifié>')).toBe(false);
   });
 });
 

@@ -185,6 +185,36 @@ describe('analyseChat', () => {
       });
     });
 
+    it('counts the messages of each participant that were edited, whatever their kind', () => {
+      const messages = [
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00', isEdited: true }),
+        textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:01' }),
+        mediaMessage({
+          sender: 'Ana',
+          sentAt: '2024-01-13 10:02',
+          caption: 'the lake',
+          isEdited: true,
+        }),
+        textMessage({ sender: 'Bob', sentAt: '2024-01-13 10:03' }),
+      ];
+
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').editedMessageCount).toBe(2);
+      expect(findPerson(analysis, 'Bob').editedMessageCount).toBe(0);
+    });
+
+    it('still counts an edited message among the messages and the typed ones', () => {
+      const messages = [textMessage({ sender: 'Ana', text: 'two words', isEdited: true })];
+
+      expect(findPerson(analyseMessages(messages), 'Ana')).toMatchObject({
+        messageCount: 1,
+        textMessageCount: 1,
+        wordCount: 2,
+        editedMessageCount: 1,
+      });
+    });
+
     it('treats names that differ only in letter case as different participants', () => {
       const messages = [
         textMessage({ sender: 'Ana', sentAt: '2024-01-13 10:00' }),
@@ -503,6 +533,7 @@ describe('analyseChat', () => {
         timestamp: new Date(firstMinute + index * MILLISECONDS_PER_MINUTE),
         sender: index % 2 === 0 ? 'Ana' : 'Bob',
         text: 'hello',
+        isEdited: false,
       }));
     }
 

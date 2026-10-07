@@ -41,6 +41,7 @@ export function personStatistics(parts: PersonStatisticsParts): PersonStatistics
     mediaCount: 0,
     mediaCountsByType: new Map<MediaType, number>(),
     deletedCount: 0,
+    editedMessageCount: 0,
     wordCount: 0,
     emojiCount: 0,
     questionCount: 0,

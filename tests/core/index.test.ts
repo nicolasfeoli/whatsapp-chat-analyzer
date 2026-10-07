@@ -279,6 +279,11 @@ describe('an iPhone export from the United States', () => {
     expect(textsOf(result.analysis.messages)).toContain('fixed it');
   });
 
+  it('counts that message as edited for Ana, and none for Bob', () => {
+    expect(findPerson(result.analysis, 'Ana').editedMessageCount).toBe(1);
+    expect(findPerson(result.analysis, 'Bob').editedMessageCount).toBe(0);
+  });
+
   it('reads 1:12 PM as hour 13', () => {
     expect(result.analysis.firstMessageTimestamp).toEqual(localTime('2026-08-31 13:12:41'));
   });

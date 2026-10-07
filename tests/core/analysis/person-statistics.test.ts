@@ -48,6 +48,7 @@ describe('createPersonStatisticsAccumulator', () => {
       mediaCount: 0,
       mediaCountsByType: new Map<string, number>(),
       deletedCount: 0,
+      editedMessageCount: 0,
       wordCount: 0,
       emojiCount: 0,
       questionCount: 0,

@@ -1,6 +1,7 @@
 /**
  * The "Who says what" section: a bar per person for their message count, and
- * a table with the detail behind it.
+ * a table with the detail behind it. The table has a column for edited
+ * messages only when the export marks at least one message as edited.
  */
 
 import type { ChatAnalysis, PersonStatistics } from '../../core/index';
@@ -24,8 +25,8 @@ import { renderSectionHeading } from './section-heading';
 /** How many of a person's favourite emojis fit in the last column of the table. */
 const TOP_EMOJIS_PER_PERSON = 4;
 
-/** The column headings of the table, left to right. */
-const TABLE_COLUMN_HEADINGS: readonly string[] = [
+/** The column headings of the table up to the deleted messages, left to right. */
+const LEADING_COLUMN_HEADINGS: readonly string[] = [
   'Person',
   'Messages',
   'Words',
@@ -35,8 +36,18 @@ const TABLE_COLUMN_HEADINGS: readonly string[] = [
   'Questions',
   'Links',
   'Deleted',
-  'Top emojis',
 ];
+
+/**
+ * The heading of the column of edited messages. The column stands after the
+ * deleted messages and is left out of an export that marks no message as
+ * edited, where a column of zeros would read as "nobody ever edits" when the
+ * truth may be that the export does not say.
+ */
+export const EDITED_COLUMN_HEADING = 'Edited';
+
+/** The heading of the last column of the table. */
+const TOP_EMOJIS_COLUMN_HEADING = 'Top emojis';
 
 /** The single space that separates two emojis in the last column of the table. */
 const EMOJI_SEPARATOR: SafeHtml = html` `;
@@ -86,9 +97,35 @@ function renderTopEmojis(person: PersonStatistics): SafeHtml {
 }
 
 /**
+ * Tells whether the export marks any message of the chat as edited, counting
+ * everybody and not only the people the table lists.
+ *
+ * @param people - Everyone in the chat.
+ * @returns `true` when at least one person has an edited message.
+ */
+export function hasEditedMessages(people: readonly PersonStatistics[]): boolean {
+  return people.some((person: PersonStatistics): boolean => person.editedMessageCount > 0);
+}
+
+/**
+ * Lists the column headings of the table, left to right.
+ */
+function listColumnHeadings(showsEditedColumn: boolean): readonly string[] {
+  const editedHeadings = showsEditedColumn ? [EDITED_COLUMN_HEADING] : [];
+  return [...LEADING_COLUMN_HEADINGS, ...editedHeadings, TOP_EMOJIS_COLUMN_HEADING];
+}
+
+/**
  * Draws the table row of one person.
  */
-function renderPersonRow(person: PersonStatistics, personColours: PersonColours): SafeHtml {
+function renderPersonRow(
+  person: PersonStatistics,
+  personColours: PersonColours,
+  showsEditedColumn: boolean,
+): SafeHtml {
+  const editedCells: readonly SafeHtml[] = showsEditedColumn
+    ? [escapeHtml(formatWholeNumber(person.editedMessageCount))]
+    : [];
   const cells: readonly SafeHtml[] = [
     renderSwatchAndName(personColours, person.name),
     escapeHtml(formatWholeNumber(person.messageCount)),
@@ -99,6 +136,7 @@ function renderPersonRow(person: PersonStatistics, personColours: PersonColours)
     escapeHtml(formatWholeNumber(person.questionCount)),
     escapeHtml(formatWholeNumber(person.linkCount)),
     escapeHtml(formatWholeNumber(person.deletedCount)),
+    ...editedCells,
     renderTopEmojis(person),
   ];
   const cellsHtml = joinHtml(cells.map((cell: SafeHtml): SafeHtml => html`<td>${cell}</td>`));
@@ -111,13 +149,16 @@ function renderPersonRow(person: PersonStatistics, personColours: PersonColours)
 function renderPeopleTable(
   featuredPeople: readonly PersonStatistics[],
   personColours: PersonColours,
+  showsEditedColumn: boolean,
 ): SafeHtml {
   const headingsHtml = joinHtml(
-    TABLE_COLUMN_HEADINGS.map((heading: string): SafeHtml => html`<th>${escapeHtml(heading)}</th>`),
+    listColumnHeadings(showsEditedColumn).map(
+      (heading: string): SafeHtml => html`<th>${escapeHtml(heading)}</th>`,
+    ),
   );
   const rowsHtml = joinHtml(
     featuredPeople.map((person: PersonStatistics): SafeHtml =>
-      renderPersonRow(person, personColours),
+      renderPersonRow(person, personColours, showsEditedColumn),
     ),
   );
   return html`<div class="table-wrapper"><table><thead><tr>${headingsHtml}</tr></thead><tbody>${rowsHtml}</tbody></table></div>`;
@@ -146,7 +187,11 @@ export function renderPeopleSection(
     'Messages sent by each person, then the detail behind them.',
   );
   const barsHtml = renderHorizontalBars(bars);
-  const tableHtml = renderPeopleTable(featuredPeople, personColours);
+  const tableHtml = renderPeopleTable(
+    featuredPeople,
+    personColours,
+    hasEditedMessages(analysis.people),
+  );
   const noteHtml = renderPeopleShownNote(featuredPeople.length, analysis.people.length);
   return html`<section>${headingHtml}${barsHtml}${tableHtml}${noteHtml}</section>`;
 }
