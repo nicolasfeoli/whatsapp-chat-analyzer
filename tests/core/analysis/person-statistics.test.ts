@@ -11,6 +11,10 @@ import {
 import type { PersonStatisticsAccumulator } from '../../../src/core/analysis/person-statistics';
 import type { MessageTextStatistics } from '../../../src/core/analysis/text-statistics';
 import { PARTY_POPPER, RED_HEART } from '../../fixtures/emojis';
+import { localTime } from '../../fixtures/messages';
+
+/** When the message that introduces a participant was sent, in the tests that are not about it. */
+const FIRST_MESSAGE_TIME = localTime('2024-01-13 10:00');
 
 /**
  * Builds what `analyseMessageText` would report for a message; anything left
@@ -32,12 +36,12 @@ function textStatistics(overrides: Partial<MessageTextStatistics> = {}): Message
 
 /** Builds the totals of a participant who has sent a given number of messages. */
 function personWithMessageCount(name: string, messageCount: number): PersonStatisticsAccumulator {
-  return { ...createPersonStatisticsAccumulator(name), messageCount };
+  return { ...createPersonStatisticsAccumulator(name, FIRST_MESSAGE_TIME), messageCount };
 }
 
 describe('createPersonStatisticsAccumulator', () => {
   it('starts a participant with their name and every count at zero', () => {
-    expect(createPersonStatisticsAccumulator('Ana')).toEqual({
+    expect(createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME)).toEqual({
       name: 'Ana',
       messageCount: 0,
       textMessageCount: 0,
@@ -52,6 +56,8 @@ describe('createPersonStatisticsAccumulator', () => {
       nightMessageCount: 0,
       messageCountsByHour: new Array<number>(24).fill(0),
       messageCountsByWeekday: new Array<number>(7).fill(0),
+      firstMessageTimestamp: FIRST_MESSAGE_TIME,
+      lastMessageTimestamp: FIRST_MESSAGE_TIME,
       replyDelaysInMilliseconds: [],
       mentionCountsByName: new Map<string, number>(),
       signaturePhrases: [],
@@ -67,9 +73,18 @@ describe('createPersonStatisticsAccumulator', () => {
     });
   });
 
+  it('takes the message that introduces a participant as their first and, so far, their last', () => {
+    const introducedAt = localTime('2023-03-14 08:30');
+
+    const person = createPersonStatisticsAccumulator('Ana', introducedAt);
+
+    expect(person.firstMessageTimestamp).toEqual(introducedAt);
+    expect(person.lastMessageTimestamp).toEqual(introducedAt);
+  });
+
   it('gives every participant their own lists and maps', () => {
-    const ana = createPersonStatisticsAccumulator('Ana');
-    const bob = createPersonStatisticsAccumulator('Bob');
+    const ana = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
+    const bob = createPersonStatisticsAccumulator('Bob', FIRST_MESSAGE_TIME);
 
     ana.replyDelaysInMilliseconds.push(1_000);
     ana.wordCounts.set('pizza', 1);
@@ -79,8 +94,8 @@ describe('createPersonStatisticsAccumulator', () => {
   });
 
   it('gives every participant their own hours and weekdays', () => {
-    const ana = createPersonStatisticsAccumulator('Ana');
-    const bob = createPersonStatisticsAccumulator('Bob');
+    const ana = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
+    const bob = createPersonStatisticsAccumulator('Bob', FIRST_MESSAGE_TIME);
 
     recordHourAndWeekday(ana, 9, 0);
 
@@ -94,7 +109,7 @@ describe('recordHourAndWeekday', () => {
   const SATURDAY_INDEX = 5;
 
   it('counts the message in its hour and on its weekday', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordHourAndWeekday(person, 22, SATURDAY_INDEX);
 
@@ -103,7 +118,7 @@ describe('recordHourAndWeekday', () => {
   });
 
   it('adds up the messages of the same hour on different weekdays', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordHourAndWeekday(person, 22, SATURDAY_INDEX);
     recordHourAndWeekday(person, 22, 0);
@@ -113,7 +128,7 @@ describe('recordHourAndWeekday', () => {
   });
 
   it('leaves the other hours at zero and keeps twenty-four of them', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordHourAndWeekday(person, 0, 6);
     recordHourAndWeekday(person, 23, 6);
@@ -161,7 +176,7 @@ describe('incrementCount', () => {
 
 describe('recordTextMessage', () => {
   it('counts the message as a text message', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(person, textStatistics());
 
@@ -169,7 +184,7 @@ describe('recordTextMessage', () => {
   });
 
   it('adds the links, words and emojis of the message to the totals', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(
       person,
@@ -180,7 +195,7 @@ describe('recordTextMessage', () => {
   });
 
   it('counts a message with a question once, however many question marks it has', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(person, textStatistics({ containsQuestion: true }));
 
@@ -188,7 +203,7 @@ describe('recordTextMessage', () => {
   });
 
   it('counts a message with a laugh once, however many laughs it has', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(person, textStatistics({ containsLaugh: true }));
 
@@ -196,7 +211,7 @@ describe('recordTextMessage', () => {
   });
 
   it('does not count a question or a laugh for a message without one', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(person, textStatistics());
 
@@ -204,7 +219,7 @@ describe('recordTextMessage', () => {
   });
 
   it('counts each emoji as often as it appears', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(person, textStatistics({ emojis: [RED_HEART, PARTY_POPPER, RED_HEART] }));
 
@@ -217,7 +232,7 @@ describe('recordTextMessage', () => {
   });
 
   it('counts each significant word as often as it appears', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(person, textStatistics({ significantWords: ['pizza', 'playa', 'pizza'] }));
 
@@ -230,7 +245,7 @@ describe('recordTextMessage', () => {
   });
 
   it('adds up over several messages', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(person, textStatistics({ wordCount: 3, significantWords: ['pizza'] }));
     recordTextMessage(person, textStatistics({ wordCount: 4, significantWords: ['pizza'] }));
@@ -241,7 +256,7 @@ describe('recordTextMessage', () => {
   });
 
   it('does not touch the counts that depend on when the message was sent', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(person, textStatistics({ wordCount: 3 }));
 
@@ -256,7 +271,7 @@ describe('recordTextMessage', () => {
 
 describe('recordCaption', () => {
   it('adds the links, words and emojis of a caption to the totals', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordCaption(
       person,
@@ -281,7 +296,7 @@ describe('recordCaption', () => {
   });
 
   it('counts the people mentioned in a caption', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordCaption(person, textStatistics({ mentionedNames: ['Bob', 'Bob', 'Carla'] }));
 
@@ -294,7 +309,7 @@ describe('recordCaption', () => {
   });
 
   it('does not count a caption as a typed message, a question or a laugh', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordCaption(person, textStatistics({ containsQuestion: true, containsLaugh: true }));
 
@@ -306,7 +321,7 @@ describe('recordCaption', () => {
 
 describe('recordTextMessage, mentions', () => {
   it('counts the people mentioned in a typed message', () => {
-    const person = createPersonStatisticsAccumulator('Ana');
+    const person = createPersonStatisticsAccumulator('Ana', FIRST_MESSAGE_TIME);
 
     recordTextMessage(person, textStatistics({ mentionedNames: ['Bob'] }));
     recordTextMessage(person, textStatistics({ mentionedNames: ['Bob'] }));

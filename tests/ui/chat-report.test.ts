@@ -248,7 +248,7 @@ describe('renderChatReport', () => {
       expect([...withStickers.wordCounts.keys()]).toEqual(['pizza', 'tonight']);
     });
 
-    it('adds then and now and who mentions whom for a long group chat with mentions', () => {
+    it('adds then and now, who is still here and who mentions whom for a long group chat with mentions', () => {
       const group = analyseExport(
         exportText([
           iphoneLine({ date: '13/01/2022', time: '10:00:00', sender: 'Ana', text: 'dinner?' }),
@@ -271,6 +271,7 @@ describe('renderChatReport', () => {
         'Who says what',
         'Activity over time',
         'Then and now',
+        'Who is still here',
         'When the chat is alive',
         'Replies and openings',
         'Who answers whom',

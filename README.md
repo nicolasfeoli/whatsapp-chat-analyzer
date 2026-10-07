@@ -25,7 +25,7 @@ I wanted to know what one of my group chats looked like from the outside. After 
 WhatsApp can export a chat as a text file, but the file is thousands of lines with no summary. This page turns it into something you can read in a minute and share with the group:
 
 - **Answers to the arguments.** Who writes most, who starts the conversations, who replies fastest, who answers whom, who mentions whom, whose questions are left hanging, and who sends five messages in a row before anyone answers.
-- **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence, and who took over the chat since it began. Pick a year, the last twelve months or any two dates, and the whole report is counted again for just that stretch.
+- **The shape of the chat over time.** When it was busiest, when it went quiet, the longest streak and the longest silence, who took over the chat since it began, and who has not written in a long time. Pick a year, the last twelve months or any two dates, and the whole report is counted again for just that stretch.
 - **Its personality.** The words, catchphrases and emojis each person uses far more than everyone else, who laughs the most in writing, and who sends the stickers, the photos and the voice notes.
 
 A chat is also other people's messages, and they never agreed to have them analysed by a stranger's server. So the page is built so that you do not have to trust it: the file is read inside your browser tab and nothing is uploaded. A switch replaces the names with neutral labels and hides message text before you share a screenshot. In a large group the report lists the most active people, and another switch lists everyone. Whoever is left out can still be looked up: one section shows a single person of your choice up close, with their numbers, the hours and weekdays they write in, their words, and whom they answer and mention most.
@@ -93,7 +93,7 @@ The dev server relaxes `connect-src` to its own WebSocket so hot reload works. `
 ## Tests
 
 ```sh
-npm test               # Vitest, 2,030 tests in 64 files
+npm test               # Vitest, 2,077 tests in 65 files
 npm run test:coverage  # the same, with a coverage report in coverage/
 npm run check          # type check, lint, formatting, tests with coverage, build
 ```

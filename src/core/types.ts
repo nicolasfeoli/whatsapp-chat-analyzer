@@ -205,6 +205,14 @@ export interface PersonStatistics {
    * {@link PersonStatistics.messageCount}.
    */
   readonly messageCountsByWeekday: readonly number[];
+  /** When this person's oldest message of any kind was sent. */
+  readonly firstMessageTimestamp: Date;
+  /**
+   * When this person's newest message of any kind was sent. Compare it with
+   * {@link ChatAnalysis.lastMessageTimestamp} for how long they had been
+   * silent when the export was made.
+   */
+  readonly lastMessageTimestamp: Date;
   /**
    * One entry per reply: the time in milliseconds between someone else's
    * message and this person's answer, when it came within twelve hours.

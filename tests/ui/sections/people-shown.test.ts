@@ -24,6 +24,7 @@ import { renderPeopleSection } from '../../../src/ui/sections/people';
 import { renderRepliesSection } from '../../../src/ui/sections/replies';
 import { renderReplyPairsSection } from '../../../src/ui/sections/reply-pairs';
 import { renderThenAndNowSection } from '../../../src/ui/sections/then-and-now';
+import { renderWhoIsStillHereSection } from '../../../src/ui/sections/who-is-still-here';
 import { renderWordsAndEmojisSection } from '../../../src/ui/sections/words-and-emojis';
 import { chatAnalysis, personStatistics } from '../../fixtures/analysis-builders';
 import { parseMarkup, textsOfElements } from '../../fixtures/markup';
@@ -62,6 +63,8 @@ const analysis = chatAnalysis({
   people: tenPeople,
   conversationCount: 50,
   comparisonPeriodInDays: 365,
+  /* Long enough for "Who is still here", which needs 180 days. */
+  spanInDays: 400,
 });
 const personColours = assignPersonColours(analysis.people);
 
@@ -119,6 +122,11 @@ const sectionCases: readonly SectionCase[] = [
   {
     name: 'Then and now',
     render: (peopleShown) => renderThenAndNowSection(analysis, personColours, peopleShown),
+    defaultNote: EIGHT_OF_TEN_NOTE,
+  },
+  {
+    name: 'Who is still here',
+    render: (peopleShown) => renderWhoIsStillHereSection(analysis, personColours, peopleShown),
     defaultNote: EIGHT_OF_TEN_NOTE,
   },
   {
