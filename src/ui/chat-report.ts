@@ -14,6 +14,7 @@ import { joinHtml } from './html';
 import type { SafeHtml } from './html';
 import { assignPersonColours } from './person-colours';
 import { renderAwardsSection } from './sections/awards';
+import { renderCalendarSection } from './sections/calendar';
 import { DEFAULT_PEOPLE_SHOWN } from './sections/featured-people';
 import type { PeopleShown } from './sections/featured-people';
 import { renderConversationEndingsSection } from './sections/conversation-endings';
@@ -74,6 +75,7 @@ export function renderChatReport(
     renderPeopleSection(analysis, personColours, peopleShown),
     renderMediaTypesSection(analysis, personColours, peopleShown),
     renderTimelineSection(timeline.granularity),
+    renderCalendarSection(analysis),
     renderThenAndNowSection(analysis, personColours, peopleShown),
     renderWhoIsStillHereSection(analysis, personColours, peopleShown),
     renderHeatmapSection(analysis),

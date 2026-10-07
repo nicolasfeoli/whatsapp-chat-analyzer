@@ -21,6 +21,7 @@ import type {
 } from '../core/index';
 import { ANONYMOUS_CHAT_TITLE, anonymiseAnalysis } from './anonymise';
 import type { AnalysisClient, AnalysisOutcome, MainThreadAnalysis } from './analysis-client';
+import { attachCalendarTooltips } from './charts/calendar';
 import { attachHeatmapTooltips } from './charts/heatmap';
 import { drawTimeline } from './charts/timeline';
 import type { TimelineData } from './charts/timeline-buckets';
@@ -279,6 +280,7 @@ class PageController {
 
     this.drawDisplayedTimeline();
     attachHeatmapTooltips(this.pageElements.reportContainer, this.tooltip);
+    attachCalendarTooltips(this.pageElements.reportContainer, this.tooltip);
     this.connectPersonProfileChooser(analysis, drawnAnalysis);
   }
 
