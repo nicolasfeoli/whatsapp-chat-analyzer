@@ -572,6 +572,71 @@ describe('analyseChat', () => {
     });
   });
 
+  describe("each person's active days and longest streak", () => {
+    const messages = [
+      textMessage({ sender: 'Ana', sentAt: '2024-01-01 09:00' }),
+      textMessage({ sender: 'Ana', sentAt: '2024-01-01 21:00' }),
+      textMessage({ sender: 'Bob', sentAt: '2024-01-01 21:05' }),
+      mediaMessage({ sender: 'Ana', sentAt: '2024-01-02 23:59' }),
+      textMessage({ sender: 'Bob', sentAt: '2024-01-03 00:01' }),
+      deletedMessage({ sender: 'Ana', sentAt: '2024-01-03 08:00' }),
+      textMessage({ sender: 'Ana', sentAt: '2024-01-10 08:00' }),
+      textMessage({ sender: 'Ana', sentAt: '2024-01-11 08:00' }),
+      textMessage({ sender: 'Ana', sentAt: '2024-01-12 08:00' }),
+      textMessage({ sender: 'Bob', sentAt: '2024-01-12 09:00' }),
+    ];
+
+    it('counts the days a person wrote on once each, whatever kind of message it was', () => {
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').activeDayCount).toBe(6);
+      expect(findPerson(analysis, 'Bob').activeDayCount).toBe(3);
+    });
+
+    it('finds the longest run of consecutive days of each person, not of the chat', () => {
+      const analysis = analyseMessages(messages);
+
+      expect(findPerson(analysis, 'Ana').longestStreak).toEqual({
+        lengthInDays: 3,
+        from: localMidnight('2024-01-01'),
+        to: localMidnight('2024-01-03'),
+      });
+      expect(findPerson(analysis, 'Bob').longestStreak).toEqual({
+        lengthInDays: 1,
+        from: localMidnight('2024-01-01'),
+        to: localMidnight('2024-01-01'),
+      });
+    });
+
+    it('keeps the earlier of two equally long runs', () => {
+      const ana = findPerson(analyseMessages(messages), 'Ana');
+
+      expect(ana.longestStreak.to).toEqual(localMidnight('2024-01-03'));
+    });
+
+    it('goes by the time of the messages, not by their order in the file', () => {
+      const analysis = analyseMessages([...messages].reverse());
+
+      expect(findPerson(analysis, 'Ana').longestStreak.lengthInDays).toBe(3);
+      expect(findPerson(analysis, 'Ana').activeDayCount).toBe(6);
+    });
+
+    it('gives somebody who wrote once a streak of that one day', () => {
+      const analysis = analyseMessages([
+        textMessage({ sender: 'Carla', sentAt: '2024-05-05 12:00' }),
+      ]);
+
+      expect(findPerson(analysis, 'Carla')).toMatchObject({
+        activeDayCount: 1,
+        longestStreak: {
+          lengthInDays: 1,
+          from: localMidnight('2024-05-05'),
+          to: localMidnight('2024-05-05'),
+        },
+      });
+    });
+  });
+
   describe("each person's first and last message", () => {
     const messages = [
       textMessage({ sender: 'Ana', sentAt: '2023-03-14 09:00' }),

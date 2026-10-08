@@ -56,6 +56,12 @@ export function personStatistics(parts: PersonStatisticsParts): PersonStatistics
     messageCountsByWeekday: new Array<number>(WEEKDAY_COUNT).fill(0),
     firstMessageTimestamp: localTime(DEFAULT_PERSON_MESSAGE_TIME),
     lastMessageTimestamp: localTime(DEFAULT_PERSON_MESSAGE_TIME),
+    activeDayCount: 1,
+    longestStreak: {
+      lengthInDays: 1,
+      from: localMidnight('2024-01-13'),
+      to: localMidnight('2024-01-13'),
+    },
     replyDelaysInMilliseconds: [],
     mentionCountsByName: new Map<string, number>(),
     signaturePhrases: [],

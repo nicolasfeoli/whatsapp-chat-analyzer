@@ -23,9 +23,15 @@ import type {
   ChatMilestone,
   GroupEvent,
   LongestSilence,
+  LongestStreak,
   TimestampResolution,
 } from '../types';
-import { findBusiestDay, findLongestStreak, keepLongerSilence } from './activity-records';
+import {
+  continueStreak,
+  findBusiestDay,
+  findLongestStreak,
+  keepLongerSilence,
+} from './activity-records';
 import { identifyMediaType } from './media-type';
 import {
   completeMilestones,
@@ -110,6 +116,11 @@ interface ChatTotals {
   readonly phraseCounts: Map<string, number>;
   /** How often each person used each phrase, by the person's name. */
   readonly phraseCountsByName: Map<string, Map<string, number>>;
+  /**
+   * The run of consecutive active days each person is in at this point of the
+   * walk, by name. A person's longest run is kept in their statistics.
+   */
+  readonly openStreaksByName: Map<string, LongestStreak>;
   longestMessage: ChatMessage | null;
   longestMessageWordCount: number;
   longestSilence: LongestSilence | null;
@@ -162,6 +173,7 @@ function createChatTotals(firstTimestamp: Date, lastTimestamp: Date): ChatTotals
     linkSiteCounts: new Map<string, number>(),
     phraseCounts: new Map<string, number>(),
     phraseCountsByName: new Map<string, Map<string, number>>(),
+    openStreaksByName: new Map<string, LongestStreak>(),
     longestMessage: null,
     longestMessageWordCount: 0,
     longestSilence: null,
@@ -295,8 +307,31 @@ function recordTypedTextInChatTables(
 }
 
 /**
+ * Counts the day of a message as an active day of its sender, unless they
+ * already wrote that day, and keeps their longest run of such days. A later
+ * run of the same length does not replace an earlier one.
+ */
+function recordActiveDay(
+  totals: ChatTotals,
+  person: PersonStatisticsAccumulator,
+  timestamp: Date,
+): void {
+  const openStreak = totals.openStreaksByName.get(person.name) ?? null;
+  const continuedStreak = continueStreak(openStreak, startOfDay(timestamp));
+  if (continuedStreak === openStreak) {
+    return;
+  }
+  totals.openStreaksByName.set(person.name, continuedStreak);
+  person.activeDayCount += 1;
+  if (continuedStreak.lengthInDays > person.longestStreak.lengthInDays) {
+    person.longestStreak = continuedStreak;
+  }
+}
+
+/**
  * Counts a message towards the hour of the week and the calendar day it was
- * sent on, and towards its sender's hours, weekdays and night messages.
+ * sent on, and towards its sender's hours, weekdays, night messages and
+ * active days.
  */
 function recordWhenMessageWasSent(
   totals: ChatTotals,
@@ -316,6 +351,7 @@ function recordWhenMessageWasSent(
     countNightMessageInTrends(totals.trends);
   }
   incrementCount(totals.messageCountsByDayKey, dayKeyFromDate(timestamp));
+  recordActiveDay(totals, person, timestamp);
 }
 
 /**

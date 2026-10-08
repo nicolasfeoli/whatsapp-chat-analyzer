@@ -18,6 +18,7 @@ import {
 } from '../../../src/ui/sections/person-profile';
 import { chatAnalysis, personStatistics } from '../../fixtures/analysis-builders';
 import { RED_HEART } from '../../fixtures/emojis';
+import { localMidnight } from '../../fixtures/messages';
 import { findElement, parseMarkup, tagNamesIn, textsOfElements } from '../../fixtures/markup';
 
 /**
@@ -350,7 +351,7 @@ describe('renderPersonProfile', () => {
   describe('the numbers', () => {
     const facts = readFacts(renderProfile(group, ana));
 
-    it('lists the nine numbers in a fixed order', () => {
+    it('lists the eleven numbers in a fixed order', () => {
       expect(Object.keys(facts)).toEqual([
         'Messages',
         'Words per message',
@@ -361,7 +362,28 @@ describe('renderPersonProfile', () => {
         'Conversations started',
         'Had the last word',
         'At night',
+        'Longest streak',
+        'Days active',
       ]);
+    });
+
+    it('shows the longest streak with its dates and the days active against the span of the chat', () => {
+      const regular = personStatistics({
+        name: 'Ana',
+        messageCount: 60,
+        activeDayCount: 40,
+        longestStreak: {
+          lengthInDays: 12,
+          from: localMidnight('2024-03-03'),
+          to: localMidnight('2024-03-14'),
+        },
+      });
+      const chat = chatAnalysis({ people: [regular], spanInDays: 200 });
+
+      const streakFacts = readFacts(renderProfile(chat, regular));
+
+      expect(streakFacts['Longest streak']).toEqual(['12 days', '3 Mar 2024 to 14 Mar 2024']);
+      expect(streakFacts['Days active']).toEqual(['40', 'of the 200 days the chat spans']);
     });
 
     it('shows the messages with their share of the chat', () => {

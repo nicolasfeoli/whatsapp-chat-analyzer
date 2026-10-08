@@ -34,6 +34,7 @@ import {
 } from './featured-people';
 import { normaliseMentionedName } from './mentions';
 import { formatWordsPerMessage } from './people';
+import { formatStreakDates, formatStreakLength } from './person-streaks';
 import { SMALLEST_GROUP_SIZE, replyCountBetween } from './reply-pairs';
 import { renderSectionHeading } from './section-heading';
 import { findSignatureWords, renderChip } from './words-and-emojis';
@@ -215,6 +216,16 @@ function listProfileFacts(person: PersonStatistics, analysis: ChatAnalysis): Pro
       detail: `of ${formatWholeNumber(endedConversationCount)} that ended`,
     },
     describeNightMessages(person),
+    {
+      label: 'Longest streak',
+      value: formatStreakLength(person.longestStreak),
+      detail: formatStreakDates(person.longestStreak),
+    },
+    {
+      label: 'Days active',
+      value: formatWholeNumber(person.activeDayCount),
+      detail: `of the ${formatCountWithNoun(analysis.spanInDays, 'day', 'days')} the chat spans`,
+    },
   ];
 }
 
