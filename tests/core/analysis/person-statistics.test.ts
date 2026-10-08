@@ -11,6 +11,7 @@ import {
 import type { PersonStatisticsAccumulator } from '../../../src/core/analysis/person-statistics';
 import type { MessageTextStatistics } from '../../../src/core/analysis/text-statistics';
 import { PARTY_POPPER, RED_HEART } from '../../fixtures/emojis';
+import { localMidnight } from '../../fixtures/messages';
 import { localTime } from '../../fixtures/messages';
 
 /** When the message that introduces a participant was sent, in the tests that are not about it. */
@@ -66,6 +67,12 @@ describe('createPersonStatisticsAccumulator', () => {
       messageCountsByWeekday: new Array<number>(7).fill(0),
       firstMessageTimestamp: FIRST_MESSAGE_TIME,
       lastMessageTimestamp: FIRST_MESSAGE_TIME,
+      activeDayCount: 0,
+      longestStreak: {
+        lengthInDays: 0,
+        from: localMidnight('2024-01-13'),
+        to: localMidnight('2024-01-13'),
+      },
       replyDelaysInMilliseconds: [],
       mentionCountsByName: new Map<string, number>(),
       signaturePhrases: [],

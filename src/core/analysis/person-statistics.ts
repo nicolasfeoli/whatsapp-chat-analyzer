@@ -4,6 +4,7 @@
  */
 
 import type { Mutable } from '../mutable';
+import { startOfDay } from '../formatting';
 import { DAYS_PER_WEEK, HOURS_PER_DAY } from '../time-constants';
 import type { MediaType, PersonStatistics } from '../types';
 import type { MessageTextStatistics } from './text-statistics';
@@ -21,7 +22,8 @@ export type PersonStatisticsAccumulator = Mutable<PersonStatistics>;
  * @param name - The participant's name as written in the export.
  * @param firstMessageTimestamp - When the message that introduces them was
  *   sent. Until a later message is recorded it is their last message too.
- * @returns Totals with every count at zero.
+ * @returns Totals with every count at zero. The longest streak is an empty
+ *   run on the day of that message until their first active day is recorded.
  */
 export function createPersonStatisticsAccumulator(
   name: string,
@@ -49,6 +51,12 @@ export function createPersonStatisticsAccumulator(
     messageCountsByWeekday: new Array<number>(DAYS_PER_WEEK).fill(0),
     firstMessageTimestamp,
     lastMessageTimestamp: firstMessageTimestamp,
+    activeDayCount: 0,
+    longestStreak: {
+      lengthInDays: 0,
+      from: startOfDay(firstMessageTimestamp),
+      to: startOfDay(firstMessageTimestamp),
+    },
     replyDelaysInMilliseconds: [],
     mentionCountsByName: new Map<string, number>(),
     signaturePhrases: [],

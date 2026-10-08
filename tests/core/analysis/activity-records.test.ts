@@ -1,12 +1,13 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 import {
+  continueStreak,
   findBusiestDay,
   findLongestStreak,
   keepLongerSilence,
 } from '../../../src/core/analysis/activity-records';
 import { MILLISECONDS_PER_HOUR } from '../../../src/core/time-constants';
-import type { ChatMessage, LongestSilence } from '../../../src/core/types';
+import type { ChatMessage, LongestSilence, LongestStreak } from '../../../src/core/types';
 import { localMidnight, localTime, textMessage } from '../../fixtures/messages';
 
 /**
@@ -16,6 +17,44 @@ import { localMidnight, localTime, textMessage } from '../../fixtures/messages';
 function oneMessageOnEachOf(dayKeys: readonly number[]): Map<number, number> {
   return new Map(dayKeys.map((dayKey) => [dayKey, 1]));
 }
+
+describe('continueStreak', () => {
+  const threeDays: LongestStreak = {
+    lengthInDays: 3,
+    from: localMidnight('2024-02-27'),
+    to: localMidnight('2024-02-29'),
+  };
+
+  it('opens a run of one day on the first active day', () => {
+    const day = localMidnight('2024-01-13');
+
+    expect(continueStreak(null, day)).toEqual({ lengthInDays: 1, from: day, to: day });
+  });
+
+  it('returns the very same run for another message on its last day', () => {
+    expect(continueStreak(threeDays, localMidnight('2024-02-29'))).toBe(threeDays);
+  });
+
+  it('makes the run a day longer for the day after, across the end of a month', () => {
+    expect(continueStreak(threeDays, localMidnight('2024-03-01'))).toEqual({
+      lengthInDays: 4,
+      from: localMidnight('2024-02-27'),
+      to: localMidnight('2024-03-01'),
+    });
+  });
+
+  it('opens a new run after a day without a message', () => {
+    const day = localMidnight('2024-03-02');
+
+    expect(continueStreak(threeDays, day)).toEqual({ lengthInDays: 1, from: day, to: day });
+  });
+
+  it('does not change the run it was given', () => {
+    continueStreak(threeDays, localMidnight('2024-03-01'));
+
+    expect(threeDays.lengthInDays).toBe(3);
+  });
+});
 
 describe('findLongestStreak', () => {
   it('returns null when no day is active', () => {

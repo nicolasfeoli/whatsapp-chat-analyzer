@@ -30,6 +30,7 @@ import {
   DEFAULT_PROFILED_PERSON_INDEX,
   renderPersonProfileSection,
 } from './sections/person-profile';
+import { renderPersonStreaksSection } from './sections/person-streaks';
 import { renderRecordsSection } from './sections/records';
 import { renderRepliesSection } from './sections/replies';
 import { renderReplyPairsSection } from './sections/reply-pairs';
@@ -79,6 +80,7 @@ export function renderChatReport(
     renderMediaTypesSection(analysis, personColours, peopleShown),
     renderTimelineSection(timeline.granularity),
     renderCalendarSection(analysis),
+    renderPersonStreaksSection(analysis, personColours, peopleShown),
     renderThenAndNowSection(analysis, personColours, peopleShown),
     renderTrendsSection(analysis, personColours),
     renderWhoIsStillHereSection(analysis, personColours, peopleShown),

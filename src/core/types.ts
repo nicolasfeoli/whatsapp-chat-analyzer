@@ -366,6 +366,13 @@ export interface PersonStatistics {
    * silent when the export was made.
    */
   readonly lastMessageTimestamp: Date;
+  /** Calendar days on which this person sent at least one message. */
+  readonly activeDayCount: number;
+  /**
+   * This person's longest run of consecutive calendar days with at least one
+   * message of their own; the earliest run when several are equally long.
+   */
+  readonly longestStreak: LongestStreak;
   /**
    * One entry per reply: the time in milliseconds between someone else's
    * message and this person's answer, when it came within twelve hours.

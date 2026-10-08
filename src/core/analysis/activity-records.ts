@@ -46,6 +46,30 @@ export function findLongestStreak(
 }
 
 /**
+ * Continues a run of consecutive active days with one more active day, for
+ * days that arrive oldest first.
+ *
+ * @param openStreak - The run that was open before this day, or `null` when
+ *   this is the first active day.
+ * @param day - Midnight at the start of the active day.
+ * @returns The same run when the day is already its last day, the run made a
+ *   day longer when the day follows it, and otherwise a new run of one day.
+ */
+export function continueStreak(openStreak: LongestStreak | null, day: Date): LongestStreak {
+  if (openStreak === null) {
+    return { lengthInDays: 1, from: day, to: day };
+  }
+  const daysSinceLastActiveDay = calendarDaysBetween(openStreak.to, day);
+  if (daysSinceLastActiveDay <= 0) {
+    return openStreak;
+  }
+  if (daysSinceLastActiveDay === 1) {
+    return { lengthInDays: openStreak.lengthInDays + 1, from: openStreak.from, to: day };
+  }
+  return { lengthInDays: 1, from: day, to: day };
+}
+
+/**
  * Finds the calendar day with the most messages. When several days tie, the
  * one that comes first in the map wins.
  *
